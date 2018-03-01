@@ -1,5 +1,4 @@
-# rxrs
-Reactive Extensions for Rust
+# rxrs - Reactive Extensions for Rust
 
 # Work In Progress 
 

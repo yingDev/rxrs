@@ -25,3 +25,24 @@ src
     ├── atomic_option.rs
     └── mod.rs
 ```
+
+# Exapmple
+
+```rust
+#[test]
+fn hello_world()
+{
+    let mut result = "".to_owned();
+
+    rxfac::create(|o|
+    {
+        o.next("hello");
+        o.next("world");
+        o.complete();
+        UnsubRef::empty()
+
+    }).take(1).map(|s| s.to_uppercase()).sub_scoped(|s:String| result.push_str(&s));
+
+    assert_eq!(result, "HELLO");
+}
+```

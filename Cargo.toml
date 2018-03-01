@@ -1,0 +1,6 @@
+[package]
+name = "rxrs"
+version = "0.1.0"
+authors = ["YingDev <ying@yingDev.com>"]
+
+[dependencies]

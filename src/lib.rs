@@ -17,3 +17,32 @@ pub mod op;
 pub mod fac;
 pub mod unsub_ref;
 pub mod util;
+
+#[cfg(test)]
+mod test
+{
+    use super::*;
+    use fac::rxfac;
+    use observable::*;
+    use unsub_ref::*;
+    use op::*;
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn hello_world()
+    {
+        let mut result = "".to_owned();
+
+        rxfac::create(|o|
+        {
+            o.next("hello");
+            o.next("world");
+            o.complete();
+            UnsubRef::empty()
+
+        }).take(1).map(|s| s.to_uppercase()).sub_scoped(|s:String| result.push_str(&s));
+
+        assert_eq!(result, "HELLO");
+    }
+}

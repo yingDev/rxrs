@@ -14,6 +14,7 @@ src
 │   ├── filter.rs
 │   ├── map.rs
 │   ├── mod.rs
+│   ├── skip.rs
 │   ├── take.rs
 │   └── take_until.rs
 ├── subject.rs
@@ -23,6 +24,7 @@ src
     ├── arc_cell.rs
     ├── atomic_option.rs
     └── mod.rs
+
 ```
 
 # Exapmple

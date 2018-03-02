@@ -27,7 +27,7 @@ src
 
 ```
 
-# Exapmple
+# Example
 
 ```rust
 #[test]

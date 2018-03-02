@@ -32,17 +32,19 @@ mod test
     #[test]
     fn hello_world()
     {
-        let mut result = "".to_owned();
+        let mut result = String::new();
 
-        rxfac::create(|o|
+        let src = rxfac::create(|o|
         {
             o.next("hello");
             o.next("world");
             o.complete();
             UnsubRef::empty()
+        });
 
-        }).take(1).map(|s| s.to_uppercase()).sub_scoped(|s:String| result.push_str(&s));
+        src.rx().take(1).map(|s| s.to_uppercase()).sub_scoped(|s:String| result.push_str(&s));
+        src.rx().skip(1).sub_scoped(|s| result.push_str(s));
 
-        assert_eq!(result, "HELLO");
+        assert_eq!(result, "HELLOworld");
     }
 }

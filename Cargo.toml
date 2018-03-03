@@ -1,4 +1,6 @@
 [package]
+description="Reactive Extensions for Rust"
+license="MIT"
 name = "rxrs"
 version = "0.1.0-alpha0"
 authors = ["YingDev <ying@yingDev.com>"]

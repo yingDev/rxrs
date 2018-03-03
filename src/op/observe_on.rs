@@ -83,7 +83,7 @@ impl<Src, V:'static+Send+Sync, Sch> Observable< V> for ObserveOn<Src, V, Sch> wh
         let mut s = Arc::new(Subscriber::new(ObserveOnState{ scheduler: self.scheduler.clone(), subscriber: Weak::new() }, dest, false));
         let weak = Arc::downgrade(&s);
 
-        unsafe { *((&s._state.subscriber as * const Weak<_>) as *mut _) = weak; }
+        unsafe { *((&s._state.subscriber as *const _) as *mut _) = weak; }
 
         self.source.sub(s)
     }
@@ -102,8 +102,9 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).take(3).observe_on(Arc::new(NewThreadScheduler::new())).map(|v| format!("*{}*", v)).subf(|v| println!("{} on thread {:?}", v, thread::current().id()), (),
-                                                                                         | | println!("complete on thread {:?}", thread::current().id()));
+        rxfac::range(0..10).observe_on(Arc::new(NewThreadScheduler::new())).take(3).map(|v| format!("*{}*", v))
+            .subf(|v| println!("{} on thread {:?}", v, thread::current().id()), (),
+                  | | println!("complete on thread {:?}", thread::current().id()));
 
         thread::sleep(::std::time::Duration::from_millis(1000));
     }

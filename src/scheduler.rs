@@ -7,6 +7,7 @@ pub trait Scheduler
     fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>;
 }
 
+//fixme: naive implementations ...
 
 pub struct ImScheduler;
 

@@ -52,6 +52,11 @@ impl<'a> UnsubRef<'a>
         }
     }
 
+    pub fn signal() -> UnsubRef<'static>
+    {
+        UnsubRef::fromFn(||{})
+    }
+
     pub fn scoped<'s>() -> UnsubRef<'s>
     {
         UnsubRef { state: Arc::new(

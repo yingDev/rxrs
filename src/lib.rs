@@ -17,6 +17,7 @@ pub mod op;
 pub mod fac;
 pub mod unsub_ref;
 pub mod util;
+pub mod scheduler;
 
 #[cfg(test)]
 mod test

@@ -84,15 +84,10 @@ impl<V:Clone> NormalState<V>
 
             let (mut newObs, toRemove) :(Vec<Record<V>>, Vec<Record<V>>) = Arc::as_ref(&self.obs.get()).clone().into_iter().partition(|r| !r.disposed.load(Ordering::Acquire));
             for r in toRemove {
-                println!("removing observer...");
                 r.sub.unsub();
             }
 
-            for r in toAdd{
-                println!("add observer...");
-
-                newObs.push(r);
-            }
+            newObs.extend(toAdd);
 
             self.obs.set(Arc::new(newObs));
 

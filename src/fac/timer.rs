@@ -8,9 +8,9 @@ use unsub_ref::*;
 use fac::*;
 use scheduler::Scheduler;
 
-fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler>) -> impl Observable<usize>
+fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<usize>
 {
-    fn recurse(dur: Duration, count: AtomicUsize, scheduler: Arc<impl Scheduler>, dest: Arc<Observer<usize>>, sig: UnsubRef<'static>)
+    fn recurse(dur: Duration, count: AtomicUsize, scheduler: Arc<impl Scheduler+Send+Sync+'static>, dest: Arc<Observer<usize>+Send+Sync>, sig: UnsubRef<'static>)
     {
         let scheduler2 = scheduler.clone();
 
@@ -49,13 +49,32 @@ fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler>) -> i
 mod test
 {
     use super::*;
-    use scheduler::ImScheduler;
+    use scheduler::*;
     use observable::*;
     use op::*;
 
     #[test]
     fn timer_basic()
     {
-        timer(Duration::from_millis(100), Duration::from_millis(100), Arc::new(ImScheduler{})).take(10).subn(|v|  println!("{}", v));
+        timer(Duration::from_millis(100), Duration::from_millis(100), Arc::new(ImScheduler::new())).take(10).subn(|v|  println!("{}", v));
+    }
+
+    #[test]
+    fn new_thread()
+    {
+        use ::std::sync::Condvar;
+        use ::std::sync::Mutex;
+
+        let pair = Arc::new((Mutex::new(false), Condvar::new()));
+        let pair2 = pair.clone();
+
+        timer(Duration::from_millis(100), Duration::from_millis(100), Arc::new(NewThreadScheduler::new())).take(10).subf(|v|  println!("{}", v), (), move || {
+            let &(ref lock, ref cvar) = &*pair2;
+            *lock.lock().unwrap() = true;
+                cvar.notify_one();
+        });
+
+        let &(ref lock, ref cvar) = &*pair;
+        cvar.wait(lock.lock().unwrap());
     }
 }

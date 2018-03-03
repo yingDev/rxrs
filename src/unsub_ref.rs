@@ -104,9 +104,14 @@ impl<'a> UnsubRef<'a>
         if self.state.disposed.load(Ordering::SeqCst) {
             unsub.into().unsub();
         }else {
+            let un = unsub.into();
+            if un.disposed() { return self; }
+
             loop{
                 if let Some(mut lst) = self.state.extra.take(Ordering::SeqCst){
-                    lst.push_back(unsub.into());
+                    if ! un.disposed() {
+                        lst.push_back(un);
+                    }
                     self.state.extra.swap(lst, Ordering::SeqCst);
                     break;
                 }

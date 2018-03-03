@@ -6,6 +6,7 @@ use unsub_ref::*;
 use std::sync::Arc;
 use std::marker::PhantomData;
 use std::boxed::FnBox;
+use util::AtomicOption;
 
 pub trait Observable< V>
 {
@@ -123,24 +124,40 @@ impl<V> Observer<V> for ScopedObserver<V>
 unsafe impl<V> Sync for ScopedObserver<V>{}
 unsafe impl<V> Send for ScopedObserver<V>{}
 
-pub struct ByrefOp<'a,V:'a>
+pub struct ByrefOp<'a, V: 'static>
 {
-    source: &'a Observable<  V>,
+    source: &'a Observable<V>,
 }
-pub trait ObservableByref<'a,V, Src>
+
+pub trait ObservableByref<'a, V, Src>
 {
     fn byref(&'a self) -> ByrefOp<'a, V>;
     fn rx(&'a self) -> ByrefOp<'a, V>{ self.byref() }
 }
 
-impl<'a, V, Src> ObservableByref<'a, V, Src> for Src where Src : Observable<  V>
+impl<'a, V, Src> ObservableByref<'a, V, Src> for Src where Src : Observable<V>
 {
-    fn byref(&'a self) -> ByrefOp<'a, V> { ByrefOp{ source: self } }
+    fn byref(&'a self) -> ByrefOp<'a, V>
+    {
+        ByrefOp{ source: self }
+    }
 }
 
-impl<'a,V> Observable<  V> for ByrefOp<'a, V>
+//impl<'b, V, Src> ObservableByref<'static, 'b, V, Src> for Arc<Src> where Src : Observable<V>+Send+Sync+'static
+//{
+//    fn byref(&'b self) -> ByrefOp<'static, V>
+//    {
+//        let clone = self.clone();
+//        ByrefOp{ arc: Some(clone), source: None, PhantomData }
+//    }
+//}
+
+impl<'a, V> Observable<  V> for ByrefOp<'a,  V>
 {
-    #[inline] fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static> { self.source.sub(dest) }
+    #[inline] fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    {
+        self.source.sub(dest)
+    }
 }
 
 impl<V, F : Fn(V)> Observer<V> for F

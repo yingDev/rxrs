@@ -22,6 +22,7 @@ fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler+Send+S
 
         scheduler.schedule_after(dur, move ||{
             recurse(dur, count, scheduler2, dest, sig);
+            UnsubRef::empty()
         });
     }
 
@@ -31,16 +32,16 @@ fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler+Send+S
         let scheduler2 = scheduler.clone();
         let sig = UnsubRef::signal();
         let sig2 = sig.clone();
+        let sig3 = sig.clone();
 
         scheduler.schedule_after(delay, move || {
 
-            if o2._is_closed() || sig2.disposed() { return; }
+            if o2._is_closed() || sig2.disposed() { return sig2; }
 
             o2.next(count.fetch_add(1, Ordering::SeqCst));
             recurse(period, count, scheduler2, o2, sig2);
-        });
-
-        sig
+            return sig3;
+        })
     })
 }
 

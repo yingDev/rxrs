@@ -17,10 +17,6 @@ pub struct SubOnOp<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Schedu
     PhantomData: PhantomData<V>
 }
 
-struct SubOnState
-{
-}
-
 pub trait ObservableSubOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
     fn sub_on(self, scheduler: Arc<Sch>) -> SubOnOp<Src, V, Sch> ;

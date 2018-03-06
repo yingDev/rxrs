@@ -5,13 +5,21 @@ pub trait Scheduler
 {
     fn schedule(&self, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>;
     fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>;
+
     fn schedule_periodic(&self, period: Duration,sigStop: UnsubRef<'static>, act: impl Send+'static+Fn()) -> UnsubRef<'static>
     {
         unimplemented!()
     }
+    fn schedule_long_running(&self, sigStop: UnsubRef<'static>, act: impl Send+'static+FnOnce()) -> UnsubRef<'static>
+    {
+        if sigStop.disposed() { return sigStop; }
+        self.schedule(||{
+            if sigStop.disposed() { return sigStop; }
+            act();
+            sigStop
+        })
+    }
 }
-
-//fixme: naive implementations ...
 
 pub struct ImmediateScheduler;
 
@@ -35,7 +43,8 @@ impl Scheduler for ImmediateScheduler
 
     fn schedule_periodic(&self, period: Duration, sigStop: UnsubRef<'static>, act: impl Send+'static+Fn()) -> UnsubRef<'static>
     {
-        while ! sigStop.disposed(){
+        while ! sigStop.disposed()
+        {
             ::std::thread::sleep(period);
             if sigStop.disposed() {
                 break;
@@ -67,7 +76,7 @@ impl Scheduler for NewThreadScheduler
            unsub2.add(act());
        });
 
-        unsub
+       unsub
     }
 
     fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>
@@ -86,7 +95,8 @@ impl Scheduler for NewThreadScheduler
     fn schedule_periodic(&self, period: Duration, sigStop: UnsubRef<'static>, act: impl Send+'static+Fn()) -> UnsubRef<'static>
     {
         let stop = sigStop.clone();
-        ::std::thread::spawn(move ||{
+        ::std::thread::spawn(move ||
+        {
             while ! stop.disposed(){
                 ::std::thread::sleep(period);
                 if stop.disposed() { break; }

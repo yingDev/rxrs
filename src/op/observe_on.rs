@@ -13,6 +13,9 @@ use util::ArcCell;
 use util::AtomicOption;
 use std::sync::Weak;
 use std::collections::VecDeque;
+use std::sync::Condvar;
+use std::sync::atomic::AtomicBool;
+use std::sync::Mutex;
 
 pub struct ObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
@@ -24,8 +27,7 @@ pub struct ObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Sche
 struct ObserveOnState<V, Sch> where Sch: Scheduler+Send+Sync
 {
     scheduler: Arc<Sch>,
-    subscriber: Weak<Subscriber<V, ObserveOnState<V, Sch>>>,
-    //queue: VecDec<V>
+    queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any+Send+Sync>>)>
 }
 
 pub trait ObservableObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
@@ -45,35 +47,25 @@ impl<V: Send+Sync+'static, Sch> SubscriberImpl<V,ObserveOnState<V, Sch>> for Sub
 {
     fn on_next(&self, v:V)
     {
-        if let Some(me) = Weak::upgrade(&self._state.subscriber) {
-            self._state.scheduler.schedule(move ||{
-                me._dest.next(v);
-                UnsubRef::empty()
-            });
-        }
-
+        let &(ref cond, ref lock, ref err) = &*self._state.queue;
+        lock.lock().unwrap().push_back(v);
+        cond.notify_one();
     }
 
     fn on_err(&self, e:Arc<Any+Send+Sync>)
     {
-        if let Some(me) = Weak::upgrade(&self._state.subscriber) {
-            self._state.scheduler.schedule(move ||{
-                me._dest.err(e);
-                me.do_unsub();
-                UnsubRef::empty()
-            });
+        let &(ref cond, ref lock, ref err) = &*self._state.queue;
+        {
+            lock.lock().unwrap();
+            err.swap(e, Ordering::Release);
         }
+        cond.notify_one();
     }
 
     fn on_comp(&self)
     {
-        if let Some(me) = Weak::upgrade(&self._state.subscriber) {
-            self._state.scheduler.schedule(move ||{
-                me._dest.complete();
-                me.do_unsub();
-                UnsubRef::empty()
-            });
-        }
+        let &(ref cond, ref lock, ref err) = &*self._state.queue;
+        cond.notify_one();
 
     }
 }
@@ -82,12 +74,46 @@ impl<Src, V:'static+Send+Sync, Sch> Observable< V> for ObserveOn<Src, V, Sch> wh
 {
     fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
     {
-        let mut s = Arc::new(Subscriber::new(ObserveOnState{ scheduler: self.scheduler.clone(), subscriber: Weak::new() }, dest, false));
-        let weak = Arc::downgrade(&s);
+        let s = Arc::new(Subscriber::new(ObserveOnState {
+            scheduler: self.scheduler.clone(),
+            queue: Arc::new(( Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new() ))
+        }, dest, false)
+        );
 
-        unsafe { *((&s._state.subscriber as *const _) as *mut _) = weak; }
+        let sig = UnsubRef::signal();
+        let s2 = s.clone();
 
-        self.source.sub(s)
+        sig.add(self.scheduler.schedule_long_running(sig.clone(), move ||{
+            dispatch(s2);
+        }));
+
+        sig.add(self.source.sub(s));
+        sig
+    }
+}
+
+fn dispatch<V, Sch>(subscriber: Arc<Subscriber<V, ObserveOnState<V,Sch>>>) where Sch: Scheduler+Send+Sync
+{
+    let queue = subscriber._state.queue.clone();
+    let dest = subscriber._dest.clone();
+
+    loop {
+        let &(ref cond, ref lock, ref err) = &*queue;
+
+        while let Some(v) = lock.lock().unwrap().pop_front() {
+            dest.next(v);
+        }
+
+        if subscriber.stopped() {
+            if let Some(e) = err.take(Ordering::Acquire) {
+                dest.err(e);
+            }else {
+                dest.complete();
+            }
+            return;
+        }
+
+        cond.wait(lock.lock().unwrap());
     }
 }
 

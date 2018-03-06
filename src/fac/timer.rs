@@ -8,22 +8,23 @@ use unsub_ref::*;
 use fac::*;
 use scheduler::Scheduler;
 
-fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<usize>
+pub fn timer(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<usize>
 {
     rxfac::create(move |o|
     {
         let count = AtomicUsize::new(0);
         let scheduler2 = scheduler.clone();
         let sig = UnsubRef::signal();
+
         let sig2 = sig.clone();
 
         scheduler.schedule_after(delay, move ||
         {
             if o._is_closed() || sig.disposed() { return sig; }
-
             o.next(count.fetch_add(1, Ordering::SeqCst));
+            if period.is_none() { return sig; }
 
-            scheduler2.schedule_periodic(period, sig, move ||
+            scheduler2.schedule_periodic(period.unwrap(), sig, move ||
             {
                 if o._is_closed() || sig2.disposed()
                 {
@@ -33,9 +34,14 @@ fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler+Send+S
                 o.next(count.fetch_add(1, Ordering::SeqCst));
             })
         })
+
     })
 }
 
+pub fn timer_once(delay: Duration, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<usize>
+{
+    timer(delay, None, scheduler)
+}
 
 #[cfg(test)]
 mod test
@@ -48,7 +54,9 @@ mod test
     #[test]
     fn timer_basic()
     {
-        timer(Duration::from_millis(100), Duration::from_millis(100), Arc::new(ImmediateScheduler::new())).take(10).subn(|v|  println!("{}", v));
+        timer(Duration::from_millis(100), Some(Duration::from_millis(100)), Arc::new(ImmediateScheduler::new())).take(10).subn(|v|  println!("{}", v));
+
+        timer_once(Duration::from_millis(100), Arc::new(ImmediateScheduler::new())).subn(|v| println!("once..."));
     }
 
     #[test]
@@ -60,7 +68,7 @@ mod test
         let pair = Arc::new((Mutex::new(false), Condvar::new()));
         let pair2 = pair.clone();
 
-        timer(Duration::from_millis(100), Duration::from_millis(100), Arc::new(NewThreadScheduler::new())).take(10).subf(|v|  println!("{}", v), (), move || {
+        timer(Duration::from_millis(100), Some(Duration::from_millis(100)), Arc::new(NewThreadScheduler::new())).take(10).subf(|v|  println!("{}", v), (), move || {
             let &(ref lock, ref cvar) = &*pair2;
             *lock.lock().unwrap() = true;
                 cvar.notify_one();

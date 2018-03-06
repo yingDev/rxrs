@@ -36,7 +36,6 @@ impl<Src, V:'static+Send+Sync, Sch> Observable< V> for SubOnOp<Src, V, Sch> wher
     {
         let src = self.source.clone();
         self.scheduler.schedule(move ||{
-            println!("sub_on: thread {:?}", ::std::thread::current().id());
             src.sub(dest)
         })
     }
@@ -50,14 +49,16 @@ mod test
     use scheduler::*;
     use op::*;
     use fac::*;
+    use std::thread;
+    use std::time::Duration;
 
     #[test]
     fn basic()
     {
-        println!("src thread: {:?}", ::std::thread::current().id());
-        let src = Arc::new(rxfac::range(0..10));
-        src.clone().take(3).sub_on(Arc::new(NewThreadScheduler::new())).subn(|v| println!("next {} thread: {:?}", v, ::std::thread::current().id() ));
+        println!("src thread: {:?}", thread::current().id());
+        let src = Arc::new(rxfac::timer(100, Some(100), NewThreadScheduler::get()));
+        src.take(30).sub_on(NewThreadScheduler::get()).subn(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
 
-        ::std::thread::sleep(::std::time::Duration::from_millis(1000));
+        thread::sleep(Duration::from_secs(10));
     }
 }

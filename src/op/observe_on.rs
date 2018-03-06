@@ -17,42 +17,42 @@ use std::sync::Condvar;
 use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
-pub struct ObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+pub struct ObserveOn<Src, V, Sch> where Src: Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
     source: Arc<Src>,
     scheduler: Arc<Sch>,
     PhantomData: PhantomData<V>
 }
 
-struct ObserveOnState<V, Sch> where Sch: Scheduler+Send+Sync
+struct ObserveOnState<V, Sch> where Sch: Scheduler + Send + Sync
 {
     scheduler: Arc<Sch>,
-    queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any+Send+Sync>>)>
+    queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any + Send + Sync>>)>
 }
 
-pub trait ObservableObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+pub trait ObservableObserveOn<Src, V, Sch> where Src: Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
-    fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch> ;
+    fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch>;
 }
 
-impl<Src, V, Sch> ObservableObserveOn<Src, V, Sch> for Src where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+impl<Src, V, Sch> ObservableObserveOn<Src, V, Sch> for Src where Src: Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
     fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch>
     {
-        ObserveOn{ scheduler, PhantomData, source: Arc::new(self)  }
+        ObserveOn { scheduler, PhantomData, source: Arc::new(self) }
     }
 }
 
-impl<V: Send+Sync+'static, Sch> SubscriberImpl<V,ObserveOnState<V, Sch>> for Subscriber<V,ObserveOnState<V, Sch>> where Sch: Scheduler+Send+Sync+'static
+impl<V: Send + Sync + 'static, Sch> SubscriberImpl<V, ObserveOnState<V, Sch>> for Subscriber<V, ObserveOnState<V, Sch>> where Sch: Scheduler + Send + Sync + 'static
 {
-    fn on_next(&self, v:V)
+    fn on_next(&self, v: V)
     {
         let &(ref cond, ref lock, ref err) = &*self._state.queue;
         lock.lock().unwrap().push_back(v);
         cond.notify_one();
     }
 
-    fn on_err(&self, e:Arc<Any+Send+Sync>)
+    fn on_err(&self, e: Arc<Any + Send + Sync>)
     {
         let &(ref cond, ref lock, ref err) = &*self._state.queue;
         {
@@ -66,24 +66,23 @@ impl<V: Send+Sync+'static, Sch> SubscriberImpl<V,ObserveOnState<V, Sch>> for Sub
     {
         let &(ref cond, ref lock, ref err) = &*self._state.queue;
         cond.notify_one();
-
     }
 }
 
-impl<Src, V:'static+Send+Sync, Sch> Observable< V> for ObserveOn<Src, V, Sch> where Src : 'static + Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync+'static
+impl<Src, V: 'static + Send + Sync, Sch> Observable<V> for ObserveOn<Src, V, Sch> where Src: 'static + Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync + 'static
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync>) -> UnsubRef<'static>
     {
         let s = Arc::new(Subscriber::new(ObserveOnState {
             scheduler: self.scheduler.clone(),
-            queue: Arc::new(( Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new() ))
+            queue: Arc::new((Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new()))
         }, dest, false)
         );
 
         let sig = UnsubRef::signal();
         let s2 = s.clone();
 
-        sig.add(self.scheduler.schedule_long_running(sig.clone(), move ||{
+        sig.add(self.scheduler.schedule_long_running(sig.clone(), move || {
             dispatch(s2);
         }));
 
@@ -92,7 +91,7 @@ impl<Src, V:'static+Send+Sync, Sch> Observable< V> for ObserveOn<Src, V, Sch> wh
     }
 }
 
-fn dispatch<V, Sch>(subscriber: Arc<Subscriber<V, ObserveOnState<V,Sch>>>) where Sch: Scheduler+Send+Sync
+fn dispatch<V, Sch>(subscriber: Arc<Subscriber<V, ObserveOnState<V, Sch>>>) where Sch: Scheduler + Send + Sync
 {
     let queue = subscriber._state.queue.clone();
     let dest = subscriber._dest.clone();
@@ -101,13 +100,14 @@ fn dispatch<V, Sch>(subscriber: Arc<Subscriber<V, ObserveOnState<V,Sch>>>) where
         let &(ref cond, ref lock, ref err) = &*queue;
 
         while let Some(v) = lock.lock().unwrap().pop_front() {
+            if dest._is_closed() { break; }
             dest.next(v);
         }
 
         if subscriber.stopped() {
             if let Some(e) = err.take(Ordering::Acquire) {
                 dest.err(e);
-            }else {
+            } else {
                 dest.complete();
             }
             return;
@@ -126,13 +126,34 @@ mod test
     use op::*;
     use scheduler::*;
     use std::thread;
+    use std::time::Duration;
 
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).observe_on(Arc::new(NewThreadScheduler::new())).take(3).map(|v| format!("*{}*", v))
+        rxfac::range(0..10).take(3).map(|v| format!("*{}*", v)).observe_on(NewThreadScheduler::get())
             .subf(|v| println!("{} on thread {:?}", v, thread::current().id()), (),
-                  | | println!("complete on thread {:?}", thread::current().id()));
+                  || println!("complete on thread {:?}", thread::current().id()));
+
+        thread::sleep(::std::time::Duration::from_millis(1000));
+    }
+
+    #[test]
+    fn timer()
+    {
+        println!("cur thread {:?}", thread::current().id());
+
+        rxfac::timer(0, Some(100), NewThreadScheduler::get())
+            .skip(3)
+            .filter(|i| i % 2 == 0)
+            .take(3)
+            .map(|v| format!("-{}-", v))
+            .observe_on(NewThreadScheduler::get())
+            .subf(
+                |v| println!("{} on {:?}", v, thread::current().id()),
+                (),
+                || println!("complete on {:?}", thread::current().id())
+            );
 
         thread::sleep(::std::time::Duration::from_millis(1000));
     }

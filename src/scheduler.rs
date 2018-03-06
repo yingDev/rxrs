@@ -1,5 +1,10 @@
 use std::time::Duration;
 use unsub_ref::UnsubRef;
+use std::sync::Arc;
+use std::sync::Once;
+use std::sync::ONCE_INIT;
+
+//todo: facade
 
 pub trait Scheduler
 {
@@ -56,13 +61,21 @@ impl Scheduler for ImmediateScheduler
     }
 }
 
+static mut _NewThreadScheduler: Option<Arc<NewThreadScheduler>> = None;
+static _NewThreadScheduler_INIT: Once = ONCE_INIT;
+
 pub struct NewThreadScheduler
 {
 
 }
 impl NewThreadScheduler
 {
-    pub fn new() -> NewThreadScheduler { NewThreadScheduler{} }
+    pub fn get() -> Arc<NewThreadScheduler> {
+        _NewThreadScheduler_INIT.call_once(|| {
+            unsafe { _NewThreadScheduler = Some(Arc::new(NewThreadScheduler{})); }
+        });
+        unsafe { _NewThreadScheduler.as_ref().unwrap().clone() }
+    }
 }
 
 impl Scheduler for NewThreadScheduler

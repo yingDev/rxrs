@@ -67,14 +67,14 @@ struct NormalState<V: Clone>
 {
     obs: ArcCell<Vec< Record<V> >>,
     toAdd: Mutex<Vec<Record<V>>>,
-    needs_seep: AtomicBool,
+    needs_sweep: AtomicBool,
 }
 
 impl<V:Clone> NormalState<V>
 {
     fn sweep(&self)
     {
-        self.needs_seep.store(true, Ordering::SeqCst);
+        self.needs_sweep.store(true, Ordering::SeqCst);
 
         loop{
             let mut guard = self.toAdd.lock().unwrap();
@@ -91,7 +91,7 @@ impl<V:Clone> NormalState<V>
 
             self.obs.set(Arc::new(newObs));
 
-            if self.needs_seep.compare_and_swap(true, false, Ordering::SeqCst) {
+            if self.needs_sweep.compare_and_swap(true, false, Ordering::SeqCst) {
                 break;
             }
         }
@@ -124,7 +124,7 @@ impl<'a,  V:'static+Clone> Subject<V>
             State::Normal(
                 Arc::new(NormalState{
                     obs: ArcCell::new(Arc::new(Vec::new())),
-                    needs_seep: AtomicBool::new(false),
+                    needs_sweep: AtomicBool::new(false),
                     toAdd: Mutex::new(Vec::new())
                 })
             ))
@@ -140,7 +140,7 @@ impl<V:Clone+'static> Observer<V> for Subject<V>
         match *self._state.get(){
             State::Normal(ref normal) => {
                 normal.obs.get().iter().for_each(|o| { o.next(v.clone()); } );
-                if normal.needs_seep.load(Ordering::SeqCst) {
+                if normal.needs_sweep.load(Ordering::SeqCst) {
                     normal.sweep();
                 }
             },
@@ -226,6 +226,7 @@ impl<V:'static+Clone> Observable< V> for Subject<V>
 mod test {
     use std::sync::atomic::AtomicIsize;
     use super::*;
+    use scheduler::NewThreadScheduler;
 
     #[test]
     fn basic()
@@ -343,5 +344,31 @@ mod test {
         s.err(Arc::new("this is error"));
 
         assert_eq!(b1.load(Ordering::SeqCst) , true);
+    }
+
+    #[test]
+    fn observe_on()
+    {
+        use op::*;
+
+        let r = Arc::new(Mutex::new(String::new()));
+        let (r2, r3) = (r.clone(), r.clone());
+
+        let subj = Arc::new(Subject::new());
+        subj.clone().take(3).map(|i| format!("*{}", i) ).observe_on(NewThreadScheduler::get()).subf(
+            move |v:String| r2.lock().unwrap().push_str(&v),
+            (),
+            move | | r3.lock().unwrap().push_str("ok")
+        );
+
+        subj.next(1);
+        subj.next(2);
+        subj.next(3);
+        subj.next(4);
+        subj.complete();
+
+        ::std::thread::sleep(::std::time::Duration::from_millis(100));
+
+        assert_eq!(&*r.lock().unwrap(), "*1*2*3ok");
     }
 }

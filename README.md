@@ -1,13 +1,17 @@
-# rxrs - Reactive Extensions for Rust
+<p align="center">
+<img src="https://github.com/yingDev/rxrs/blob/master/assets/logo.png?raw=true">
+<br>
+    <b> RxRs - Reactive Extensions for Rust </b>
+</p>
+<br>
 
-
-# 🌱 This Project is currently in its early stage...
-# 🦀 Contributions Are Welcome!
+### 🌱  This Project is currently in its early stage...
+### 🦀  Contributions Are Welcome!
 
 # Example
 
 ```rust
-`(Rust Nightly 1.25+)`
+(Rust Nightly 1.25+)
 
 #[test]
 fn timer()

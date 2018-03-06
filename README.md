@@ -1,11 +1,14 @@
 # rxrs - Reactive Extensions for Rust
 
+
 # 🌱 This Project is currently in its early stage...
 # 🦀 Contributions Are Welcome!
 
 # Example
 
 ```rust
+`(Rust Nightly 1.25+)`
+
 #[test]
 fn timer()
 {
@@ -63,3 +66,7 @@ src
     └── mod.rs
 ```
 
+# TODO
+- more operators
+- `Scheduler`s
+- docs

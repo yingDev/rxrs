@@ -34,7 +34,7 @@ impl<'a> Drop for UnsubRef<'a>
 struct State<'a>
 {
     disposed: AtomicBool,
-    cb: Box<Fn()+'a+Send+Sync>,
+    cb: Option<Box<Fn()+'a+Send+Sync>>,
     extra: AtomicOption<LinkedList<UnsubRef<'a>>>,
 }
 
@@ -45,7 +45,7 @@ impl<'a> UnsubRef<'a>
          UnsubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
-                cb: box unsub,
+                cb: Some(box unsub),
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: false,
@@ -54,15 +54,21 @@ impl<'a> UnsubRef<'a>
 
     pub fn signal() -> UnsubRef<'static>
     {
-        UnsubRef::fromFn(||{})
-    }
+        UnsubRef { state: Arc::new(
+            State{
+                disposed: AtomicBool::new(false),
+                cb: None,
+                extra: AtomicOption::with(LinkedList::new())
+            }),
+            _unsub_on_drop: false,
+        }    }
 
     pub fn scoped<'s>() -> UnsubRef<'s>
     {
         UnsubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
-                cb: box ||{},
+                cb: None,
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: true,
@@ -76,7 +82,7 @@ impl<'a> UnsubRef<'a>
                 //todo
                 EMPTY_SUB_REF = Some( UnsubRef {
                     state: Arc::new(
-                    State{cb: box ||{}, extra: AtomicOption::new(), disposed: AtomicBool::new(true) },
+                    State{cb: None, extra: AtomicOption::new(), disposed: AtomicBool::new(true) },
                 ),
                     _unsub_on_drop: false,
                 } );
@@ -88,7 +94,9 @@ impl<'a> UnsubRef<'a>
     pub fn unsub(&self)
     {
         if self.state.disposed.compare_and_swap(false, true, Ordering::SeqCst){ return; }
-        (self.state.cb)();
+        if let Some(ref cb) = self.state.cb {
+            cb();
+        }
 
         loop{
             if let Some(lst) = self.state.extra.take(Ordering::SeqCst){

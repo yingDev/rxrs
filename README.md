@@ -35,6 +35,7 @@ fn timer()
 ```
 Output:
 ```bash
+cur thread ThreadId(1)
 -4- on ThreadId(2)
 -6- on ThreadId(2)
 -8- on ThreadId(2)

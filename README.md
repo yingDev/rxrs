@@ -18,7 +18,7 @@ fn timer()
 {
     println!("cur thread {:?}", thread::current().id());
 
-    rxfac::timer(0, Some(100), NewThreadScheduler::get())
+    rxfac::timer(0, Some(10), NewThreadScheduler::get())
         .skip(3)
         .filter(|i| i % 2 == 0)
         .take(3)
@@ -27,18 +27,18 @@ fn timer()
         .subf(
             |v| println!("{} on {:?}", v, thread::current().id()),
             (),
-            || println!("complete on {:?}", thread::current().id())
+            | | println!("complete on {:?}", thread::current().id())
         );
 
-    thread::sleep(::std::time::Duration::from_millis(1000));
+    thread::sleep(::std::time::Duration::from_millis(2000));
 }
 ```
 Output:
 ```bash
-cur thread ThreadId(1)
 -4- on ThreadId(2)
 -6- on ThreadId(2)
 -8- on ThreadId(2)
+complete on ThreadId(2)
 ```
 
 # File Structure

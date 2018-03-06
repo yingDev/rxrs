@@ -44,7 +44,7 @@ pub fn of<V:Clone+'static>(v:V) -> impl Observable<V>
     })
 }
 
-
+//fixme: semantics on `drop`: complete or just abort ?
 struct CreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
 {
     sub: Sub,

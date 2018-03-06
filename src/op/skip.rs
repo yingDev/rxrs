@@ -39,7 +39,14 @@ impl<V> SubscriberImpl<V,SkipState> for Subscriber<V,SkipState>
     fn on_next(&self, v:V)
     {
         if self._state.count.load(Ordering::Acquire) <= 0 {
+            if self._dest._is_closed() {
+                self.complete();
+                return;
+            }
             self._dest.next(v);
+            if self._dest._is_closed() {
+                self.complete();
+            }
             return;
         }
 

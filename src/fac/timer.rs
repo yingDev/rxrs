@@ -13,25 +13,24 @@ fn timer(delay: Duration, period: Duration, scheduler: Arc<impl Scheduler+Send+S
     rxfac::create(move |o|
     {
         let count = AtomicUsize::new(0);
-        let o2 = o.clone();
         let scheduler2 = scheduler.clone();
         let sig = UnsubRef::signal();
-        let (sig2,sig3,sig4) = (sig.clone(),sig.clone(),sig.clone());
+        let sig2 = sig.clone();
 
         scheduler.schedule_after(delay, move ||
         {
-            if o2._is_closed() || sig2.disposed() { return sig2; }
+            if o._is_closed() || sig.disposed() { return sig; }
 
-            o2.next(count.fetch_add(1, Ordering::SeqCst));
+            o.next(count.fetch_add(1, Ordering::SeqCst));
 
-            scheduler2.schedule_periodic(period, sig3, move ||
+            scheduler2.schedule_periodic(period, sig, move ||
             {
-                if o2._is_closed() || sig2.disposed()
+                if o._is_closed() || sig2.disposed()
                 {
-                    sig4.unsub();
+                    sig2.unsub();
                     return;
                 }
-                o2.next(count.fetch_add(1, Ordering::SeqCst));
+                o.next(count.fetch_add(1, Ordering::SeqCst));
             })
         })
     })

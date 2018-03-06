@@ -12,6 +12,7 @@ use scheduler::Scheduler;
 use util::ArcCell;
 use util::AtomicOption;
 use std::sync::Weak;
+use std::collections::VecDeque;
 
 pub struct ObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
@@ -23,7 +24,8 @@ pub struct ObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Sche
 struct ObserveOnState<V, Sch> where Sch: Scheduler+Send+Sync
 {
     scheduler: Arc<Sch>,
-    subscriber: Weak<Subscriber<V, ObserveOnState<V, Sch>>>
+    subscriber: Weak<Subscriber<V, ObserveOnState<V, Sch>>>,
+    //queue: VecDec<V>
 }
 
 pub trait ObservableObserveOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync

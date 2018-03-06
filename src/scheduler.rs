@@ -5,18 +5,22 @@ pub trait Scheduler
 {
     fn schedule(&self, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>;
     fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>;
+    fn schedule_periodic(&self, period: Duration,sigStop: UnsubRef<'static>, act: impl Send+'static+Fn()) -> UnsubRef<'static>
+    {
+        unimplemented!()
+    }
 }
 
 //fixme: naive implementations ...
 
-pub struct ImScheduler;
+pub struct ImmediateScheduler;
 
-impl ImScheduler
+impl ImmediateScheduler
 {
-    pub fn new() -> ImScheduler { ImScheduler }
+    pub fn new() -> ImmediateScheduler { ImmediateScheduler }
 }
 
-impl Scheduler for ImScheduler
+impl Scheduler for ImmediateScheduler
 {
     fn schedule(&self, act: impl Send+'static+FnOnce()->UnsubRef<'static>) -> UnsubRef<'static>
     {
@@ -28,12 +32,28 @@ impl Scheduler for ImScheduler
         ::std::thread::sleep(due);
         act()
     }
+
+    fn schedule_periodic(&self, period: Duration, sigStop: UnsubRef<'static>, act: impl Send+'static+Fn()) -> UnsubRef<'static>
+    {
+        while ! sigStop.disposed(){
+            ::std::thread::sleep(period);
+            if sigStop.disposed() {
+                break;
+            }
+            act();
+        }
+
+        sigStop
+    }
 }
 
-pub struct NewThreadScheduler;
+pub struct NewThreadScheduler
+{
+
+}
 impl NewThreadScheduler
 {
-    pub fn new() -> NewThreadScheduler { NewThreadScheduler }
+    pub fn new() -> NewThreadScheduler { NewThreadScheduler{} }
 }
 
 impl Scheduler for NewThreadScheduler
@@ -61,5 +81,18 @@ impl Scheduler for NewThreadScheduler
         });
 
         unsub
+    }
+
+    fn schedule_periodic(&self, period: Duration, sigStop: UnsubRef<'static>, act: impl Send+'static+Fn()) -> UnsubRef<'static>
+    {
+        let stop = sigStop.clone();
+        ::std::thread::spawn(move ||{
+            while ! stop.disposed(){
+                ::std::thread::sleep(period);
+                if stop.disposed() { break; }
+                act();
+            }
+        });
+        sigStop
     }
 }

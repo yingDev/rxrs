@@ -1,7 +1,7 @@
 <p align="center">
 <img src="https://github.com/yingDev/rxrs/blob/master/assets/logo.png?raw=true">
 <br>
-    <b> RxRs - Reactive Extensions for Rust </b>
+    <b> RxRs - <a href="https://reactivex.io"> Reactive Extensions</a> for Rust </b>
 </p>
 <br>
 

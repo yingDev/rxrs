@@ -72,6 +72,8 @@ src
 ```
 
 # TODO
-- more operators
-- `Scheduler`s
-- docs
+- [x] basic operators,factories,`Scheduler`s
+- [ ] advanced operators,factories,`Scheduler`s
+- [ ] provide practical examples
+- [ ] docs
+- [ ] release a crate

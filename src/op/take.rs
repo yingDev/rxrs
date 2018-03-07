@@ -41,10 +41,14 @@ impl<V> SubscriberImpl<V,TakeState> for Subscriber<V,TakeState>
         if self._state.count.fetch_sub(1, Ordering::SeqCst) == 0
         {
             self.complete();
-            self.do_unsub();
-            return;
+        }else {
+            self._dest.next(v);
         }
-        self._dest.next(v);
+
+        if self._state.count.load(Ordering::SeqCst) == 0
+        {
+            self.complete();
+        }
     }
 
     fn on_err(&self, e:Arc<Any+Send+Sync>)

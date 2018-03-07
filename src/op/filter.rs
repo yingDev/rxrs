@@ -59,9 +59,13 @@ impl<V:Clone+Send+Sync,F> SubscriberImpl<V,FilterState<V, F>> for Subscriber<V,F
 {
     fn on_next(&self, v: V)
     {
-        if (self._state.pred)(&v)
-        {
+        if self._dest._is_closed() {
+            self.complete();
+        }else if (self._state.pred)(&v) {
             self._dest.next(v);
+        }
+        if self._dest._is_closed() {
+            self.complete();
         }
     }
 
@@ -83,10 +87,26 @@ mod test
 {
     use super::*;
     use fac::rxfac;
+    use subject::*;
+    use op::*;
+    use std::cell::RefCell;
+    use std::sync::atomic::{Ordering, AtomicUsize};
 
     #[test]
     fn basic()
     {
-        //rxfac::range(0..10).filter(|v| v%2 == 0)
+        let r = Arc::new(AtomicUsize::new(0));
+        let (r2,r3) = (r.clone(), r.clone());
+
+        let s = Subject::new();
+        s.rx().filter(|v| v%2 == 0).take(1).subf(
+            move |v| { r.fetch_add(v, Ordering::SeqCst); } ,
+            |e|{},
+            move | | { r2.fetch_add(100, Ordering::SeqCst); } );
+        s.next(1);
+        s.next(2);
+        s.next(3);
+
+        assert_eq!(r3.load(Ordering::SeqCst), 102);
     }
 }

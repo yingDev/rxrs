@@ -127,6 +127,7 @@ mod test
     use scheduler::*;
     use std::thread;
     use std::time::Duration;
+    use std::sync::atomic::AtomicUsize;
 
     #[test]
     fn basic()
@@ -141,20 +142,23 @@ mod test
     #[test]
     fn timer()
     {
-        println!("cur thread {:?}", thread::current().id());
+        let out = Arc::new(Mutex::new(String::new()));
+        let (out1, out2) = (out.clone(), out.clone());
 
         rxfac::timer(0, Some(10), NewThreadScheduler::get())
             .skip(3)
             .filter(|i| i % 2 == 0)
             .take(3)
-            .map(|v| format!("-{}-", v))
+            .map(|v| format!("{}", v))
             .observe_on(NewThreadScheduler::get())
             .subf(
-                |v| println!("{} on {:?}", v, thread::current().id()),
+                move |v:String| out1.lock().unwrap().push_str(&v),
                 (),
-                | | println!("complete on {:?}", thread::current().id())
+                move | | out2.lock().unwrap().push_str("ok")
             );
 
         thread::sleep(::std::time::Duration::from_millis(2000));
+
+        assert_eq!(*out.lock().unwrap(), "468ok");
     }
 }

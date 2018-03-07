@@ -24,6 +24,7 @@ pub struct ObserveOn<Src, V, Sch> where Src: Observable<V> + Send + Sync, Sch: S
     PhantomData: PhantomData<V>
 }
 
+//todo: lockless
 struct ObserveOnState<V, Sch> where Sch: Scheduler + Send + Sync
 {
     scheduler: Arc<Sch>,
@@ -150,6 +151,7 @@ mod test
             .filter(|i| i % 2 == 0)
             .take(3)
             .map(|v| format!("{}", v))
+            .tap((|v:&String| println!("tap: {}", v), (), || println!("tap: complete")))
             .observe_on(NewThreadScheduler::get())
             .subf(
                 move |v:String| out1.lock().unwrap().push_str(&v),

@@ -109,22 +109,20 @@ impl<'a> UnsubRef<'a>
 
     pub fn add<U>(&self, unsub: U) -> &Self where U:IntoUnsubRef<'a>
     {
-        if self.state.disposed.load(Ordering::SeqCst) {
-            unsub.into().unsub();
-        }else {
-            let un = unsub.into();
-            if un.disposed() { return self; }
+        let un = unsub.into();
+        if Arc::ptr_eq(&un.state, &self.state) {return self;}
 
-            loop{
-                if let Some(mut lst) = self.state.extra.take(Ordering::SeqCst){
-                    if ! un.disposed() {
-                        lst.push_back(un);
-                    }
-                    self.state.extra.swap(lst, Ordering::SeqCst);
-                    break;
-                }
+        loop {
+            if un.disposed() {
+                break;
+            }else if self.state.disposed.load(Ordering::SeqCst) {
+                un.unsub();
+                break;
+            }else if let Some(mut lst) = self.state.extra.take(Ordering::SeqCst) {
+                lst.push_back(un);
+                self.state.extra.swap(lst, Ordering::SeqCst);
+                break;
             }
-
         }
         return self;
     }
@@ -188,25 +186,22 @@ mod tests
     fn threads()
     {
         let out = Arc::new(Mutex::new("".to_owned()));
-        let out2 = out.clone();
-        let out3 = out.clone();
+        let (out2,out3) = (out.clone(), out.clone());
 
         let u = UnsubRef::fromFn(||{});
-        let u2 = u.clone();
-        let u3 = u.clone();
+        let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {
-            u2.add(move || out.lock().unwrap().push_str("A"));
+            u2.add(move || {  out.lock().unwrap().push_str("A");  });
         });
-        u3.add(move || out2.lock().unwrap().push_str("A"));
+        u3.add(move || { out2.lock().unwrap().push_str("A"); });
 
-        let j2  = thread::spawn(move || u.unsub());
+        let j2  = thread::spawn(move || { u.unsub(); });
 
         j.join();
         j2.join();
 
         assert_eq!(*out3.lock().unwrap(), "AA");
-
     }
 
     #[test]

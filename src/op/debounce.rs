@@ -182,4 +182,35 @@ mod test
         assert_eq!(&*r.lock().unwrap(), &[2,6,7,100]);
     }
 
+    #[test]
+    fn error()
+    {
+        fn sleep(ms: u64){ ::std::thread::sleep(::std::time::Duration::from_millis(ms)) }
+
+        let r = Arc::new(Mutex::new(vec![]));
+        let (r2, r3, r4) = (r.clone(), r.clone(), r.clone());
+
+        rxfac::create(|o|{
+            ::std::thread::spawn(move ||{
+                o.next(1);sleep(10);
+                o.next(2);o.err(Arc::new(123));
+                //o.next(3);sleep(10);
+                //o.next(4);sleep(10);
+                //o.next(5);sleep(10);
+                //o.next(6);sleep(200);
+                //o.next(7);
+                //o.complete();
+            });
+            UnsubRef::empty()
+        }).debounce(100, NewThreadScheduler::get())
+            .subf(move |v| r2.lock().unwrap().push(v),
+                  move |e| { r4.lock().unwrap().push(1000)  },
+                  move | |{ r3.lock().unwrap().push(100) }
+            );
+
+        ::std::thread::sleep(Duration::from_secs(2));
+
+        assert_eq!(&*r.lock().unwrap(), &[2,1000]);
+    }
+
 }

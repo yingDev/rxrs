@@ -10,12 +10,12 @@ use std::marker::PhantomData;
 pub struct TapOp<V, Src, Obs>
 {
     src: Src,
-    obs: Arc<Obs>,
+    obs: Obs,
     PhantomData: PhantomData<V>
 }
 
 pub trait ObservableTap<Src, V:Clone+Send+Sync+'static, Obs> where
-    for<'a> Obs: Observer<&'a V>+Send+Sync,
+    for<'a> Obs: Observer<&'a V>+Send+Sync+Clone,
     Src : Observable<V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>;
@@ -23,18 +23,18 @@ pub trait ObservableTap<Src, V:Clone+Send+Sync+'static, Obs> where
 
 impl<Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<Src, V, Obs> for Src where
     V: Send+Sync+'static,
-    for<'a> Obs: Observer<&'a V>+Send+Sync+'static,
+    for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
     Src : Observable<V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>
     {
-        TapOp{ src: self, obs: Arc::new(o), PhantomData }
+        TapOp{ src: self, obs: o, PhantomData }
     }
 }
 
 impl<V, Src, Obs> Observable<V> for TapOp<V, Src, Obs> where
         V: Send+Sync+'static,
-        for<'a> Obs: Observer<&'a V>+Send+Sync+'static,
+        for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
         Src : Observable<V>
 {
     fn sub(&self, dest: Arc<Observer<V> + Send + Sync>) -> UnsubRef<'static>
@@ -49,7 +49,7 @@ impl<V, Src, Obs> Observable<V> for TapOp<V, Src, Obs> where
 
 struct TapState<Obs>
 {
-    obs: Arc<Obs>
+    obs: Obs
 }
 
 impl<V, Obs> SubscriberImpl<V, TapState<Obs>> for Subscriber<V, TapState<Obs>> where
@@ -99,6 +99,6 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).take(5).tap(|v:&i32| println!("{}", v)).take(1).subn(|v| {});
+        rxfac::range(0..10).take(5).tap((|v:&i32| println!("{}", v), (), || println!("comp"))).take(100).subn(|v| {});
     }
 }

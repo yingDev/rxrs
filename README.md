@@ -53,6 +53,8 @@ src
 ├── lib.rs
 ├── observable.rs
 ├── op
+│   ├── concat.rs
+│   ├── debounce.rs
 │   ├── filter.rs
 │   ├── map.rs
 │   ├── mod.rs
@@ -60,7 +62,8 @@ src
 │   ├── skip.rs
 │   ├── sub_on.rs
 │   ├── take.rs
-│   └── take_until.rs
+│   ├── take_until.rs
+│   └── tap.rs
 ├── scheduler.rs
 ├── subject.rs
 ├── subscriber.rs

@@ -8,12 +8,12 @@ use unsub_ref::*;
 use fac::*;
 use scheduler::Scheduler;
 
-pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<usize>
+pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<usize>
 {
     timer_dur(Duration::from_millis(delay), period.map(|v| Duration::from_millis(v)), scheduler)
 }
 
-pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<usize>
+pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<usize>
 {
     rxfac::create(move |o|
     {

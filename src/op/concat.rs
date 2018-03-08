@@ -128,7 +128,7 @@ mod test
         let even = src.clone().filter(|i:&i32| i % 2 == 0);
         let odd = src.clone().filter(|i:&i32| i %2 == 1);
 
-        even.concat(odd).subf(|v| println!("{}",v), (), || println!("comp"));
+        even.concat(odd).concat(rxfac::range(100..105)).subf(|v| println!("{}",v), (), || println!("comp"));
 
         //rxfac::range(0..3).concat(Arc::new(rxfac::range(3..6))).subf(|v| println!("{}",v), (), || println!("comp"));
     }

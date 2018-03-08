@@ -91,6 +91,11 @@ impl<'a> UnsubRef<'a>
         }
     }
 
+    pub fn ptr_eq(&self, other: &UnsubRef<'a>) -> bool
+    {
+        Arc::ptr_eq(&self.state, &other.state)
+    }
+
     pub fn unsub(&self)
     {
         if self.state.disposed.compare_and_swap(false, true, Ordering::SeqCst){ return; }

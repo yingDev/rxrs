@@ -7,6 +7,7 @@ mod sub_on;
 mod observe_on;
 mod tap;
 mod concat;
+mod debounce;
 
 pub use self::take::*;
 pub use self::filter::*;
@@ -17,3 +18,4 @@ pub use self::sub_on::*;
 pub use self::observe_on::*;
 pub use self::tap::*;
 pub use self::concat::*;
+pub use self::debounce::*;

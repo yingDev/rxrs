@@ -31,11 +31,18 @@ impl<V,S,VOut> Subscriber<V,S,VOut>
     #[inline]
     pub fn do_unsub(&self)
     {
-        self._sub.take(Ordering::SeqCst).map(|s|s.unsub());
+        if let Some(sub) = self._sub.take(Ordering::SeqCst) {
+            sub.unsub();
+        }
     }
 
     pub fn set_unsub(&self, s: &UnsubRef<'static>)
     {
+        if self.stopped() {
+            s.unsub();
+            return;
+        }
+
         if ! s.disposed()
         {
             self._sub.swap(s.clone(), Ordering::SeqCst);

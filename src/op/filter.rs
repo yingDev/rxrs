@@ -12,19 +12,12 @@ pub struct FilterState<V: 'static+Send+Sync, F: Send+Sync+Fn(&V)->bool>
     PhantomData: PhantomData<V>
 }
 
+#[derive(Clone)]
 pub struct FilterOp<Src, V: 'static+Send+Sync, F: Send+Sync+Fn(&V)->bool>
 {
     source: Src,
     pred: Arc<F>,
     PhantomData: PhantomData<V>
-}
-
-impl<Src,V, F> Clone for FilterOp<Src, V, F> where Src : Clone, V: Send+Sync+Clone, F:Send+Sync+Fn(&V)->bool
-{
-    fn clone(&self) -> FilterOp<Src, V, F>
-    {
-        FilterOp{ source: self.source.clone(), pred: self.pred.clone(), PhantomData }
-    }
 }
 
 pub trait ObservableFilter<Src, V:Clone+Send+Sync, FPred> where
@@ -51,6 +44,7 @@ impl<Src, V:Clone+Send+Sync, FPred> Observable<V> for FilterOp<Src, V, FPred> wh
     fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
     {
         let s = Arc::new(Subscriber::new(FilterState{ pred: self.pred.clone(), PhantomData }, dest, false));
+
         let sub = self.source.sub(s.clone());
         s.set_unsub(&sub);
 

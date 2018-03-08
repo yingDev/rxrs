@@ -8,6 +8,7 @@
 #![feature(universal_impl_trait)]
 #![feature(generators, generator_trait, step_trait)]
 #![feature(fnbox)]
+#![feature(copy_closures, clone_closures)]
 
 pub mod observable;
 pub mod subject;

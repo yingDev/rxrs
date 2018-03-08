@@ -11,6 +11,7 @@ pub struct MapState<FProj>
     proj: Arc<FProj>
 }
 
+#[derive(Clone)]
 pub struct MapOp<FProj, V, Src>
 {
     proj: Arc<FProj>,

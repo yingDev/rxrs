@@ -87,7 +87,9 @@ impl<Src, V: 'static + Send + Sync, Sch> Observable<V> for ObserveOn<Src, V, Sch
             dispatch(s2);
         }));
 
-        sig.add(self.source.sub(s));
+        let sub = self.source.sub(s.clone());
+        sig.add(sub);
+        s.set_unsub(&sig);
         sig
     }
 }

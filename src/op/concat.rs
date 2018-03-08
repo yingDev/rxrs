@@ -63,7 +63,11 @@ impl<V:'static+Send+Sync, Src, Next> Observable<V> for ConcatOp<V, Src, Next> wh
 
         let sub = UnsubRef::signal();
         s.set_unsub(&sub);
-        sub.add(self.source.sub(s.clone()));
+        let sub2 = self.source.sub(s.clone());
+        if sub2.disposed() {
+            return UnsubRef::empty();
+        }
+        sub.add(sub2);
 
         sub
     }
@@ -84,29 +88,27 @@ impl<'a, V,Next> SubscriberImpl<V, AtomicOption<ConcatState<V, Next>>> for Subsc
 
     fn on_comp(&self)
     {
-        if let Some(state) = self._state.take(Ordering::Acquire) {
-            match state {
-                ConcatState::Cur(cur) => {
+        let state = self._state.take(Ordering::Acquire).unwrap();
+
+        match state {
+            ConcatState::Cur(cur) => {
+                self._state.swap(ConcatState::Next, Ordering::SeqCst);
+                if let Some(sub) = self._sub.take(Ordering::SeqCst) {
                     self._stopped.store(false, Ordering::SeqCst);
-                    self._state.swap(ConcatState::Next, Ordering::SeqCst);
-                    loop{
-                        if let Some(sub) = self._sub.take(Ordering::SeqCst) {
-                            if sub.disposed() {
-                                self.complete();
-                                return;
-                            }
-                            sub.add(cur.next.sub(cur.subscriber.take(Ordering::SeqCst).unwrap()));
-                            break;
-                        }
+                    if sub.disposed() {
+                        self._sub.swap(sub, Ordering::SeqCst);
+                        self.complete();
+                        return;
                     }
-                },
-                ConcatState::Next => {
-                    self._dest.complete();
-                    self.do_unsub();
+                    self._sub.swap(sub.clone(), Ordering::SeqCst);
+                    sub.add(cur.next.sub(cur.subscriber.take(Ordering::SeqCst).unwrap()));
                 }
+            },
+            ConcatState::Next => {
+                self._dest.complete();
+                self.do_unsub();
             }
         }
-
 
     }
 }
@@ -120,6 +122,7 @@ mod test
     use op::*;
     use observable::*;
     use std::sync::atomic::AtomicIsize;
+    use scheduler::NewThreadScheduler;
 
     #[test]
     fn basic()
@@ -128,9 +131,12 @@ mod test
         let even = src.clone().filter(|i:&i32| i % 2 == 0);
         let odd = src.clone().filter(|i:&i32| i %2 == 1);
 
-        even.concat(odd).concat(rxfac::range(100..105)).subf(|v| println!("{}",v), (), || println!("comp"));
+        even.concat(odd).concat(rxfac::range(100..105).take(3)).take(100).filter(|v|true).subf(|v| println!("{}",v), (), || println!("comp"));
+
+        //rxfac::timer(100, Some(100), NewThreadScheduler::get()).take(3).concat(rxfac::of(100)).subf(|v| println!("{}",v), (), || println!("comp"));
 
         //rxfac::range(0..3).concat(Arc::new(rxfac::range(3..6))).subf(|v| println!("{}",v), (), || println!("comp"));
+        ::std::thread::sleep(::std::time::Duration::from_secs(2));
     }
 
 }

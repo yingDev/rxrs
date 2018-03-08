@@ -9,6 +9,7 @@ use unsub_ref::UnsubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
+#[derive(Clone)]
 pub struct SkipOp<Src, V> where Src : Observable<V>
 {
     source: Src,

@@ -16,11 +16,10 @@ use std::sync::Arc;
 use observable::Observable;
 use observable::Observer;
 
-pub fn create<V, Sub>(sub:Sub) -> impl Clone+Observable<V> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
+pub fn create<V, Sub>(sub:Sub) -> impl Clone+Observable<V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
 {
-    CreatedObservable{ sub:Arc::new(sub), PhantomData  }
+    CreatedObservable{ sub:sub, PhantomData  }
 }
-
 
 pub fn range<V:'static>(range: Range<V>) -> impl Clone+Observable<V> where V : Step
 {
@@ -36,7 +35,7 @@ pub fn range<V:'static>(range: Range<V>) -> impl Clone+Observable<V> where V : S
     })
 }
 
-pub fn of<V:Clone+'static>(v:V) -> impl Observable<V>
+pub fn of<V:Clone+'static>(v:V) -> impl Clone+Observable<V>
 {
     create(move |o|
     {
@@ -50,11 +49,11 @@ pub fn of<V:Clone+'static>(v:V) -> impl Observable<V>
 //fixme: semantics on `drop`: complete or just abort ?
 pub struct CreatedObservable<V, Sub>
 {
-    sub: Arc<Sub>,
+    sub: Sub,
     PhantomData: PhantomData<V>
 }
 
-impl<V,Sub> Clone for CreatedObservable<V,Sub>
+impl<V,Sub> Clone for CreatedObservable<V,Sub> where Sub:Clone
 {
     fn clone(&self) -> CreatedObservable<V,Sub>
     {

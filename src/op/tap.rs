@@ -94,10 +94,11 @@ mod test
     use fac::*;
     use observable::*;
     use observable::Observer;
+    use op::*;
 
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).tap(|v:&i32| println!("{}", v)).subn(|v| {});
+        rxfac::range(0..10).take(5).tap(|v:&i32| println!("{}", v)).take(1).subn(|v| {});
     }
 }

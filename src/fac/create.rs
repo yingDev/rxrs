@@ -13,13 +13,16 @@ use subject::*;
 use observable::*;
 use unsub_ref::UnsubRef;
 use std::sync::Arc;
+use observable::Observable;
+use observable::Observer;
 
-pub fn create<V, Sub>(sub:Sub) -> impl Observable<V> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
+pub fn create<V, Sub>(sub:Sub) -> impl Clone+Observable<V> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
 {
-    CreatedObservable{ sub , PhantomData }
+    CreatedObservable{ sub:Arc::new(sub), PhantomData  }
 }
 
-pub fn range<V:'static>(range: Range<V>) -> impl Observable<V> where V : Step
+
+pub fn range<V:'static>(range: Range<V>) -> impl Clone+Observable<V> where V : Step
 {
     create(move |o|
     {
@@ -45,13 +48,21 @@ pub fn of<V:Clone+'static>(v:V) -> impl Observable<V>
 }
 
 //fixme: semantics on `drop`: complete or just abort ?
-struct CreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
+pub struct CreatedObservable<V, Sub>
 {
-    sub: Sub,
-    PhantomData: PhantomData<(V)>
+    sub: Arc<Sub>,
+    PhantomData: PhantomData<V>
 }
 
-impl<V, Sub> Observable<V> for CreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
+impl<V,Sub> Clone for CreatedObservable<V,Sub>
+{
+    fn clone(&self) -> CreatedObservable<V,Sub>
+    {
+        CreatedObservable{ sub: self.sub.clone(), PhantomData}
+    }
+}
+
+impl<V,Sub> Observable<V> for CreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
 {
     fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
     {

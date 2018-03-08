@@ -124,35 +124,35 @@ impl<V> Observer<V> for ScopedObserver<V>
 unsafe impl<V> Sync for ScopedObserver<V>{}
 unsafe impl<V> Send for ScopedObserver<V>{}
 
-pub struct ByrefOp<'a, V: 'static>
+pub struct ByrefOp<'a, V, Src:'a>
 {
-    source: &'a Observable<V>,
+    source: &'a Src,
+    PhantomData: PhantomData<V>
+}
+
+impl<'a, V, Src> Clone for ByrefOp<'a, V, Src>
+{
+    fn clone(&self) -> ByrefOp<'a, V, Src>
+    {
+        ByrefOp{source: self.source, PhantomData}
+    }
 }
 
 pub trait ObservableByref<'a, V, Src>
 {
-    fn byref(&'a self) -> ByrefOp<'a, V>;
-    fn rx(&'a self) -> ByrefOp<'a, V>{ self.byref() }
+    fn byref(&'a self) -> ByrefOp<'a,V, Src>;
+    fn rx(&'a self) -> ByrefOp<'a, V, Src>{ self.byref() }
 }
 
 impl<'a, V, Src> ObservableByref<'a, V, Src> for Src where Src : Observable<V>
 {
-    fn byref(&'a self) -> ByrefOp<'a, V>
+    fn byref(&'a self) -> ByrefOp<'a,V, Src>
     {
-        ByrefOp{ source: self }
+        ByrefOp{ source: self, PhantomData }
     }
 }
 
-//impl<'b, V, Src> ObservableByref<'static, 'b, V, Src> for Arc<Src> where Src : Observable<V>+Send+Sync+'static
-//{
-//    fn byref(&'b self) -> ByrefOp<'static, V>
-//    {
-//        let clone = self.clone();
-//        ByrefOp{ arc: Some(clone), source: None, PhantomData }
-//    }
-//}
-
-impl<'a, V> Observable<  V> for ByrefOp<'a,  V>
+impl<'a, V, Src> Observable<V> for ByrefOp<'a, V,Src> where Src: Observable<V>
 {
     #[inline] fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
     {

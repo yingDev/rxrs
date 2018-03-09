@@ -19,6 +19,7 @@ pub mod fac;
 pub mod unsub_ref;
 pub mod util;
 pub mod scheduler;
+pub mod connectable_observable;
 
 #[cfg(test)]
 mod test

@@ -61,8 +61,20 @@ impl UnsubRef
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: false,
-        }    }
+        }
+    }
 
+    pub fn scoped() -> UnsubRef
+    {
+        UnsubRef { state: Arc::new(
+            State{
+                disposed: AtomicBool::new(false),
+                cb: None,
+                extra: AtomicOption::with(LinkedList::new())
+            }),
+            _unsub_on_drop: true,
+        }
+    }
 
     pub fn empty() -> UnsubRef
     {

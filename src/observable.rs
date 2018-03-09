@@ -160,7 +160,7 @@ impl<'a, V, Obs, FErr: Fn(Arc<Any+Send+Sync>)+'a+Send+Sync> ObservableSubHelper<
     }
 }
 
-impl<'a, V, Obs, FComp: Fn()+'static+Send+Sync> ObservableSubHelper<'a, V,(), (), FComp> for Obs where Obs : Observable<'a,V>
+impl<'a, V, Obs, FComp: Fn()+'a+Send+Sync> ObservableSubHelper<'a, V,(), (), FComp> for Obs where Obs : Observable<'a,V>
 {
     #[inline] fn subf(&self, f: (), ferr: (), fcomp: FComp) -> UnsubRef { self.sub(Arc::new(((), (), fcomp))) }
 }
@@ -199,6 +199,89 @@ impl<V> ObserverHelper<V> for Arc<Observer<V>>
 
 }
 
+pub trait ObservableSubScopedHelper<'a, Obs, V,F, FErr, FComp>
+{
+    fn sub_scopedf(&self, next: F, ferr: FErr, fcomp: FComp) -> UnsubRef;
+}
+pub trait ObservableSubScopedNextHelper<'a, Obs, V,F>
+{
+    fn sub_scoped(&self, next: F) -> UnsubRef;
+}
+impl<'a, Obs, V:'static, F, FErr, FComp> ObservableSubScopedHelper<'a, Obs, V,F, FErr, FComp> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a, FComp:FnMut()+'a,
+{
+    fn sub_scopedf(&self, fnext: F, ferr: FErr, fcomp: FComp) -> UnsubRef
+    {
+        unsafe {
+            use ::std::mem::transmute;
+
+            let fnext : Box<FnMut(V) + 'a> = Box::new(fnext);
+            let fnext: Box<Fn(V) + Send> = transmute(fnext);
+
+            let ferr : Box<FnMut(Arc<Any+Send+Sync>)+'a> = Box::new(ferr);
+            let ferr: Box<Fn(Arc<Any+Send+Sync>) + Send> = transmute(ferr);
+
+            let fcomp : Box<FnMut()+'a> = Box::new(fcomp);
+            let fcomp: Box<Fn() + Send> = transmute(fcomp);
+
+            let o = Arc::new(ScopedObserver{
+                fnext: Some(fnext), ferr: Some(ferr), fcomp: Some(fcomp),
+                PhantomData
+            });
+
+            let sub = self.sub(o);
+            let scoped = UnsubRef::scoped();
+            scoped.add(sub);
+            scoped
+        }
+
+    }
+}
+impl<'a, Obs, V:'static, F> ObservableSubScopedNextHelper<'a, Obs,V,F> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'a,
+{
+    fn sub_scoped(&self, fnext: F) -> UnsubRef
+    {
+        unsafe {
+            use ::std::mem::transmute;
+
+            let fnext : Box<FnMut(V) + 'a> = Box::new(fnext);
+            let fnext: Box<Fn(V) + Send> = transmute(fnext);
+
+            let o = Arc::new(ScopedObserver{
+                fnext: Some(fnext), ferr: None, fcomp: None,
+                PhantomData
+            });
+
+            let sub = self.sub(o);
+            let scoped = UnsubRef::scoped();
+            scoped.add(sub);
+
+            scoped
+        }
+
+    }
+}
+
+pub struct ScopedObserver< V>
+{
+    fnext: Option<Box<Fn(V)+Send>>,
+    ferr: Option<Box<Fn(Arc<Any+Send+Sync>)>>,
+    fcomp: Option<Box<Fn()>>,
+    PhantomData: PhantomData<V>
+}
+impl<V> Observer<V> for ScopedObserver<V>
+{
+    fn next(&self, v:V){ self.fnext.as_ref().map(|f| f(v)); }
+    fn err(&self, e:Arc<Any+Send+Sync>) { self.ferr.as_ref().map(|f| f(e)); }
+    fn complete(&self){ self.fcomp.as_ref().map(|f| f()); }
+
+    fn _is_closed(&self) -> bool { false }
+}
+unsafe impl<V> Sync for ScopedObserver<V>{}
+unsafe impl<V> Send for ScopedObserver<V>{}
+
+
 #[cfg(test)]
 mod test
 {
@@ -206,6 +289,9 @@ mod test
     use std::sync::Mutex;
     use std::marker::PhantomData;
     use std::sync::atomic::{Ordering, AtomicIsize};
+    use op::*;
+    use fac::*;
+    use scheduler::NewThreadScheduler;
 
     #[test]
     fn scoped()
@@ -214,7 +300,22 @@ mod test
         let a = StoresObserverObservable{ o: Mutex::new(None) };
         let o = Arc::new(ScopedObserver{ s: &s  });
 
+        a.rx().take(1).sub(o.clone());
         a.sub(o);
+    }
+
+    #[test]
+    fn scoped_mut()
+    {
+        let mut a = 0;
+
+        //won't compile
+        //rxfac::range(0..30).take(3).observe_on(NewThreadScheduler::get()).sub_scoped(|v| a+=v);
+
+        rxfac::range(0..30).take(3).observe_on(NewThreadScheduler::get()).sub_scoped(|v| println!("{}",v));
+
+        rxfac::range(0..30).take(3).sub_scoped(|v| a+=v);
+        assert_eq!(a, 3);
     }
 
     #[test]

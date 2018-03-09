@@ -148,13 +148,15 @@ mod test
         let out = Arc::new(Mutex::new(String::new()));
         let (out1, out2) = (out.clone(), out.clone());
 
-        let toStr = |s:usize| format!("{}", s);
+        let x = 5;
+        let toStr = |s:i32| format!("{}", s+x);
+        rxfac::range(0..10).filter(|v| v < &x).take(3).map(toStr).subn(|v| println!("scoped: {}-{}",v,x));
 
         rxfac::timer(0, Some(10), NewThreadScheduler::get())
             .skip(3)
             .filter(|i| i % 2 == 0)
             .take(3)
-            .map(toStr)
+            .map(|v| format!("{}",v))
             .tap((|v:&String| println!("tap: {}", v), (), || println!("tap: complete")))
             .observe_on(NewThreadScheduler::get())
             .subf(

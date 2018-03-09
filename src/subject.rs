@@ -250,15 +250,16 @@ mod test {
     #[test]
     fn scoped()
     {
-        let i = AtomicIsize::new(0);
+        let mut i = 0;
         {
             let subj = Subject::new();
-            subj.subn(|v| println!("{}", i.fetch_add(v, Ordering::SeqCst)));
+            let x = subj.sub_scoped(|v| i+=v);
+            subj.subn(|v| println!("{}", v));
             subj.next(1);
             subj.complete();
         }
 
-        assert_eq!(i.load(Ordering::SeqCst), 1);
+        assert_eq!(i, 1);
     }
 
     #[test]

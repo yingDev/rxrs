@@ -19,22 +19,22 @@ pub struct MapOp<FProj, V, Src>
     PhantomData: PhantomData<V>
 }
 
-pub trait ObservableOpMap<V, Src>
+pub trait ObservableOpMap<'a, V, Src>
 {
-    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src> where FProj : 'static + Fn(V)->VOut;
+    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src> where FProj : 'a + Fn(V)->VOut;
 }
 
-impl<V, Src> ObservableOpMap<V, Src> for Src where Src : Observable<  V>
+impl<'a, V, Src> ObservableOpMap<'a, V, Src> for Src where Src : Observable<'a, V>
 {
-    fn map<FProj,VOut>(self, proj: FProj) -> MapOp<FProj, V, Src> where FProj : 'static + Fn(V)->VOut
+    fn map<FProj,VOut>(self, proj: FProj) -> MapOp<FProj, V, Src> where FProj : 'a + Fn(V)->VOut
     {
         MapOp{ proj: Arc::new(proj), source: self, PhantomData }
     }
 }
 
-impl<V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable<VOut> for MapOp<FProj, V, Src> where FProj : Send+Sync+'static + Fn(V)->VOut, Src: Observable<V>
+impl<'a, V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable<'a, VOut> for MapOp<FProj, V, Src> where FProj : Send+Sync+'a + Fn(V)->VOut, Src: Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<VOut>+Send+Sync>) -> UnsubRef<'static>
+    fn sub<'b>(&self, dest: Arc<Observer<VOut>+Send+Sync+'a>) -> UnsubRef
     {
         let s = Arc::new(Subscriber::new(MapState{ proj: self.proj.clone() }, dest, false));
         let sub = self.source.sub(s.clone());
@@ -44,7 +44,7 @@ impl<V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable<VOut> f
     }
 }
 
-impl<V,VOut,FProj> SubscriberImpl<V,MapState<FProj>> for Subscriber<V,MapState<FProj>,VOut> where FProj: Fn(V)->VOut
+impl<'a, V,VOut,FProj> SubscriberImpl<V,MapState<FProj>> for Subscriber<'a, V,MapState<FProj>,VOut> where FProj: 'a+Fn(V)->VOut
 {
     fn on_next(&self, v: V)
     {

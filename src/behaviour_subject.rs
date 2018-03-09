@@ -6,15 +6,15 @@ use unsub_ref::UnsubRef;
 use observable::Observer;
 use std::any::Any;
 
-pub struct BehaviorSubject<V:Clone+'static>
+pub struct BehaviorSubject<'a, V:Clone+'static>
 {
     v: Mutex<Option<V>>,
-    subj: Subject<V>
+    subj: Subject<'a, V>
 }
 
-impl<V:Clone+'static> BehaviorSubject<V>
+impl<'a, V:Clone+'static> BehaviorSubject<'a, V>
 {
-    pub fn new(value: Option<V>) -> BehaviorSubject<V>
+    pub fn new(value: Option<V>) -> BehaviorSubject<'a, V>
     {
         BehaviorSubject{ subj: Subject::new(), v: Mutex::new(value)}
     }
@@ -32,9 +32,9 @@ impl<V:Clone+'static> BehaviorSubject<V>
     }
 }
 
-impl<V:Clone+'static> Observable<V> for BehaviorSubject<V>
+impl<'a, V:Clone+'static> Observable<'a, V> for BehaviorSubject<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V> + Send + Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> UnsubRef
     {
         if dest._is_closed() {
             return UnsubRef::empty();
@@ -53,7 +53,7 @@ impl<V:Clone+'static> Observable<V> for BehaviorSubject<V>
     }
 }
 
-impl<V:Clone+'static> Observer<V> for BehaviorSubject<V>
+impl<'a, V:Clone+'static> Observer<V> for BehaviorSubject<'a, V>
 {
     fn next(&self, v: V)
     {

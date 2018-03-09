@@ -16,12 +16,12 @@ use std::sync::Arc;
 use observable::Observable;
 use observable::Observer;
 
-pub fn create<V, Sub>(sub:Sub) -> impl Clone+Observable<V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
+pub fn create<'a, V, Sub>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'a>)->UnsubRef
 {
     CreatedObservable{ sub:sub, PhantomData  }
 }
 
-pub fn range<V:'static>(range: Range<V>) -> impl Clone+Observable<V> where V : Step
+pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> where V : Step
 {
     create(move |o|
     {
@@ -35,7 +35,7 @@ pub fn range<V:'static>(range: Range<V>) -> impl Clone+Observable<V> where V : S
     })
 }
 
-pub fn of<V:Clone+'static>(v:V) -> impl Clone+Observable<V>
+pub fn of<'a, V:Clone+'static>(v:V) -> impl Clone+Observable<'a, V>
 {
     create(move |o|
     {
@@ -61,9 +61,9 @@ impl<V,Sub> Clone for CreatedObservable<V,Sub> where Sub:Clone
     }
 }
 
-impl<V,Sub> Observable<V> for CreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync>)->UnsubRef<'static>
+impl<'a, V,Sub> Observable<'a, V> for CreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'a>)->UnsubRef
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         (self.sub)(dest)
     }

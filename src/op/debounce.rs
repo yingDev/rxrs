@@ -18,13 +18,13 @@ pub struct DebounceState<V, Sch>
 {
     scheduler: Arc<Sch>,
     dur: usize,
-    timer: Mutex<UnsubRef<'static>>,
+    timer: Mutex<UnsubRef>,
     val: Arc<Mutex<Option<V>>>
 }
 
 impl<V,Sch> DebounceState<V,Sch>
 {
-    fn emmit_last(&self, dest: &Arc<Observer<V>+Send+Sync>)
+    fn emmit_last(&self, dest: &Arc<Observer<V>+Send+Sync+'static>)
     {
         let mut timerLock = self.timer.lock().unwrap();
         let timer = ::std::mem::replace(&mut *timerLock, UnsubRef::empty());
@@ -48,20 +48,20 @@ pub struct DebounceOp<V, Src, Sch>
     scheduler: Arc<Sch>,
     duration: usize,
 
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(V)>
 }
 
-pub trait ObservableDebounce<V, Src, Sch> where
+pub trait ObservableDebounce<'a, V, Src, Sch> where
     Sch: Scheduler+Send+Sync,
-    Src : Observable<V>,
+    Src : Observable<'a, V>,
     Self: Sized
 {
     fn debounce(self, duration: usize, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>;
 }
 
-impl<V,Src, Sch> ObservableDebounce<V, Src, Sch> for Src where
+impl<'a, V,Src, Sch> ObservableDebounce<'a, V, Src, Sch> for Src where
     Sch: Scheduler+Send+Sync+'static,
-    Src : Observable<V>,
+    Src : Observable<'a, V>,
     Self: Sized
 {
     fn debounce(self, duration: usize, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>
@@ -70,11 +70,11 @@ impl<V,Src, Sch> ObservableDebounce<V, Src, Sch> for Src where
     }
 }
 
-impl<V:'static+Send+Sync, Src, Sch> Observable<V> for DebounceOp<V, Src, Sch> where
+impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V, Src, Sch> where
     Sch: Scheduler+Send+Sync+'static,
-    Src : Observable<V>
+    Src : Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'static>) -> UnsubRef
     {
         let s = Arc::new(Subscriber::new(DebounceState{
             scheduler: self.scheduler.clone(),
@@ -83,13 +83,14 @@ impl<V:'static+Send+Sync, Src, Sch> Observable<V> for DebounceOp<V, Src, Sch> wh
             val: Arc::new(Mutex::new(None))
         }, dest, false));
 
-        s.set_unsub(&self.source.sub(s.clone()));
+        let sub =  self.source.sub(s.clone());
+        s.set_unsub(&sub);
 
-        UnsubRef::empty()
+        sub
     }
 }
 
-impl<V, Sch> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<V, DebounceState<V, Sch>> where
+impl< V, Sch> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<'static, V, DebounceState<V, Sch>> where
     V: Send+Sync+'static,
     Sch: Scheduler
 {

@@ -11,49 +11,49 @@ use util::ArcCell;
 use std::marker::PhantomData;
 
 
-pub enum ConcatState<V,Next>
+pub enum ConcatState<'a, V,Next>
 {
-    Cur(CurState<V, Next>), Next
+    Cur(CurState<'a, V, Next>), Next
 }
 
-pub struct CurState<V, Next>
+pub struct CurState<'a, V, Next>
 {
     next: Next,
-    subscriber: AtomicOption<Arc<Observer<V>+Send+Sync>>
+    subscriber: AtomicOption<Arc<Observer<V>+Send+Sync+'a>>
 }
 
 
-pub struct ConcatOp<V, Src, Next>
+pub struct ConcatOp<'a, V, Src, Next>
 {
     source : Src,
     next: Next,
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(V,&'a())>
 }
 
-pub trait ObservableConcat<V, Next, Src> where
-    Next: Observable<V>+'static+Send+Sync+Clone,
-    Src : Observable<V>,
+pub trait ObservableConcat<'a, V, Next, Src> where
+    Next: Observable<'a, V>+Send+Sync+Clone,
+    Src : Observable<'a, V>,
     Self: Sized
 {
-    fn concat(self, next: Next) -> ConcatOp<V, Src, Next>;
+    fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next>;
 }
 
-impl<V,Next,Src> ObservableConcat<V, Next, Src> for Src where
-    Next: Observable<V>+'static+Send+Sync+Clone,
-    Src : Observable<V>,
+impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src> for Src where
+    Next: Observable<'a, V>+Send+Sync+Clone,
+    Src : Observable<'a, V>,
     Self: Sized
 {
-    fn concat(self, next: Next) -> ConcatOp<V, Src, Next>
+    fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next>
     {
         ConcatOp{ source: self, next: next, PhantomData }
     }
 }
 
-impl<V:'static+Send+Sync, Src, Next> Observable<V> for ConcatOp<V, Src, Next> where
-    Next: Observable<V>+'static+Send+Sync+Clone,
-    Src : Observable<V>
+impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, Src, Next> where
+    Next: Observable<'a,V>+Send+Sync+Clone+'a,
+    Src : Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         let cur = CurState{ next: self.next.clone(), subscriber:AtomicOption::new() };
         let s = Arc::new(Subscriber::new(AtomicOption::new(), dest, false));
@@ -73,7 +73,7 @@ impl<V:'static+Send+Sync, Src, Next> Observable<V> for ConcatOp<V, Src, Next> wh
     }
 }
 
-impl<'a, V,Next> SubscriberImpl<V, AtomicOption<ConcatState<V, Next>>> for Subscriber<V, AtomicOption<ConcatState<V, Next>>> where Next: Observable<V>+'a+Send+Sync
+impl<'a, V,Next> SubscriberImpl<V, AtomicOption<ConcatState<'a, V, Next>>> for Subscriber<'a, V, AtomicOption<ConcatState<'a, V, Next>>> where Next: Observable<'a, V>+Send+Sync
 {
     fn on_next(&self, v: V)
     {

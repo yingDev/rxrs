@@ -21,17 +21,17 @@ pub struct TakeUntilOp<VNoti, Src, Noti>
     PhantomData: PhantomData<VNoti>
 }
 
-pub trait ObservableTakeUntil<V, Src, VNoti, Noti> where
-    Noti: Observable<VNoti>+'static+Send+Sync+Clone,
-    Src : Observable<V>,
+pub trait ObservableTakeUntil<'a, V, Src, VNoti, Noti> where
+    Noti: Observable<'a, VNoti>+Send+Sync+Clone,
+    Src : Observable<'a, V>,
     Self: Sized
 {
     fn take_until(self, noti:  Noti) -> TakeUntilOp<VNoti, Src, Noti>;
 }
 
-impl<V, Src, VNoti, Noti> ObservableTakeUntil<V, Src, VNoti, Noti> for Src where
-    Noti: Observable<VNoti>+'static+Send+Sync+Clone,
-    Src : Observable<V>
+impl<'a, V, Src, VNoti, Noti> ObservableTakeUntil<'a, V, Src, VNoti, Noti> for Src where
+    Noti: Observable<'a, VNoti>+Send+Sync+Clone,
+    Src : Observable<'a, V>,
 {
     fn take_until(self, noti: Noti) -> TakeUntilOp<VNoti, Src, Noti>
     {
@@ -39,11 +39,11 @@ impl<V, Src, VNoti, Noti> ObservableTakeUntil<V, Src, VNoti, Noti> for Src where
     }
 }
 
-impl<V:'static+Send+Sync, Src, VNoti, Noti> Observable<V> for TakeUntilOp<VNoti, Src, Noti> where
-    Noti: Observable<VNoti>+'static+Send+Sync+Clone,
-    Src : Observable<V>
+impl<'a, V:'static+Send+Sync, Src, VNoti, Noti> Observable<'a, V> for TakeUntilOp<VNoti, Src, Noti> where
+    Noti: Observable<'a, VNoti>+Send+Sync+Clone,
+    Src : Observable<'a, V>,
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         let notified = Arc::new(AtomicBool::new(false));
         let notified2 = notified.clone();
@@ -69,7 +69,7 @@ impl<V:'static+Send+Sync, Src, VNoti, Noti> Observable<V> for TakeUntilOp<VNoti,
     }
 }
 
-impl<V> SubscriberImpl<V, TakeUntilState> for Subscriber<V, TakeUntilState>
+impl<'a, V> SubscriberImpl<V, TakeUntilState> for Subscriber<'a, V, TakeUntilState>
 {
     fn on_next(&self, v: V)
     {
@@ -106,20 +106,13 @@ mod test
     #[test]
     fn basic()
     {
-        let noti = Arc::new(Subject::<i32>::new());
-        let subj = Subject::<i32>::new();
+        let r = AtomicIsize::new(0);
+        let subj = Subject::<isize>::new();
 
-        let mut r = 0;
-        {
-            let it = subj.rx().take_until(noti.clone()).sub_scoped(|v| r+= 1);
-            subj.next(1);
+         let it = subj.rx().subn(|v| {r.fetch_add(v, Ordering::SeqCst);});
+         subj.next(1);
 
-            noti.next(1);
-
-            subj.next(1);
-        }
-
-        assert_eq!(r, 1);
+        assert_eq!(r.load(Ordering::SeqCst), 1);
     }
 
     #[test]
@@ -130,9 +123,11 @@ mod test
 
         let noti2 = noti.clone();
 
-        let mut r = AtomicIsize::new(0);
+        let r = Arc::new(AtomicIsize::new(0));
+        let r2 = r.clone();
+
         {
-            let it = subj.rx().take_until(noti.clone()).sub_scoped(|v| { r.fetch_add(1, Ordering::SeqCst);});
+            let it = subj.rx().take_until(noti.clone()).subn(move |v| { r.fetch_add(1, Ordering::SeqCst);});
             subj.next(1);
 
             let hr = ::std::thread::spawn(move || noti2.next(1));
@@ -141,7 +136,7 @@ mod test
             subj.next(1);
         }
 
-        assert_eq!(r.load(Ordering::SeqCst), 1);
+        assert_eq!(r2.load(Ordering::SeqCst), 1);
     }
 
     #[test]

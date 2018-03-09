@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 #[derive(Clone)]
-pub struct SkipOp<Src, V> where Src : Observable<V>
+pub struct SkipOp<Src, V> //where Src : Observable<'a, V>
 {
     source: Src,
     total: isize,
@@ -22,12 +22,12 @@ struct SkipState
     count:AtomicIsize
 }
 
-pub trait ObservableSkip<Src, V> where Src : Observable<  V>
+pub trait ObservableSkip<'a, Src, V> where Src : Observable<'a,V>
 {
     fn skip(self, total: isize) -> SkipOp<Src, V>;
 }
 
-impl<Src, V> ObservableSkip<Src, V> for Src where Src : Observable<  V>,
+impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>,
 {
     fn skip(self, total: isize) -> SkipOp<Self, V>
     {
@@ -35,7 +35,7 @@ impl<Src, V> ObservableSkip<Src, V> for Src where Src : Observable<  V>,
     }
 }
 
-impl<V> SubscriberImpl<V,SkipState> for Subscriber<V,SkipState>
+impl<'a, V> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState>
 {
     fn on_next(&self, v:V)
     {
@@ -67,9 +67,9 @@ impl<V> SubscriberImpl<V,SkipState> for Subscriber<V,SkipState>
     }
 }
 
-impl<Src, V:'static+Send+Sync> Observable< V> for SkipOp<Src, V> where Src: Observable<V>
+impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src: Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         let s = Arc::new(Subscriber::new(SkipState{ count: AtomicIsize::new(self.total)}, dest, false));
         let sub = self.source.sub(s.clone());

@@ -10,19 +10,19 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use scheduler::Scheduler;
 
-pub struct SubOnOp<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+pub struct SubOnOp<Src, V, Sch> //where Src : Observable<'a, V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
     source: Arc<Src>,
     scheduler: Arc<Sch>,
     PhantomData: PhantomData<V>
 }
 
-pub trait ObservableSubOn<Src, V, Sch> where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+pub trait ObservableSubOn<Src, V, Sch> where Src : Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
     fn sub_on(self, scheduler: Arc<Sch>) -> SubOnOp<Src, V, Sch> ;
 }
 
-impl<Src, V, Sch> ObservableSubOn<Src, V, Sch> for Src where Src : Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+impl<Src, V, Sch> ObservableSubOn<Src, V, Sch> for Src where Src : 'static+Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
     fn sub_on(self, scheduler: Arc<Sch>) -> SubOnOp<Src, V, Sch>
     {
@@ -30,9 +30,9 @@ impl<Src, V, Sch> ObservableSubOn<Src, V, Sch> for Src where Src : Observable<V>
     }
 }
 
-impl<Src, V:'static+Send+Sync, Sch> Observable< V> for SubOnOp<Src, V, Sch> where Src : 'static + Observable<V>+Send+Sync, Sch: Scheduler+Send+Sync
+impl<Src, V:'static+Send+Sync, Sch> Observable<'static, V> for SubOnOp<Src, V, Sch> where Src : 'static+Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'static>) -> UnsubRef
     {
         let src = self.source.clone();
         self.scheduler.schedule(move ||{

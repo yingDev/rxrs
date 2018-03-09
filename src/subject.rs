@@ -21,29 +21,29 @@ use std::sync::ONCE_INIT;
 use std::sync::Once;
 
 #[derive(Clone)]
-struct Record<V>
+struct Record<'a, V>
 {
     disposed: Arc<AtomicBool>,
-    ob: Arc<Observer<V>+Send+Sync>,
-    sub: UnsubRef<'static>
+    ob: Arc<Observer<V>+Send+Sync+'a>,
+    sub: UnsubRef
 }
 
-impl<V> Record<V>
+impl<'a, V> Record<'a,V>
 {
-    fn new(ob: Arc<Observer<V>+Send+Sync>, sub: UnsubRef<'static>, arc_dispose: Arc<AtomicBool>) -> Record<V>
+    fn new(ob: Arc<Observer<V>+Send+Sync+'a>, sub: UnsubRef, arc_dispose: Arc<AtomicBool>) -> Record<'a, V>
     {
         Record{ disposed: arc_dispose, ob, sub  }
     }
 
     #[inline]
-    fn next(&self, v:V)
+    fn next(& self, v:V)
     {
         if self.disposed.load(Ordering::Acquire) { return; }
         self.ob.next(v);
     }
 
     #[inline]
-    fn complete(&self)
+    fn complete(& self)
     {
         if self.disposed.compare_and_swap(false, true, Ordering::SeqCst) { return; }
         self.sub.unsub();
@@ -51,7 +51,7 @@ impl<V> Record<V>
     }
 
     #[inline]
-    fn err(&self, e:Arc<Any+Send+Sync>)
+    fn err(& self, e:Arc<Any+Send+Sync>)
     {
         if self.disposed.compare_and_swap(false, true, Ordering::SeqCst) { return; }
         self.sub.unsub();
@@ -59,18 +59,18 @@ impl<V> Record<V>
     }
 }
 
-enum State<V:Clone>{
-    Normal(Arc<NormalState<V>>), Faulted(Arc<Any+Send+Sync>), Completed
+enum State<'a, V:Clone>{
+    Normal(Arc<NormalState<'a, V>>), Faulted(Arc<Any+Send+Sync>), Completed
 }
 
-struct NormalState<V: Clone>
+struct NormalState<'a, V: Clone>
 {
-    obs: ArcCell<Vec< Record<V> >>,
-    toAdd: Mutex<Vec<Record<V>>>,
+    obs: ArcCell<Vec< Record<'a, V> >>,
+    toAdd: Mutex<Vec<Record<'a, V>>>,
     needs_sweep: AtomicBool,
 }
 
-impl<V:Clone> NormalState<V>
+impl<'a, V:Clone> NormalState<'a, V>
 {
     fn sweep(&self)
     {
@@ -98,12 +98,12 @@ impl<V:Clone> NormalState<V>
     }
 }
 
-pub struct Subject<V:Clone>
+pub struct Subject<'a,V:Clone>
 {
-    _state: ArcCell<State<V>>,
+    _state: ArcCell<State<'a, V>>,
 }
 
-impl<V:Clone> Drop for Subject<V>
+impl<'a, V:Clone> Drop for Subject<'a,V>
 {
     fn drop(&mut self)
     {
@@ -116,9 +116,9 @@ impl<V:Clone> Drop for Subject<V>
     }
 }
 
-impl<'a,  V:'static+Clone> Subject<V>
+impl<'a,  V:'static+Clone> Subject<'a, V>
 {
-    pub fn new() -> Subject<V>
+    pub fn new() -> Subject<'a, V>
     {
         Subject{ _state: ArcCell::new(Arc::new(
             State::Normal(
@@ -133,9 +133,9 @@ impl<'a,  V:'static+Clone> Subject<V>
 
 }
 
-impl<V:Clone+'static> Observer<V> for Subject<V>
+impl<'a, V:Clone+'static> Observer<V> for Subject<'a, V>
 {
-    fn next(&self, v:V)
+    fn next(& self, v:V)
     {
         match *self._state.get(){
             State::Normal(ref normal) => {
@@ -148,7 +148,7 @@ impl<V:Clone+'static> Observer<V> for Subject<V>
         }
     }
 
-    fn err(&self, e:Arc<Any+Send+Sync>)
+    fn err(& self, e:Arc<Any+Send+Sync>)
     {
         let oldState = self._state.set(Arc::new(State::Faulted(e.clone())));
         match *oldState {
@@ -159,7 +159,7 @@ impl<V:Clone+'static> Observer<V> for Subject<V>
         }
     }
 
-    fn complete(&self)
+    fn complete(& self)
     {
         let oldState = self._state.set(Arc::new(State::Completed));
         match *oldState {
@@ -180,9 +180,9 @@ impl<V:Clone+'static> Observer<V> for Subject<V>
     }
 }
 
-impl<V:'static+Clone> Observable< V> for Subject<V>
+impl<'a, V:'static+Clone> Observable<'a,V> for Subject<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         if dest._is_closed() {
             return UnsubRef::empty();
@@ -194,7 +194,8 @@ impl<V:'static+Clone> Observable< V> for Subject<V>
                 let arc_unsub = Arc::new(AtomicBool::new(false));
                 let arc_unsub2 = arc_unsub.clone();
 
-                let stateClone = Arc::downgrade(&normal.clone());
+                //extend life time... todo: find a safer way
+                let stateClone = unsafe { Arc::downgrade(::std::mem::transmute::<&Arc<NormalState<'a,V>>, &Arc<NormalState<'static, V>>>(&normal.clone())) };
                 let sub = UnsubRef::fromFn(move ||{
                     let old = arc_unsub2.compare_and_swap(false, true, Ordering::SeqCst);
                     if !old {
@@ -244,6 +245,20 @@ mod test {
 
         let result = out.load(Ordering::SeqCst);
         assert!(result == 3, format!("actual: {}", result));
+    }
+
+    #[test]
+    fn scoped()
+    {
+        let i = AtomicIsize::new(0);
+        {
+            let subj = Subject::new();
+            subj.subn(|v| println!("{}", i.fetch_add(v, Ordering::SeqCst)));
+            subj.next(1);
+            subj.complete();
+        }
+
+        assert_eq!(i.load(Ordering::SeqCst), 1);
     }
 
     #[test]
@@ -322,14 +337,14 @@ mod test {
     fn unsub_on_comp()
     {
         let b = Arc::new(AtomicBool::new(false));
-        let b1 = b.clone();
+        let b2 = b.clone();
 
         let s = Subject::<i32>::new();
         s.subn(|v|{}).add(move || b.store(true, Ordering::SeqCst));
         s.next(123);
         s.complete();
 
-        assert!(b1.load(Ordering::SeqCst) == true);
+        assert!(b2.load(Ordering::SeqCst) == true);
     }
 
     #[test]

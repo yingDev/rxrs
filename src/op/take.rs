@@ -10,32 +10,33 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 #[derive(Clone)]
-pub struct TakeOp<Src, V> where Src : Observable<V>
+pub struct TakeOp<'a, Src, V> where Src : Observable<'a, V>
 {
     source: Src,
     total: isize,
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(V,&'a())>
 }
 
-struct TakeState
+struct TakeState<'a>
 {
-    count:AtomicIsize
+    count:AtomicIsize,
+    PhantomData: PhantomData<&'a()>
 }
 
-pub trait ObservableTake<Src, V> where Src : Observable<  V>
+pub trait ObservableTake<'a, Src, V> where Src : Observable<'a, V>
 {
-    fn take(self, total: isize) -> TakeOp<Src, V>;
+    fn take(self, total: isize) -> TakeOp<'a, Src, V>;
 }
 
-impl<Src, V> ObservableTake<Src, V> for Src where Src : Observable<  V>,
+impl<'a, Src, V> ObservableTake<'a, Src, V> for Src where Src : Observable<'a, V>,
 {
-    fn take(self, total: isize) -> TakeOp<Self, V>
+    fn take(self, total: isize) -> TakeOp<'a, Self, V>
     {
         TakeOp{ total, PhantomData, source: self  }
     }
 }
 
-impl<V> SubscriberImpl<V,TakeState> for Subscriber<V,TakeState>
+impl<'a, V> SubscriberImpl<V,TakeState<'a>> for Subscriber<'a, V,TakeState<'a>>
 {
     fn on_next(&self, v:V)
     {
@@ -65,16 +66,16 @@ impl<V> SubscriberImpl<V,TakeState> for Subscriber<V,TakeState>
     }
 }
 
-impl<Src, V:'static+Send+Sync> Observable< V> for TakeOp<Src, V> where Src: Observable<V>
+impl<'a, Src, V:'static+Send+Sync> Observable<'a, V> for TakeOp<'a, Src, V> where Src: Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         if self.total <= 0 {
             dest.complete();
             return UnsubRef::empty();
         }
 
-        let s = Arc::new(Subscriber::new(TakeState{ count: AtomicIsize::new(self.total)}, dest, false));
+        let s = Arc::new(Subscriber::new(TakeState{ count: AtomicIsize::new(self.total), PhantomData}, dest, false));
         let sub = self.source.sub(s.clone());
         s.set_unsub(&sub);
 

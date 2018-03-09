@@ -17,11 +17,11 @@ use std::sync::Condvar;
 use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
-pub struct ObserveOn<Src, V, Sch> where Src: Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync
+pub struct ObserveOn<Src, V, Sch> //where Src: Observable<'a, V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
     source: Arc<Src>,
     scheduler: Arc<Sch>,
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(V)>
 }
 
 //todo: lockless
@@ -31,12 +31,12 @@ struct ObserveOnState<V, Sch> where Sch: Scheduler + Send + Sync
     queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any + Send + Sync>>)>
 }
 
-pub trait ObservableObserveOn<Src, V, Sch> where Src: Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync
+pub trait ObservableObserveOn<Src, V, Sch> where Src: Observable<'static, V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
     fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch>;
 }
 
-impl<Src, V, Sch> ObservableObserveOn<Src, V, Sch> for Src where Src: Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync
+impl<Src, V, Sch> ObservableObserveOn<Src, V, Sch> for Src where Src: Observable<'static, V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
     fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch>
     {
@@ -44,7 +44,7 @@ impl<Src, V, Sch> ObservableObserveOn<Src, V, Sch> for Src where Src: Observable
     }
 }
 
-impl<V: Send + Sync + 'static, Sch> SubscriberImpl<V, ObserveOnState<V, Sch>> for Subscriber<V, ObserveOnState<V, Sch>> where Sch: Scheduler + Send + Sync + 'static
+impl<V: Send + Sync + 'static, Sch> SubscriberImpl<V, ObserveOnState<V, Sch>> for Subscriber<'static, V, ObserveOnState<V, Sch>> where Sch: Scheduler + Send + Sync + 'static
 {
     fn on_next(&self, v: V)
     {
@@ -70,9 +70,9 @@ impl<V: Send + Sync + 'static, Sch> SubscriberImpl<V, ObserveOnState<V, Sch>> fo
     }
 }
 
-impl<Src, V: 'static + Send + Sync, Sch> Observable<V> for ObserveOn<Src, V, Sch> where Src: 'static + Observable<V> + Send + Sync, Sch: Scheduler + Send + Sync + 'static
+impl<Src, V: 'static + Send + Sync, Sch> Observable<'static, V> for ObserveOn<Src, V, Sch> where Src: Observable<'static, V> + Send + Sync, Sch: Scheduler + Send + Sync + 'static
 {
-    fn sub(&self, dest: Arc<Observer<V> + Send + Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'static>) -> UnsubRef
     {
         let s = Arc::new(Subscriber::new(ObserveOnState {
             scheduler: self.scheduler.clone(),
@@ -94,7 +94,7 @@ impl<Src, V: 'static + Send + Sync, Sch> Observable<V> for ObserveOn<Src, V, Sch
     }
 }
 
-fn dispatch<V, Sch>(subscriber: Arc<Subscriber<V, ObserveOnState<V, Sch>>>) where Sch: Scheduler + Send + Sync
+fn dispatch<V, Sch>(subscriber: Arc<Subscriber<'static, V, ObserveOnState<V, Sch>>>) where Sch: Scheduler + Send + Sync
 {
     let queue = subscriber._state.queue.clone();
     let dest = subscriber._dest.clone();
@@ -148,11 +148,13 @@ mod test
         let out = Arc::new(Mutex::new(String::new()));
         let (out1, out2) = (out.clone(), out.clone());
 
+        let toStr = |s:usize| format!("{}", s);
+
         rxfac::timer(0, Some(10), NewThreadScheduler::get())
             .skip(3)
             .filter(|i| i % 2 == 0)
             .take(3)
-            .map(|v| format!("{}", v))
+            .map(toStr)
             .tap((|v:&String| println!("tap: {}", v), (), || println!("tap: complete")))
             .observe_on(NewThreadScheduler::get())
             .subf(

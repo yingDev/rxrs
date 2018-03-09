@@ -14,17 +14,17 @@ pub struct TapOp<V, Src, Obs>
     PhantomData: PhantomData<V>
 }
 
-pub trait ObservableTap<Src, V:Clone+Send+Sync+'static, Obs> where
+pub trait ObservableTap<'x, Src, V:Clone+Send+Sync+'static, Obs> where
     for<'a> Obs: Observer<&'a V>+Send+Sync+Clone,
-    Src : Observable<V>
+    Src : Observable<'x, V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>;
 }
 
-impl<Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<Src, V, Obs> for Src where
+impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for Src where
     V: Send+Sync+'static,
     for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
-    Src : Observable<V>
+    Src : Observable<'x, V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>
     {
@@ -32,12 +32,12 @@ impl<Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<Src, V, Obs> for Src whe
     }
 }
 
-impl<V, Src, Obs> Observable<V> for TapOp<V, Src, Obs> where
+impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
         V: Send+Sync+'static,
         for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
-        Src : Observable<V>
+        Src : Observable<'x, V>
 {
-    fn sub(&self, dest: Arc<Observer<V> + Send + Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'x>) -> UnsubRef
     {
         let s = Arc::new(Subscriber::new(TapState{ obs: self.obs.clone() }, dest, false));
 
@@ -52,7 +52,7 @@ struct TapState<Obs>
     obs: Obs
 }
 
-impl<V, Obs> SubscriberImpl<V, TapState<Obs>> for Subscriber<V, TapState<Obs>> where
+impl<'x, V, Obs> SubscriberImpl<V, TapState<Obs>> for Subscriber<'x, V, TapState<Obs>> where
         for<'a> Obs: Observer<&'a V>+Send+Sync+'static,
 
 {

@@ -15,13 +15,13 @@ static mut EMPTY_SUB_REF: Option<UnsubRef> = None;
 static EMPTY_SUB_REF_INIT: Once = ONCE_INIT;
 
 #[derive(Clone)]
-pub struct UnsubRef<'a>
+pub struct UnsubRef
 {
-    state: Arc<State<'a>>,
+    state: Arc<State>,
     _unsub_on_drop: bool,
 }
 
-impl<'a> Drop for UnsubRef<'a>
+impl Drop for UnsubRef
 {
     fn drop(&mut self)
     {
@@ -31,16 +31,16 @@ impl<'a> Drop for UnsubRef<'a>
     }
 }
 
-struct State<'a>
+struct State
 {
     disposed: AtomicBool,
-    cb: Option<Box<Fn()+'a+Send+Sync>>,
-    extra: AtomicOption<LinkedList<UnsubRef<'a>>>,
+    cb: Option<Box<Fn()+Send+Sync>>,
+    extra: AtomicOption<LinkedList<UnsubRef>>,
 }
 
-impl<'a> UnsubRef<'a>
+impl UnsubRef
 {
-    pub fn fromFn<F: Fn()+'a+Send+Sync>(unsub: F) -> UnsubRef<'a>
+    pub fn fromFn<F: Fn()+'static+Send+Sync>(unsub: F) -> UnsubRef
     {
          UnsubRef { state: Arc::new(
             State{
@@ -52,7 +52,7 @@ impl<'a> UnsubRef<'a>
         }
     }
 
-    pub fn signal() -> UnsubRef<'static>
+    pub fn signal() -> UnsubRef
     {
         UnsubRef { state: Arc::new(
             State{
@@ -63,19 +63,8 @@ impl<'a> UnsubRef<'a>
             _unsub_on_drop: false,
         }    }
 
-    pub fn scoped<'s>() -> UnsubRef<'s>
-    {
-        UnsubRef { state: Arc::new(
-            State{
-                disposed: AtomicBool::new(false),
-                cb: None,
-                extra: AtomicOption::with(LinkedList::new())
-            }),
-            _unsub_on_drop: true,
-        }
-    }
 
-    pub fn empty() -> UnsubRef<'a>
+    pub fn empty() -> UnsubRef
     {
         unsafe {
             EMPTY_SUB_REF_INIT.call_once(|| {
@@ -91,7 +80,7 @@ impl<'a> UnsubRef<'a>
         }
     }
 
-    pub fn ptr_eq(&self, other: &UnsubRef<'a>) -> bool
+    pub fn ptr_eq(&self, other: &UnsubRef) -> bool
     {
         Arc::ptr_eq(&self.state, &other.state)
     }
@@ -112,7 +101,7 @@ impl<'a> UnsubRef<'a>
 
     }
 
-    pub fn add<U>(&self, unsub: U) -> &Self where U:IntoUnsubRef<'a>
+    pub fn add<U>(&self, unsub: U) -> &Self where U:IntoUnsubRef
     {
         let un = unsub.into();
         if Arc::ptr_eq(&un.state, &self.state) {return self;}
@@ -132,7 +121,7 @@ impl<'a> UnsubRef<'a>
         return self;
     }
 
-    pub fn combine<U>(self, other: U) -> Self where U : IntoUnsubRef<'a>
+    pub fn combine<U>(self, other: U) -> Self where U : IntoUnsubRef
     {
         self.add(other.into());
         self
@@ -142,20 +131,20 @@ impl<'a> UnsubRef<'a>
     pub fn disposed(&self) -> bool { self.state.disposed.load(Ordering::SeqCst)}
 }
 
-pub trait IntoUnsubRef<'a>
+pub trait IntoUnsubRef
 {
-    fn into(self) -> UnsubRef<'a>;
+    fn into(self) -> UnsubRef;
 }
-impl<'a, F:Fn()+'static+Send+Sync> IntoUnsubRef<'a> for F
+impl<'a, F:Fn()+'static+Send+Sync> IntoUnsubRef for F
 {
-    fn into(self) -> UnsubRef<'a>
+    fn into(self) -> UnsubRef
     {
         UnsubRef::fromFn(self)
     }
 }
-impl<'a> IntoUnsubRef<'a> for UnsubRef<'a>
+impl IntoUnsubRef for UnsubRef
 {
-    fn into(self) -> UnsubRef<'a>{ self }
+    fn into(self) -> UnsubRef{ self }
 }
 
 #[cfg(test)]
@@ -163,7 +152,6 @@ mod tests
 {
     use super::*;
     use std::thread;
-    use subject::*;
     use observable::*;
 
     #[test]
@@ -209,31 +197,4 @@ mod tests
         assert_eq!(*out3.lock().unwrap(), "AA");
     }
 
-    #[test]
-    fn scoped()
-    {
-        let subj = Subject::new();
-        let mut result = 0;
-        {
-            let scope = subj.rx().sub_scoped(|v|{ result += v; });
-            scope.add(|| println!("Where?"));
-            println!("hello");
-            subj.next(1);
-        }
-        subj.next(2);
-
-        assert_eq!(result, 1);
-    }
-
-    #[test]
-    fn scoped2()
-    {
-        use fac::rxfac;
-        use op::*;
-
-        let mut result = 0;
-        rxfac::range(0..100).take(10).sub_scoped(|v| result += v );
-
-        assert_eq!(result, (0..100).take(10).sum());
-    }
 }

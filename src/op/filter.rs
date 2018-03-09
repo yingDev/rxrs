@@ -6,42 +6,42 @@ use subscriber::*;
 use unsub_ref::UnsubRef;
 use std::sync::Arc;
 
-pub struct FilterState<V: 'static+Send+Sync, F: Send+Sync+Fn(&V)->bool>
+pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 {
     pred: Arc<F>,
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(V,&'a())>
 }
 
 #[derive(Clone)]
-pub struct FilterOp<Src, V: 'static+Send+Sync, F: Send+Sync+Fn(&V)->bool>
+pub struct FilterOp<'a, Src, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 {
     source: Src,
     pred: Arc<F>,
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(V,&'a())>
 }
 
-pub trait ObservableFilter<Src, V:Clone+Send+Sync, FPred> where
-    Src : Observable<V>,
-    FPred: Send+Sync+Fn(&V)->bool
+pub trait ObservableFilter<'a, Src, V:Clone+Send+Sync, FPred> where
+    Src : Observable<'a, V>,
+    FPred: 'a+Send+Sync+Fn(&V)->bool
 {
-    fn filter(self, pred: FPred) -> FilterOp< Src, V, FPred>;
+    fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>;
 }
 
-impl<Src, V:Clone+Send+Sync, FPred> ObservableFilter<Src, V, FPred> for Src where
-    Src : Observable<V>,
-    FPred: Send+Sync+Fn(&V)->bool
+impl<'a, Src, V:Clone+Send+Sync, FPred> ObservableFilter<'a, Src, V, FPred> for Src where
+    Src : Observable<'a, V>,
+    FPred: 'a+Send+Sync+Fn(&V)->bool
 {
-    fn filter(self, pred: FPred) -> FilterOp<Src, V, FPred>
+    fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>
     {
         FilterOp { source: self, pred: Arc::new(pred), PhantomData }
     }
 }
 
-impl<Src, V:Clone+Send+Sync, FPred> Observable<V> for FilterOp<Src, V, FPred> where
-    Src : Observable<V>,
-    FPred: 'static + Send+Sync+Fn(&V)->bool
+impl<'a, Src, V:Clone+Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, V, FPred> where
+    Src : Observable<'a, V>,
+    FPred: 'a + Send+Sync+Fn(&V)->bool
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync>) -> UnsubRef<'static>
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
         let s = Arc::new(Subscriber::new(FilterState{ pred: self.pred.clone(), PhantomData }, dest, false));
 
@@ -52,12 +52,7 @@ impl<Src, V:Clone+Send+Sync, FPred> Observable<V> for FilterOp<Src, V, FPred> wh
     }
 }
 
-impl<V:Clone+Send+Sync,F> Subscriber<V,FilterState<V,F>> where F: Send+Sync+Fn(&V)->bool
-{
-    #[inline] fn do_pred(&self, v: &V) -> bool { (self._state.pred)(v)  }
-}
-
-impl<V:Clone+Send+Sync,F> SubscriberImpl<V,FilterState<V, F>> for Subscriber<V,FilterState<V,F>> where F: Send+Sync+Fn(&V)->bool
+impl<'a, V:Clone+Send+Sync,F> SubscriberImpl<V,FilterState<'a, V, F>> for Subscriber<'a, V,FilterState<'a, V,F>> where F: 'a+Send+Sync+Fn(&V)->bool
 {
     fn on_next(&self, v: V)
     {

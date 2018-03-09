@@ -11,18 +11,18 @@ use util::*;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-pub struct Subscriber<V, S, VOut=V>
+pub struct Subscriber<'a, V, S, VOut=V>
 {
     pub _state: S,
     pub _stopped: AtomicBool,
-    pub _dest: Arc<Observer<VOut>+Send+Sync>,
-    pub _sub: AtomicOption<UnsubRef<'static>>,
+    pub _dest: Arc<Observer<VOut>+Send+Sync+'a>,
+    pub _sub: AtomicOption<UnsubRef>,
     PhantomData: PhantomData<V>
 }
 
-impl<V,S,VOut> Subscriber<V,S,VOut>
+impl<'a, V,S,VOut> Subscriber<'a, V,S,VOut>
 {
-    pub fn new(state: S, dest: Arc<Observer<VOut>+Send+Sync>, stopped: bool) -> Subscriber<V, S,VOut>
+    pub fn new(state: S, dest: Arc<Observer<VOut>+Send+Sync+'a>, stopped: bool) -> Subscriber<'a, V, S,VOut>
     {
         Subscriber{ _state: state, _stopped: AtomicBool::new(stopped), _dest: dest, _sub: AtomicOption::new(), PhantomData }
     }
@@ -36,7 +36,7 @@ impl<V,S,VOut> Subscriber<V,S,VOut>
         }
     }
 
-    pub fn set_unsub(&self, s: &UnsubRef<'static>)
+    pub fn set_unsub(&self, s: &UnsubRef)
     {
         if self.stopped() {
             s.unsub();
@@ -60,7 +60,7 @@ pub trait SubscriberImpl<V, S> : Observer<V>
     fn on_comp(&self);
 }
 
-impl<V, S,VOut> Observer<V> for Subscriber<V, S,VOut> where Subscriber<V, S,VOut>: SubscriberImpl<V, S>
+impl<'a, V, S,VOut> Observer<V> for Subscriber<'a, V, S,VOut> where Subscriber<'a, V, S,VOut>: SubscriberImpl<V, S>
 {
     fn next(&self, v: V)
     {

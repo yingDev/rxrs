@@ -14,6 +14,8 @@ use std::marker::PhantomData;
 static mut EMPTY_SUB_REF: Option<UnsubRef> = None;
 static EMPTY_SUB_REF_INIT: Once = ONCE_INIT;
 
+//todo: make a `ScopedUnsubRef` and remove _unsub_on_drop
+
 #[derive(Clone)]
 pub struct UnsubRef
 {

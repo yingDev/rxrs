@@ -15,15 +15,15 @@ pub struct TapOp<V, Src, Obs>
 }
 
 pub trait ObservableTap<'x, Src, V:Clone+Send+Sync+'static, Obs> where
-    for<'a> Obs: Observer<&'a V>+Send+Sync+Clone,
-    Src : Observable<'x, V>
+        for<'a> Obs: Observer<&'a V>+Send+Sync+'x+Clone,
+        Src : Observable<'x, V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>;
 }
 
 impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for Src where
     V: Send+Sync+'static,
-    for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
+    for<'a> Obs: Observer<&'a V>+Send+Sync+'x+Clone,
     Src : Observable<'x, V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>

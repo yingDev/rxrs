@@ -228,6 +228,7 @@ mod test {
     use std::sync::atomic::AtomicIsize;
     use super::*;
     use scheduler::NewThreadScheduler;
+    use op::*;
 
     #[test]
     fn basic()
@@ -250,14 +251,15 @@ mod test {
     #[test]
     fn scoped()
     {
+        let subj = Subject::new();
+
         let mut i = 0;
         {
-            let subj = Subject::new();
-            let x = subj.sub_scoped(|v| i+=v);
-            subj.subn(|v| println!("{}", v));
+            let x = subj.rx().tap(|v:&i32|println!("{}",v)).sub_scoped(|v| i+=v);
             subj.next(1);
-            subj.complete();
         }
+
+        subj.next(2);
 
         assert_eq!(i, 1);
     }

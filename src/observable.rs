@@ -56,6 +56,7 @@ pub struct ByrefOp<'a:'b, 'b, V, Src:'a> where Src : Observable<'a, V>+'a
 
 pub trait ObservableByref<'a:'b, 'b, V, Src> where Src : Observable<'a, V>+'a
 {
+    //todo: keep only one
     fn byref(&'b self) -> ByrefOp<'a, 'b,V, Src>;
     fn rx(&'b self) -> ByrefOp<'a, 'b, V, Src>{ self.byref() }
 }
@@ -199,29 +200,26 @@ impl<V> ObserverHelper<V> for Arc<Observer<V>>
 
 }
 
-pub trait ObservableSubScopedHelper<'a, Obs, V,F, FErr, FComp>
+pub trait ObservableSubScopedHelper<'x, Obs, V,F, FErr, FComp>
 {
-    fn sub_scopedf(&self, next: F, ferr: FErr, fcomp: FComp) -> UnsubRef;
+    fn sub_scopedf(&self, next: F, ferr: FErr, fcomp: FComp) -> Scope<'x>;
 }
-pub trait ObservableSubScopedNextHelper<'a, Obs, V,F>
+
+impl<'a:'b,'b, Obs, V:'static, F, FErr, FComp> ObservableSubScopedHelper<'b, Obs, V,F, FErr, FComp> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'b, FErr:FnMut(Arc<Any+Send+Sync>)+'b, FComp:FnMut()+'b,
 {
-    fn sub_scoped(&self, next: F) -> UnsubRef;
-}
-impl<'a, Obs, V:'static, F, FErr, FComp> ObservableSubScopedHelper<'a, Obs, V,F, FErr, FComp> for Obs where
-    Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a, FComp:FnMut()+'a,
-{
-    fn sub_scopedf(&self, fnext: F, ferr: FErr, fcomp: FComp) -> UnsubRef
+    fn sub_scopedf(&self, fnext: F, ferr: FErr, fcomp: FComp) -> Scope<'b>
     {
         unsafe {
             use ::std::mem::transmute;
 
-            let fnext : Box<FnMut(V) + 'a> = Box::new(fnext);
+            let fnext : Box<FnMut(V) + 'b> = Box::new(fnext);
             let fnext: Box<Fn(V) + Send> = transmute(fnext);
 
-            let ferr : Box<FnMut(Arc<Any+Send+Sync>)+'a> = Box::new(ferr);
+            let ferr : Box<FnMut(Arc<Any+Send+Sync>)+'b> = Box::new(ferr);
             let ferr: Box<Fn(Arc<Any+Send+Sync>) + Send> = transmute(ferr);
 
-            let fcomp : Box<FnMut()+'a> = Box::new(fcomp);
+            let fcomp : Box<FnMut()+'b> = Box::new(fcomp);
             let fcomp: Box<Fn() + Send> = transmute(fcomp);
 
             let o = Arc::new(ScopedObserver{
@@ -232,20 +230,29 @@ impl<'a, Obs, V:'static, F, FErr, FComp> ObservableSubScopedHelper<'a, Obs, V,F,
             let sub = self.sub(o);
             let scoped = UnsubRef::scoped();
             scoped.add(sub);
-            scoped
+            Scope(scoped, PhantomData)
         }
 
     }
 }
-impl<'a, Obs, V:'static, F> ObservableSubScopedNextHelper<'a, Obs,V,F> for Obs where
-    Obs : Observable<'a, V>, F:FnMut(V)+'a,
+
+pub trait ObservableSubScopedNextHelper<'x, Obs, V,F>
 {
-    fn sub_scoped(&self, fnext: F) -> UnsubRef
+    fn sub_scoped(&self, next: F) -> Scope<'x>;
+}
+
+pub struct Scope<'a>(UnsubRef, PhantomData<&'a ()>);
+//todo: deref ?
+
+impl<'a:'b,'b, Obs, V:'static, F> ObservableSubScopedNextHelper<'b, Obs,V,F> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'b,
+{
+    fn sub_scoped(&self, fnext: F) -> Scope<'b>
     {
         unsafe {
             use ::std::mem::transmute;
 
-            let fnext : Box<FnMut(V) + 'a> = Box::new(fnext);
+            let fnext : Box<FnMut(V) + 'b> = Box::new(fnext);
             let fnext: Box<Fn(V) + Send> = transmute(fnext);
 
             let o = Arc::new(ScopedObserver{
@@ -257,7 +264,7 @@ impl<'a, Obs, V:'static, F> ObservableSubScopedNextHelper<'a, Obs,V,F> for Obs w
             let scoped = UnsubRef::scoped();
             scoped.add(sub);
 
-            scoped
+            Scope(scoped, PhantomData)
         }
 
     }

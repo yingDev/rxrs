@@ -46,16 +46,16 @@ impl<V> Record<V>
     fn complete(&self)
     {
         if self.disposed.compare_and_swap(false, true, Ordering::SeqCst) { return; }
-        self.ob.complete();
         self.sub.unsub();
+        self.ob.complete();
     }
 
     #[inline]
     fn err(&self, e:Arc<Any+Send+Sync>)
     {
         if self.disposed.compare_and_swap(false, true, Ordering::SeqCst) { return; }
-        self.ob.err(e);
         self.sub.unsub();
+        self.ob.err(e);
     }
 }
 

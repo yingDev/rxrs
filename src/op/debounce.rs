@@ -126,15 +126,15 @@ impl<V, Sch> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<V, Debounce
     fn on_err(&self, e: Arc<Any+Send+Sync>)
     {
         self._state.emmit_last(&self._dest);
-        self._dest.err(e);
         self.do_unsub();
+        self._dest.err(e);
     }
 
     fn on_comp(&self)
     {
         self._state.emmit_last(&self._dest);
-        self._dest.complete();
         self.do_unsub();
+        self._dest.complete();
     }
 }
 

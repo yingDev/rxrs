@@ -75,15 +75,15 @@ impl<V, Obs> SubscriberImpl<V, TapState<Obs>> for Subscriber<V, TapState<Obs>> w
     {
         self._state.obs.err(e.clone());
 
-        self._dest.err(e);
         self.do_unsub();
+        self._dest.err(e);
     }
 
     fn on_comp(&self)
     {
         self._state.obs.complete();
-        self._dest.complete();
         self.do_unsub();
+        self._dest.complete();
     }
 }
 

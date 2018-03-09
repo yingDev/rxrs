@@ -54,14 +54,14 @@ impl<V> SubscriberImpl<V,TakeState> for Subscriber<V,TakeState>
 
     fn on_err(&self, e:Arc<Any+Send+Sync>)
     {
-        self._dest.err(e);
         self.do_unsub();
+        self._dest.err(e);
     }
 
     fn on_comp(&self)
     {
-        self._dest.complete();
         self.do_unsub();
+        self._dest.complete();
     }
 }
 

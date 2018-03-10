@@ -199,89 +199,163 @@ impl<V> ObserverHelper<V> for Arc<Observer<V>>
     }
 
 }
+//
+//pub trait ObservableSubScopedHelper<'x, Obs, V,F, FErr, FComp>
+//{
+//    fn sub_scopedf(&self, next: F, ferr: FErr, fcomp: FComp) -> Scope<'x>;
+//}
 
-pub trait ObservableSubScopedHelper<'x, Obs, V,F, FErr, FComp>
+//impl<'a, Obs, V:'static, F, FErr, FComp> ObservableSubScopedHelper<'b, Obs, V,F, FErr, FComp> for Obs where
+//    Obs : Observable<'a, V>, F:FnMut(V)+'b, FErr:FnMut(Arc<Any+Send+Sync>)+'b, FComp:FnMut(())+'b,
+//{
+//    fn sub_scopedf(&self, fnext: F, ferr: FErr, fcomp: FComp) -> Scope<'b>
+//    {
+//        let o = Arc::new(ScopedObserver{
+//            fnext: Some(transmute_fn(fnext)), ferr: Some(transmute_fn(ferr)), fcomp: Some(transmute_fn(fcomp)), PhantomData
+//        });
+//
+//        let sub = self.sub(o);
+//        let scoped = UnsubRef::scoped();
+//        scoped.add(sub);
+//        Scope(scoped, PhantomData)
+//    }
+//}
+
+pub trait ObservableSubScopedHelper<'a, Obs, V,F>
 {
-    fn sub_scopedf(&self, next: F, ferr: FErr, fcomp: FComp) -> Scope<'x>;
-}
-
-impl<'a:'b,'b, Obs, V:'static, F, FErr, FComp> ObservableSubScopedHelper<'b, Obs, V,F, FErr, FComp> for Obs where
-    Obs : Observable<'a, V>, F:FnMut(V)+'b, FErr:FnMut(Arc<Any+Send+Sync>)+'b, FComp:FnMut()+'b,
-{
-    fn sub_scopedf(&self, fnext: F, ferr: FErr, fcomp: FComp) -> Scope<'b>
-    {
-        unsafe {
-            use ::std::mem::transmute;
-
-            let fnext : Box<FnMut(V) + 'b> = Box::new(fnext);
-            let fnext: Box<Fn(V) + Send> = transmute(fnext);
-
-            let ferr : Box<FnMut(Arc<Any+Send+Sync>)+'b> = Box::new(ferr);
-            let ferr: Box<Fn(Arc<Any+Send+Sync>) + Send> = transmute(ferr);
-
-            let fcomp : Box<FnMut()+'b> = Box::new(fcomp);
-            let fcomp: Box<Fn() + Send> = transmute(fcomp);
-
-            let o = Arc::new(ScopedObserver{
-                fnext: Some(fnext), ferr: Some(ferr), fcomp: Some(fcomp),
-                PhantomData
-            });
-
-            let sub = self.sub(o);
-            let scoped = UnsubRef::scoped();
-            scoped.add(sub);
-            Scope(scoped, PhantomData)
-        }
-
-    }
-}
-
-pub trait ObservableSubScopedNextHelper<'x, Obs, V,F>
-{
-    fn sub_scoped(&self, next: F) -> Scope<'x>;
+    fn sub_scoped<'b>(self, fns: F) -> Scope<'b>;
 }
 
 pub struct Scope<'a>(UnsubRef, PhantomData<&'a ()>);
 //todo: deref ?
 
-impl<'a:'b,'b, Obs, V:'static, F> ObservableSubScopedNextHelper<'b, Obs,V,F> for Obs where
-    Obs : Observable<'a, V>, F:FnMut(V)+'b,
+fn transmute_fn<'x, 'y, Args,F:FnMut(Args)+'x>(f: F) -> Box<Fn(Args)+Send+'y>
 {
-    fn sub_scoped(&self, fnext: F) -> Scope<'b>
-    {
-        unsafe {
-            use ::std::mem::transmute;
+    unsafe {
+        use ::std::mem::transmute;
 
-            let fnext : Box<FnMut(V) + 'b> = Box::new(fnext);
-            let fnext: Box<Fn(V) + Send> = transmute(fnext);
-
-            let o = Arc::new(ScopedObserver{
-                fnext: Some(fnext), ferr: None, fcomp: None,
-                PhantomData
-            });
-
-            let sub = self.sub(o);
-            let scoped = UnsubRef::scoped();
-            scoped.add(sub);
-
-            Scope(scoped, PhantomData)
-        }
-
+        let f : Box<FnMut(Args) + 'x> = Box::new(f);
+        let f: Box<Fn(Args) + Send+'y> = transmute(f);
+        f
     }
 }
 
+impl<'a, Obs, V:'static, F> ObservableSubScopedHelper<'a,Obs,V,F> for Obs where
+    Obs : Observable<'a, V>, F: FnMut(V)+'a
+{
+    fn sub_scoped<'b>(self, fnext: F)-> Scope<'b>
+    {
+        let o = Arc::new(ScopedObserver{
+            fnext: Some(transmute_fn(fnext)), ferr: None, fcomp: None, PhantomData
+        });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
+impl<'a, Obs, V:'static, F,FErr> ObservableSubScopedHelper<'a, Obs,V,(F,FErr,())> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a,
+{
+    fn sub_scoped<'b>(self, fns: (F,FErr,())) -> Scope<'b>
+    {
+        let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(fns.0)), ferr: Some(transmute_fn(fns.1)), fcomp: None, PhantomData });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
+impl<'a, Obs, V:'static, F,FErr,FComp> ObservableSubScopedHelper<'a, Obs,V,(F,FErr,FComp)> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a, FComp:FnMut()+'a
+{
+    fn sub_scoped<'b>(self, mut fns: (F,FErr,FComp)) -> Scope<'b>
+    {
+        let (n,e,mut c) = fns;
+        let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(n)), ferr: Some(transmute_fn(e)), fcomp: Some(transmute_fn( move |()|c() )), PhantomData });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
+impl<'a, Obs, V:'static, F,FComp> ObservableSubScopedHelper<'a, Obs,V,(F,(),FComp)> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'a, FComp:FnMut()+'a
+{
+    fn sub_scoped<'b>(self, mut fns: (F,(),FComp)) -> Scope<'b>
+    {
+        let (n,e,mut c) = fns;
+        let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(n)), ferr: None, fcomp: Some(transmute_fn(move |()| c() )), PhantomData });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
+impl<'a, Obs, V:'static, F,FErr> ObservableSubScopedHelper<'a, Obs,V,(F,FErr)> for Obs where
+    Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a
+{
+    fn sub_scoped<'b>(self, fns: (F,FErr)) -> Scope<'b>
+    {
+        let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(fns.0)), ferr: Some(transmute_fn(fns.1)), fcomp: None, PhantomData });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
+impl<'a, Obs, V:'static, FComp> ObservableSubScopedHelper<'a, Obs,V,((),(),FComp)> for Obs where
+    Obs : Observable<'a, V>, FComp:FnMut()+'a
+{
+    fn sub_scoped<'b>(self, mut fns: ((),(),FComp)) -> Scope<'b>
+    {
+        let (n,e,mut c) = fns;
+        let o = Arc::new(ScopedObserver{ fnext: None, ferr: None, fcomp: Some(transmute_fn(move |()| c() )), PhantomData });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
+impl<'a, Obs, V:'static, FErr> ObservableSubScopedHelper<'a, Obs,V,((),FErr)> for Obs where
+    Obs : Observable<'a, V>, FErr:FnMut(Arc<Any+Send+Sync>)+'a
+{
+    fn sub_scoped<'b>(self, fns: ((),FErr)) -> Scope<'b>
+    {
+        let (n,e) = fns;
+        let o = Arc::new(ScopedObserver{ fnext: None, ferr: Some(transmute_fn(e)), fcomp: None, PhantomData });
+
+        let sub = self.sub(o);
+        let scoped = UnsubRef::scoped();
+        scoped.add(sub);
+
+        Scope(scoped, PhantomData)
+    }
+}
 pub struct ScopedObserver< V>
 {
     fnext: Option<Box<Fn(V)+Send>>,
     ferr: Option<Box<Fn(Arc<Any+Send+Sync>)>>,
-    fcomp: Option<Box<Fn()>>,
+    fcomp: Option<Box<Fn(())>>,
     PhantomData: PhantomData<V>
 }
 impl<V> Observer<V> for ScopedObserver<V>
 {
     fn next(&self, v:V){ self.fnext.as_ref().map(|f| f(v)); }
     fn err(&self, e:Arc<Any+Send+Sync>) { self.ferr.as_ref().map(|f| f(e)); }
-    fn complete(&self){ self.fcomp.as_ref().map(|f| f()); }
+    fn complete(&self){ self.fcomp.as_ref().map(|f| f(())); }
 
     fn _is_closed(&self) -> bool { false }
 }
@@ -314,15 +388,21 @@ mod test
     #[test]
     fn scoped_mut()
     {
-        let mut a = 0;
+        let mut a = (0,0);
+
+        let src = rxfac::range(0..30);
 
         //won't compile
         //rxfac::range(0..30).take(3).observe_on(NewThreadScheduler::get()).sub_scoped(|v| a+=v);
 
-        rxfac::range(0..30).take(3).observe_on(NewThreadScheduler::get()).sub_scoped(|v| println!("{}",v));
+        //src.rx().take(3).observe_on(NewThreadScheduler::get()).sub_scoped(|v| a.0+=1);
 
-        rxfac::range(0..30).take(3).sub_scoped(|v| a+=v);
-        assert_eq!(a, 3);
+        {
+         //   src.rx().take(3).sub_scoped(|v| a.1 += v);
+        }
+
+        //rxfac::range(0..30).take(3).sub_scoped((|v| a+=v, |e|println!("err"), || println!("comp")));
+        //assert_eq!(a.1, 3);
     }
 
     #[test]

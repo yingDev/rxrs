@@ -36,13 +36,13 @@ impl Drop for UnsubRef
 struct State
 {
     disposed: AtomicBool,
-    cb: AtomicOption<Box<Fn()+Send+Sync>>,
+    cb: AtomicOption<Box<FnMut()+Send+Sync>>,
     extra: AtomicOption<LinkedList<UnsubRef>>,
 }
 
 impl UnsubRef
 {
-    pub fn fromFn<F: Fn()+'static+Send+Sync>(unsub: F) -> UnsubRef
+    pub fn fromFn<F: FnMut()+'static+Send+Sync>(unsub: F) -> UnsubRef
     {
          UnsubRef { state: Arc::new(
             State{
@@ -102,7 +102,7 @@ impl UnsubRef
     pub fn unsub(&self)
     {
         if self.state.disposed.compare_and_swap(false, true, Ordering::SeqCst){ return; }
-        if let Some(cb) = self.state.cb.take(Ordering::Acquire) {
+        if let Some(mut cb) = self.state.cb.take(Ordering::Acquire) {
             cb();
         }
 

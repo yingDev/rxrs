@@ -36,7 +36,7 @@ impl Drop for UnsubRef
 struct State
 {
     disposed: AtomicBool,
-    cb: Option<Box<Fn()+Send+Sync>>,
+    cb: AtomicOption<Box<Fn()+Send+Sync>>,
     extra: AtomicOption<LinkedList<UnsubRef>>,
 }
 
@@ -47,7 +47,7 @@ impl UnsubRef
          UnsubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
-                cb: Some(box unsub),
+                cb: AtomicOption::with(box unsub),
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: false,
@@ -59,7 +59,7 @@ impl UnsubRef
         UnsubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
-                cb: None,
+                cb: AtomicOption::new(),
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: false,
@@ -71,7 +71,7 @@ impl UnsubRef
         UnsubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
-                cb: None,
+                cb: AtomicOption::new(),
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: true,
@@ -85,7 +85,7 @@ impl UnsubRef
                 //todo
                 EMPTY_SUB_REF = Some( UnsubRef {
                     state: Arc::new(
-                    State{cb: None, extra: AtomicOption::new(), disposed: AtomicBool::new(true) },
+                    State{cb: AtomicOption::new(), extra: AtomicOption::new(), disposed: AtomicBool::new(true) },
                 ),
                     _unsub_on_drop: false,
                 } );
@@ -102,7 +102,7 @@ impl UnsubRef
     pub fn unsub(&self)
     {
         if self.state.disposed.compare_and_swap(false, true, Ordering::SeqCst){ return; }
-        if let Some(ref cb) = self.state.cb {
+        if let Some(cb) = self.state.cb.take(Ordering::Acquire) {
             cb();
         }
 

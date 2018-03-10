@@ -16,14 +16,19 @@ use std::sync::Arc;
 use observable::Observable;
 use observable::Observer;
 
-pub fn create<'a, V, Sub>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'a>)->UnsubRef
+pub fn create<'a, V, Sub>(sub:Sub) -> impl Observable<'a, V> where Sub : Fn(Arc<Observer<V>+Send+Sync+'a>)->UnsubRef
+{
+    CreatedObservable{ sub:sub, PhantomData  }
+}
+
+pub fn create_clonable<'a, V, Sub>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'a>)->UnsubRef
 {
     CreatedObservable{ sub:sub, PhantomData  }
 }
 
 pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> where V : Step
 {
-    create(move |o|
+    create_clonable(move |o|
     {
         for i in range.clone()
         {
@@ -37,7 +42,7 @@ pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> wher
 
 pub fn of<'a, V:Clone+'static>(v:V) -> impl Clone+Observable<'a, V>
 {
-    create(move |o|
+    create_clonable(move |o|
     {
         o.next(v.clone());
         o.complete();

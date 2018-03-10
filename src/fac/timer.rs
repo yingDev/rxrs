@@ -15,7 +15,7 @@ pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send
 
 pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize>
 {
-    rxfac::create(move |o|
+    rxfac::create_clonable(move |o|
     {
         let count = AtomicUsize::new(0);
         let scheduler2 = scheduler.clone();
@@ -25,18 +25,21 @@ pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl 
 
         scheduler.schedule_after(delay, move ||
         {
-            if o._is_closed() || sig.disposed() { return sig; }
+            if o._is_closed() || sig.disposed() { return sig.clone(); }
             o.next(count.fetch_add(1, Ordering::SeqCst));
-            if period.is_none() { return sig; }
+            if period.is_none() { return sig.clone(); }
 
-            scheduler2.schedule_periodic(period.unwrap(), sig, move ||
+            let o2 = o.clone();
+            let sig3 = sig2.clone();
+
+            scheduler2.schedule_periodic(period.unwrap(), sig.clone(), move ||
             {
-                if o._is_closed() || sig2.disposed()
+                if o2._is_closed() || sig3.disposed()
                 {
-                    sig2.unsub();
+                    sig3.unsub();
                     return;
                 }
-                o.next(count.fetch_add(1, Ordering::SeqCst));
+                o2.next(count.fetch_add(1, Ordering::SeqCst));
             })
         })
 

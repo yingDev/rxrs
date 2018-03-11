@@ -5,7 +5,7 @@
 </p>
 <br>
 
-### 🌱  This Project is currently at its early stage...
+### 🌱  This project is currently at its early stage... most of the features is experimental!
 ### 🦀  Contributions Are Welcome!
 
 # Example

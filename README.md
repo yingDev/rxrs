@@ -44,20 +44,22 @@ complete on ThreadId(2)
 
 ### Play with [gtk-rs](https://github.com/gtk-rs/gtk) 
 ```rust 
-let clicks = btn_clicks(button.clone());
+let clicks = btn_clicks(button.clone()).publish();
 
 let sub = clicks.rx().map(|i| format!("{} Clicks", i)).sub_scoped(
     move |s:String| button.set_label(&s)
 );
 
 let sub2 = rxfac::timer(0, Some(250), GtkScheduler::get())
-    .take_until(clicks.skip(3))
+    .take_until(clicks.rx().skip(3))
     .map(|i| format!("{}", i))
     .sub_scoped((
         move |s:String| win1.set_title(&s),
         (),
         move | | win2.set_title("Stopped!")
     ));
+
+clicks.connect();
 
 gtk::main();
 ```
@@ -67,6 +69,7 @@ gtk::main();
 ```
 src
 ├── behaviour_subject.rs
+├── connectable_observable.rs
 ├── fac
 │   ├── create.rs
 │   ├── mod.rs
@@ -79,7 +82,9 @@ src
 │   ├── filter.rs
 │   ├── map.rs
 │   ├── mod.rs
+│   ├── multicast.rs
 │   ├── observe_on.rs
+│   ├── publish.rs
 │   ├── skip.rs
 │   ├── sub_on.rs
 │   ├── take.rs
@@ -93,6 +98,7 @@ src
     ├── arc_cell.rs
     ├── atomic_option.rs
     └── mod.rs
+
 ```
 
 # TODO

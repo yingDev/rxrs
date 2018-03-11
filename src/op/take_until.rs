@@ -22,7 +22,7 @@ pub struct TakeUntilOp<VNoti, Src, Noti>
 }
 
 pub trait ObservableTakeUntil<'a, V, Src, VNoti, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync+Clone,
+    Noti: Observable<'a, VNoti>+Send+Sync,
     Src : Observable<'a, V>,
     Self: Sized
 {
@@ -30,7 +30,7 @@ pub trait ObservableTakeUntil<'a, V, Src, VNoti, Noti> where
 }
 
 impl<'a, V, Src, VNoti, Noti> ObservableTakeUntil<'a, V, Src, VNoti, Noti> for Src where
-    Noti: Observable<'a, VNoti>+Send+Sync+Clone,
+    Noti: Observable<'a, VNoti>+Send+Sync,
     Src : Observable<'a, V>,
 {
     fn take_until(self, noti: Noti) -> TakeUntilOp<VNoti, Src, Noti>
@@ -40,7 +40,7 @@ impl<'a, V, Src, VNoti, Noti> ObservableTakeUntil<'a, V, Src, VNoti, Noti> for S
 }
 
 impl<'a, V:'static+Send+Sync, Src, VNoti, Noti> Observable<'a, V> for TakeUntilOp<VNoti, Src, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync+Clone,
+    Noti: Observable<'a, VNoti>+Send+Sync,
     Src : Observable<'a, V>,
 {
     fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef

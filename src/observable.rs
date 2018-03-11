@@ -223,7 +223,7 @@ impl<V> ObserverHelper<V> for Arc<Observer<V>>
 
 pub trait ObservableSubScopedHelper<'a, Obs, V,F>
 {
-    fn sub_scoped<'b>(self, fns: F) -> Scope<'b>;
+    fn sub_scoped(self, fns: F) -> Scope<'a>;
 }
 
 pub struct Scope<'a>(UnsubRef, PhantomData<&'a ()>);
@@ -243,7 +243,7 @@ fn transmute_fn<'x, 'y, Args,F:FnMut(Args)+'x>(f: F) -> Box<Fn(Args)+Send+'y>
 impl<'a, Obs, V:'static, F> ObservableSubScopedHelper<'a,Obs,V,F> for Obs where
     Obs : Observable<'a, V>, F: FnMut(V)+'a
 {
-    fn sub_scoped<'b>(self, fnext: F)-> Scope<'b>
+    fn sub_scoped(self, fnext: F)-> Scope<'a>
     {
         let o = Arc::new(ScopedObserver{
             fnext: Some(transmute_fn(fnext)), ferr: None, fcomp: None, PhantomData
@@ -259,7 +259,7 @@ impl<'a, Obs, V:'static, F> ObservableSubScopedHelper<'a,Obs,V,F> for Obs where
 impl<'a, Obs, V:'static, F,FErr> ObservableSubScopedHelper<'a, Obs,V,(F,FErr,())> for Obs where
     Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a,
 {
-    fn sub_scoped<'b>(self, fns: (F,FErr,())) -> Scope<'b>
+    fn sub_scoped(self, fns: (F,FErr,())) -> Scope<'a>
     {
         let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(fns.0)), ferr: Some(transmute_fn(fns.1)), fcomp: None, PhantomData });
 
@@ -273,7 +273,7 @@ impl<'a, Obs, V:'static, F,FErr> ObservableSubScopedHelper<'a, Obs,V,(F,FErr,())
 impl<'a, Obs, V:'static, F,FErr,FComp> ObservableSubScopedHelper<'a, Obs,V,(F,FErr,FComp)> for Obs where
     Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a, FComp:FnMut()+'a
 {
-    fn sub_scoped<'b>(self, mut fns: (F,FErr,FComp)) -> Scope<'b>
+    fn sub_scoped(self, mut fns: (F,FErr,FComp)) -> Scope<'a>
     {
         let (n,e,mut c) = fns;
         let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(n)), ferr: Some(transmute_fn(e)), fcomp: Some(transmute_fn( move |()|c() )), PhantomData });
@@ -288,7 +288,7 @@ impl<'a, Obs, V:'static, F,FErr,FComp> ObservableSubScopedHelper<'a, Obs,V,(F,FE
 impl<'a, Obs, V:'static, F,FComp> ObservableSubScopedHelper<'a, Obs,V,(F,(),FComp)> for Obs where
     Obs : Observable<'a, V>, F:FnMut(V)+'a, FComp:FnMut()+'a
 {
-    fn sub_scoped<'b>(self, mut fns: (F,(),FComp)) -> Scope<'b>
+    fn sub_scoped(self, mut fns: (F,(),FComp)) -> Scope<'a>
     {
         let (n,e,mut c) = fns;
         let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(n)), ferr: None, fcomp: Some(transmute_fn(move |()| c() )), PhantomData });
@@ -303,7 +303,7 @@ impl<'a, Obs, V:'static, F,FComp> ObservableSubScopedHelper<'a, Obs,V,(F,(),FCom
 impl<'a, Obs, V:'static, F,FErr> ObservableSubScopedHelper<'a, Obs,V,(F,FErr)> for Obs where
     Obs : Observable<'a, V>, F:FnMut(V)+'a, FErr:FnMut(Arc<Any+Send+Sync>)+'a
 {
-    fn sub_scoped<'b>(self, fns: (F,FErr)) -> Scope<'b>
+    fn sub_scoped(self, fns: (F,FErr)) -> Scope<'a>
     {
         let o = Arc::new(ScopedObserver{ fnext: Some(transmute_fn(fns.0)), ferr: Some(transmute_fn(fns.1)), fcomp: None, PhantomData });
 
@@ -317,7 +317,7 @@ impl<'a, Obs, V:'static, F,FErr> ObservableSubScopedHelper<'a, Obs,V,(F,FErr)> f
 impl<'a, Obs, V:'static, FComp> ObservableSubScopedHelper<'a, Obs,V,((),(),FComp)> for Obs where
     Obs : Observable<'a, V>, FComp:FnMut()+'a
 {
-    fn sub_scoped<'b>(self, mut fns: ((),(),FComp)) -> Scope<'b>
+    fn sub_scoped(self, mut fns: ((),(),FComp)) -> Scope<'a>
     {
         let (n,e,mut c) = fns;
         let o = Arc::new(ScopedObserver{ fnext: None, ferr: None, fcomp: Some(transmute_fn(move |()| c() )), PhantomData });
@@ -332,7 +332,7 @@ impl<'a, Obs, V:'static, FComp> ObservableSubScopedHelper<'a, Obs,V,((),(),FComp
 impl<'a, Obs, V:'static, FErr> ObservableSubScopedHelper<'a, Obs,V,((),FErr)> for Obs where
     Obs : Observable<'a, V>, FErr:FnMut(Arc<Any+Send+Sync>)+'a
 {
-    fn sub_scoped<'b>(self, fns: ((),FErr)) -> Scope<'b>
+    fn sub_scoped(self, fns: ((),FErr)) -> Scope<'a>
     {
         let (n,e) = fns;
         let o = Arc::new(ScopedObserver{ fnext: None, ferr: Some(transmute_fn(e)), fcomp: None, PhantomData });

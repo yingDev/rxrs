@@ -8,6 +8,8 @@ mod observe_on;
 mod tap;
 mod concat;
 mod debounce;
+mod multicast;
+mod publish;
 
 pub use self::take::*;
 pub use self::filter::*;
@@ -19,3 +21,5 @@ pub use self::observe_on::*;
 pub use self::tap::*;
 pub use self::concat::*;
 pub use self::debounce::*;
+pub use self::multicast::*;
+pub use self::publish::*;

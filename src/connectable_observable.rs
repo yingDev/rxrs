@@ -8,7 +8,7 @@ use subscriber::SubscriberImpl;
 use subscriber::Subscriber;
 use std::any::Any;
 
-pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'static
+pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
 {
     source: Src,
     subject: Arc<Subj>,
@@ -16,7 +16,7 @@ pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>+
     PhantomData: PhantomData<(V,&'a ())>
 }
 
-impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'static
+impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
 {
     pub fn connect(&self) -> UnsubRef
     {
@@ -29,7 +29,7 @@ impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Obser
     }
 }
 
-impl<'a, V, Src, Subj> Observable<'a, V> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'static
+impl<'a, V, Src, Subj> Observable<'a, V> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
 {
     fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> UnsubRef
     {

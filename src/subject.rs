@@ -19,6 +19,7 @@ use std::sync::atomic::AtomicUsize;
 use std::slice::Iter;
 use std::sync::ONCE_INIT;
 use std::sync::Once;
+use std::sync::Weak;
 
 #[derive(Clone)]
 struct Record<'a, V>
@@ -116,7 +117,7 @@ impl<'a, V:Clone> Drop for Subject<'a,V>
     }
 }
 
-impl<'a,  V:'static+Clone> Subject<'a, V>
+impl<'a,  V:Clone> Subject<'a, V>
 {
     pub fn new() -> Subject<'a, V>
     {
@@ -133,7 +134,7 @@ impl<'a,  V:'static+Clone> Subject<'a, V>
 
 }
 
-impl<'a, V:Clone+'static> Observer<V> for Subject<'a, V>
+impl<'a, V:Clone> Observer<V> for Subject<'a, V>
 {
     fn next(& self, v:V)
     {
@@ -180,7 +181,7 @@ impl<'a, V:Clone+'static> Observer<V> for Subject<'a, V>
     }
 }
 
-impl<'a, V:'static+Clone> Observable<'a,V> for Subject<'a, V>
+impl<'a, V:Clone> Observable<'a,V> for Subject<'a, V>
 {
     fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
     {
@@ -194,8 +195,8 @@ impl<'a, V:'static+Clone> Observable<'a,V> for Subject<'a, V>
                 let arc_unsub = Arc::new(AtomicBool::new(false));
                 let arc_unsub2 = arc_unsub.clone();
 
-                //extend life time... todo: find a safer way
-                let stateClone = unsafe { Arc::downgrade(::std::mem::transmute::<&Arc<NormalState<'a,V>>, &Arc<NormalState<'static, V>>>(&normal.clone())) };
+                //extend life time...
+                let stateClone: Weak<NormalState<'static, PhantomData<()>>> = unsafe { ::std::mem::transmute(Arc::downgrade(&normal)) };
                 let sub = UnsubRef::fromFn(move ||{
                     let old = arc_unsub2.compare_and_swap(false, true, Ordering::SeqCst);
                     if !old {

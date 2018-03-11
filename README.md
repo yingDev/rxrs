@@ -61,7 +61,7 @@ let sub2 = rxfac::timer(0, Some(250), GtkScheduler::get())
 
 gtk::main();
 ```
-<img src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
+<img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
 
 # File Structure
 ```

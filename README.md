@@ -9,7 +9,7 @@
 ### 🦀  Contributions Are Welcome!
 
 # Example
-
+### Basics
 ```rust
 (Rust Nightly 1.25+)
 
@@ -41,6 +41,27 @@ cur thread ThreadId(1)
 -8- on ThreadId(2)
 complete on ThreadId(2)
 ```
+
+### Play with [gtk-rs](https://github.com/gtk-rs/gtk) 
+```rust 
+let clicks = btn_clicks(button.clone());
+
+let sub = clicks.rx().map(|i| format!("{} Clicks", i)).sub_scoped(
+    move |s:String| button.set_label(&s)
+);
+
+let sub2 = rxfac::timer(0, Some(250), GtkScheduler::get())
+    .take_until(clicks.skip(3))
+    .map(|i| format!("{}", i))
+    .sub_scoped((
+        move |s:String| win1.set_title(&s),
+        (),
+        move | | win2.set_title("Stopped!")
+    ));
+
+gtk::main();
+```
+<img src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.png?raw=true">
 
 # File Structure
 ```

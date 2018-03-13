@@ -103,6 +103,7 @@ src
 
 # TODO
 - [x] basic operators,factories,`Scheduler`s
+- [ ] WIP: refactor towards zero-cost abstractions
 - [ ] advanced operators,factories,`Scheduler`s
 - [ ] provide practical examples
 - [ ] docs

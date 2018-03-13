@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicIsize;
 
 use observable::*;
 use subscriber::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -35,7 +35,7 @@ impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>
     }
 }
 
-impl<'a, V> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState>
+impl<'a, V,Dest> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState,Dest>
 {
     fn on_next(&self, v:V)
     {
@@ -69,7 +69,7 @@ impl<'a, V> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState>
 
 impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src: Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let s = Arc::new(Subscriber::new(SkipState{ count: AtomicIsize::new(self.total)}, dest, false));
         let sub = self.source.sub(s.clone());

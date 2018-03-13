@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::any::Any;
 use subscriber::*;
 use observable::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -18,7 +18,7 @@ pub struct DebounceState<V, Sch>
 {
     scheduler: Arc<Sch>,
     dur: usize,
-    timer: Mutex<UnsubRef>,
+    timer: Mutex<SubRef>,
     val: Arc<Mutex<Option<V>>>
 }
 
@@ -27,7 +27,7 @@ impl<V,Sch> DebounceState<V,Sch>
     fn emmit_last(&self, dest: &Arc<Observer<V>+Send+Sync+'static>)
     {
         let mut timerLock = self.timer.lock().unwrap();
-        let timer = ::std::mem::replace(&mut *timerLock, UnsubRef::empty());
+        let timer = ::std::mem::replace(&mut *timerLock, SubRef::empty());
         if ! timer.disposed() {
             timer.unsub();
             ::std::mem::drop(timerLock);
@@ -74,12 +74,12 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
     Sch: Scheduler+Send+Sync+'static,
     Src : Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'static>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
     {
         let s = Arc::new(Subscriber::new(DebounceState{
             scheduler: self.scheduler.clone(),
             dur: self.duration,
-            timer: Mutex::new(UnsubRef::empty()),
+            timer: Mutex::new(SubRef::empty()),
             val: Arc::new(Mutex::new(None))
         }, dest, false));
 
@@ -90,7 +90,7 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
     }
 }
 
-impl< V, Sch> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<'static, V, DebounceState<V, Sch>> where
+impl< V, Sch,Dest> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<'static, V, DebounceState<V, Sch>,Dest> where
     V: Send+Sync+'static,
     Sch: Scheduler
 {
@@ -116,7 +116,7 @@ impl< V, Sch> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<'static, V
                     dest.next(v);
                 }
             }
-            UnsubRef::empty()
+            SubRef::empty()
         });
 
         if !timer.disposed(){
@@ -171,7 +171,7 @@ mod test
                 o.next(7);
                 o.complete();
             });
-            UnsubRef::empty()
+            SubRef::empty()
         }).debounce(100, NewThreadScheduler::get())
             .subf(move |v| r2.lock().unwrap().push(v),
                   (),
@@ -202,7 +202,7 @@ mod test
                 //o.next(7);
                 //o.complete();
             });
-            UnsubRef::empty()
+            SubRef::empty()
         }).debounce(100, NewThreadScheduler::get())
             .subf(move |v| r2.lock().unwrap().push(v),
                   move |e| { r4.lock().unwrap().push(1000)  },

@@ -3,7 +3,7 @@ use std::any::Any;
 use std::rc::Rc;
 use subscriber::*;
 use observable::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 use connectable_observable::*;
 use subject::Subject;

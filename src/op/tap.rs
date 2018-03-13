@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use observable::Observer;
 use observable::Observable;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use subscriber::SubscriberImpl;
 use subscriber::Subscriber;
 use std::any::Any;
@@ -37,7 +37,7 @@ impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
         for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
         Src : Observable<'x, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'x>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'x) -> SubRef
     {
         let s = Arc::new(Subscriber::new(TapState{ obs: self.obs.clone() }, dest, false));
 
@@ -52,7 +52,7 @@ struct TapState<Obs>
     obs: Obs
 }
 
-impl<'x, V, Obs> SubscriberImpl<V, TapState<Obs>> for Subscriber<'x, V, TapState<Obs>> where
+impl<'x, V, Obs,Dest> SubscriberImpl<V, TapState<Obs>> for Subscriber<'x, V, TapState<Obs>,Dest> where
         for<'a> Obs: Observer<&'a V>+Send+Sync+'static,
 
 {

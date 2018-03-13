@@ -9,6 +9,9 @@
 #![feature(generators, generator_trait, step_trait)]
 #![feature(fnbox)]
 #![feature(copy_closures, clone_closures)]
+#![feature(get_type_id)]
+#![feature(generic_param_attrs)]
+#![feature(dropck_eyepatch)]
 
 pub mod observable;
 pub mod subject;
@@ -16,7 +19,7 @@ pub mod behaviour_subject;
 pub mod subscriber;
 pub mod op;
 pub mod fac;
-pub mod unsub_ref;
+pub mod subref;
 pub mod util;
 pub mod scheduler;
 pub mod connectable_observable;

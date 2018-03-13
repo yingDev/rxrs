@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::any::Any;
 use subscriber::*;
 use observable::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -43,7 +43,7 @@ impl<'a, V:'static+Send+Sync, Src, VNoti, Noti> Observable<'a, V> for TakeUntilO
     Noti: Observable<'a, VNoti>+Send+Sync,
     Src : Observable<'a, V>,
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let notified = Arc::new(AtomicBool::new(false));
         let notified2 = notified.clone();
@@ -59,7 +59,7 @@ impl<'a, V:'static+Send+Sync, Src, VNoti, Noti> Observable<'a, V> for TakeUntilO
 
         if notified.load(Ordering::SeqCst) {
             noti_sub.unsub();
-            return UnsubRef::empty();
+            return SubRef::empty();
         }
 
         let sub = self.source.sub(s.clone());
@@ -69,7 +69,7 @@ impl<'a, V:'static+Send+Sync, Src, VNoti, Noti> Observable<'a, V> for TakeUntilO
     }
 }
 
-impl<'a, V> SubscriberImpl<V, TakeUntilState> for Subscriber<'a, V, TakeUntilState>
+impl<'a, V,Dest> SubscriberImpl<V, TakeUntilState> for Subscriber<'a, V, TakeUntilState,Dest>
 {
     fn on_next(&self, v: V)
     {

@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::any::Any;
 use subscriber::*;
 use observable::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -53,7 +53,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
     Next: Observable<'a,V>+Send+Sync+Clone+'a,
     Src : Observable<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let cur = CurState{ next: self.next.clone(), subscriber:AtomicOption::new() };
         let s = Arc::new(Subscriber::new(AtomicOption::new(), dest, false));
@@ -61,11 +61,11 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
         cur.subscriber.swap(s2, Ordering::SeqCst);
         s._state.swap(ConcatState::Cur(cur), Ordering::SeqCst);
 
-        let sub = UnsubRef::signal();
+        let sub = SubRef::signal();
         s.set_unsub(&sub);
         let sub2 = self.source.sub(s.clone());
         if sub2.disposed() {
-            return UnsubRef::empty();
+            return SubRef::empty();
         }
         sub.add(sub2);
 
@@ -73,7 +73,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
     }
 }
 
-impl<'a, V,Next> SubscriberImpl<V, AtomicOption<ConcatState<'a, V, Next>>> for Subscriber<'a, V, AtomicOption<ConcatState<'a, V, Next>>> where Next: Observable<'a, V>+Send+Sync
+impl<'a, V,Next,Dest> SubscriberImpl<V, AtomicOption<ConcatState<'a, V, Next>>> for Subscriber<'a, V, AtomicOption<ConcatState<'a, V, Next>>,Dest> where Next: Observable<'a, V>+Send+Sync
 {
     fn on_next(&self, v: V)
     {

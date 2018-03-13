@@ -36,6 +36,11 @@ impl<T> ArcCell<T> {
             .store(unsafe { mem::transmute(t) }, Ordering::Release);
     }
 
+    pub fn compare_swap(&self, current: Arc<T>, new: Arc<T>) -> Arc<T>
+    {
+        unsafe { mem::transmute(self.0.compare_and_swap(mem::transmute(current), mem::transmute(new), Ordering::SeqCst)) }
+    }
+
     /// Stores a new value in the `ArcCell`, returning the previous
     /// value.
     pub fn set(&self, t: Arc<T>) -> Arc<T> {

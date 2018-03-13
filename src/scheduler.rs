@@ -1,5 +1,5 @@
 use std::time::Duration;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 use std::sync::Once;
 use std::sync::ONCE_INIT;
@@ -8,14 +8,14 @@ use std::sync::ONCE_INIT;
 
 pub trait Scheduler
 {
-    fn schedule(&self, act: impl Send+'static+FnOnce()->UnsubRef) -> UnsubRef;
-    fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef) -> UnsubRef;
+    fn schedule(&self, act: impl Send+'static+FnOnce()->SubRef) -> SubRef;
+    fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->SubRef) -> SubRef;
 
-    fn schedule_periodic(&self, period: Duration,sigStop: UnsubRef, act: impl Send+'static+Fn()) -> UnsubRef
+    fn schedule_periodic(&self, period: Duration,sigStop: SubRef, act: impl Send+'static+Fn()) -> SubRef
     {
         unimplemented!()
     }
-    fn schedule_long_running(&self, sigStop: UnsubRef, act: impl Send+'static+FnOnce()) -> UnsubRef
+    fn schedule_long_running(&self, sigStop: SubRef, act: impl Send+'static+FnOnce()) -> SubRef
     {
         if sigStop.disposed() { return sigStop; }
         self.schedule(||{
@@ -35,18 +35,18 @@ impl ImmediateScheduler
 
 impl Scheduler for ImmediateScheduler
 {
-    fn schedule(&self, act: impl Send+'static+FnOnce()->UnsubRef) -> UnsubRef
+    fn schedule(&self, act: impl Send+'static+FnOnce()->SubRef) -> SubRef
     {
         act()
     }
 
-    fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef) -> UnsubRef
+    fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->SubRef) -> SubRef
     {
         ::std::thread::sleep(due);
         act()
     }
 
-    fn schedule_periodic(&self, period: Duration, sigStop: UnsubRef, act: impl Send+'static+Fn()) -> UnsubRef
+    fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: impl Send+'static+Fn()) -> SubRef
     {
         while ! sigStop.disposed()
         {
@@ -80,9 +80,9 @@ impl NewThreadScheduler
 
 impl Scheduler for NewThreadScheduler
 {
-    fn schedule(&self, act: impl Send+'static+FnOnce()->UnsubRef) -> UnsubRef
+    fn schedule(&self, act: impl Send+'static+FnOnce()->SubRef) -> SubRef
     {
-        let unsub = UnsubRef::signal();
+        let unsub = SubRef::signal();
         let unsub2 = unsub.clone();
 
        ::std::thread::spawn(move ||{
@@ -92,9 +92,9 @@ impl Scheduler for NewThreadScheduler
        unsub
     }
 
-    fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->UnsubRef) -> UnsubRef
+    fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->SubRef) -> SubRef
     {
-        let unsub = UnsubRef::signal();
+        let unsub = SubRef::signal();
         let unsub2 = unsub.clone();
 
         ::std::thread::spawn(move ||{
@@ -105,7 +105,7 @@ impl Scheduler for NewThreadScheduler
         unsub
     }
 
-    fn schedule_periodic(&self, period: Duration, sigStop: UnsubRef, act: impl Send+'static+Fn()) -> UnsubRef
+    fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: impl Send+'static+Fn()) -> SubRef
     {
         let stop = sigStop.clone();
         ::std::thread::spawn(move ||

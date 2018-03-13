@@ -3,7 +3,7 @@ use std::any::Any;
 use std::rc::Rc;
 use observable::*;
 use subscriber::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 
 pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
@@ -41,18 +41,15 @@ impl<'a, Src, V:Clone+Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, 
     Src : Observable<'a, V>,
     FPred: 'a + Send+Sync+Fn(&V)->bool
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let s = Arc::new(Subscriber::new(FilterState{ pred: self.pred.clone(), PhantomData }, dest, false));
 
-        let sub = self.source.sub(s.clone());
-        s.set_unsub(&sub);
-
-        sub
+        s.do_sub(&self.source)
     }
 }
 
-impl<'a, V:Clone+Send+Sync,F> SubscriberImpl<V,FilterState<'a, V, F>> for Subscriber<'a, V,FilterState<'a, V,F>> where F: 'a+Send+Sync+Fn(&V)->bool
+impl<'a, V:Clone+Send+Sync,F, Dest : Observer<V>+Send+Sync+'a> SubscriberImpl<V,FilterState<'a, V, F>> for Subscriber<'a, V,FilterState<'a, V,F>, Dest> where F: 'a+Send+Sync+Fn(&V)->bool
 {
     fn on_next(&self, v: V)
     {

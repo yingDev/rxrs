@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicIsize;
 
 use observable::*;
 use subscriber::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use scheduler::Scheduler;
@@ -32,7 +32,7 @@ impl<Src, V, Sch> ObservableSubOn<Src, V, Sch> for Src where Src : 'static+Obser
 
 impl<Src, V:'static+Send+Sync, Sch> Observable<'static, V> for SubOnOp<Src, V, Sch> where Src : 'static+Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
 {
-    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'static>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
     {
         let src = self.source.clone();
         self.scheduler.schedule(move ||{

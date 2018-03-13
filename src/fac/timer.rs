@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use observable::*;
-use unsub_ref::*;
+use subref::*;
 use fac::*;
 use scheduler::Scheduler;
 
@@ -19,7 +19,7 @@ pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl 
     {
         let count = AtomicUsize::new(0);
         let scheduler2 = scheduler.clone();
-        let sig = UnsubRef::signal();
+        let sig = SubRef::signal();
 
         let sig2 = sig.clone();
 

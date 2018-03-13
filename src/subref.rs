@@ -11,19 +11,17 @@ use util::AtomicOption;
 use util::ArcCell;
 use std::marker::PhantomData;
 
-static mut EMPTY_SUB_REF: Option<UnsubRef> = None;
+static mut EMPTY_SUB_REF: Option<SubRef> = None;
 static EMPTY_SUB_REF_INIT: Once = ONCE_INIT;
 
-//todo: make a `ScopedUnsubRef` and remove _unsub_on_drop
-
 #[derive(Clone)]
-pub struct UnsubRef
+pub struct SubRef
 {
     state: Arc<State>,
     _unsub_on_drop: bool,
 }
 
-impl Drop for UnsubRef
+impl Drop for SubRef
 {
     fn drop(&mut self)
     {
@@ -37,14 +35,14 @@ struct State
 {
     disposed: AtomicBool,
     cb: AtomicOption<Box<FnMut()+Send+Sync>>,
-    extra: AtomicOption<LinkedList<UnsubRef>>,
+    extra: AtomicOption<LinkedList<SubRef>>,
 }
 
-impl UnsubRef
+impl SubRef
 {
-    pub fn fromFn<F: FnMut()+'static+Send+Sync>(unsub: F) -> UnsubRef
+    pub fn from_fn<F: FnMut()+'static+Send+Sync>(unsub: F) -> SubRef
     {
-         UnsubRef { state: Arc::new(
+         SubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: AtomicOption::with(box unsub),
@@ -54,9 +52,9 @@ impl UnsubRef
         }
     }
 
-    pub fn signal() -> UnsubRef
+    pub fn signal() -> SubRef
     {
-        UnsubRef { state: Arc::new(
+        SubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: AtomicOption::new(),
@@ -66,9 +64,9 @@ impl UnsubRef
         }
     }
 
-    pub fn scoped() -> UnsubRef
+    pub fn scoped() -> SubRef
     {
-        UnsubRef { state: Arc::new(
+        SubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: AtomicOption::new(),
@@ -78,12 +76,12 @@ impl UnsubRef
         }
     }
 
-    pub fn empty() -> UnsubRef
+    pub fn empty() -> SubRef
     {
         unsafe {
             EMPTY_SUB_REF_INIT.call_once(|| {
                 //todo
-                EMPTY_SUB_REF = Some( UnsubRef {
+                EMPTY_SUB_REF = Some( SubRef {
                     state: Arc::new(
                     State{cb: AtomicOption::new(), extra: AtomicOption::new(), disposed: AtomicBool::new(true) },
                 ),
@@ -94,7 +92,7 @@ impl UnsubRef
         }
     }
 
-    pub fn ptr_eq(&self, other: &UnsubRef) -> bool
+    pub fn ptr_eq(&self, other: &SubRef) -> bool
     {
         Arc::ptr_eq(&self.state, &other.state)
     }
@@ -115,7 +113,7 @@ impl UnsubRef
 
     }
 
-    pub fn add<U>(&self, unsub: U) -> &Self where U:IntoUnsubRef
+    pub fn add<U>(&self, unsub: U) -> &Self where U:IntoSubRef
     {
         let un = unsub.into();
         if Arc::ptr_eq(&un.state, &self.state) {return self;}
@@ -135,7 +133,7 @@ impl UnsubRef
         return self;
     }
 
-    pub fn combine<U>(self, other: U) -> Self where U : IntoUnsubRef
+    pub fn combine<U>(self, other: U) -> Self where U : IntoSubRef
     {
         self.add(other.into());
         self
@@ -145,20 +143,24 @@ impl UnsubRef
     pub fn disposed(&self) -> bool { self.state.disposed.load(Ordering::SeqCst)}
 }
 
-pub trait IntoUnsubRef
+pub trait IntoSubRef
 {
-    fn into(self) -> UnsubRef;
+    fn into(self) -> SubRef;
 }
-impl<'a, F:Fn()+'static+Send+Sync> IntoUnsubRef for F
+impl<'a, F:Fn()+'static+Send+Sync> IntoSubRef for F
 {
-    fn into(self) -> UnsubRef
+    fn into(self) -> SubRef
     {
-        UnsubRef::fromFn(self)
+        SubRef::from_fn(self)
     }
 }
-impl IntoUnsubRef for UnsubRef
+impl IntoSubRef for SubRef
 {
-    fn into(self) -> UnsubRef{ self }
+    fn into(self) -> SubRef{ self }
+}
+impl IntoSubRef for ()
+{
+    fn into(self) -> SubRef{ SubRef::empty() }
 }
 
 #[cfg(test)]
@@ -171,7 +173,7 @@ mod tests
     #[test]
     fn disposed()
     {
-        let u = UnsubRef::fromFn(||{});
+        let u = SubRef::from_fn(||{});
         u.unsub();
         assert!(u.disposed());
     }
@@ -179,7 +181,7 @@ mod tests
     #[test]
     fn add_after_unsub()
     {
-        let u = UnsubRef::fromFn(||{});
+        let u = SubRef::from_fn(||{});
         u.unsub();
 
         let v = Arc::new(AtomicBool::new(false));
@@ -195,7 +197,7 @@ mod tests
         let out = Arc::new(Mutex::new("".to_owned()));
         let (out2,out3) = (out.clone(), out.clone());
 
-        let u = UnsubRef::fromFn(||{});
+        let u = SubRef::from_fn(||{});
         let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {

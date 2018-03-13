@@ -3,7 +3,7 @@ use std::any::Any;
 use std::rc::Rc;
 use subscriber::*;
 use observable::*;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 
 pub struct MapState<FProj>
@@ -34,9 +34,9 @@ impl<'a, V, Src> ObservableOpMap<'a, V, Src> for Src where Src : Observable<'a, 
 
 impl<'a, V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable<'a, VOut> for MapOp<FProj, V, Src> where FProj : Send+Sync+'a + Fn(V)->VOut, Src: Observable<'a, V>
 {
-    fn sub<'b>(&self, dest: Arc<Observer<VOut>+Send+Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<VOut> + Send + Sync+'a) -> SubRef
     {
-        let s = Arc::new(Subscriber::new(MapState{ proj: self.proj.clone() }, dest, false));
+        let s = Subscriber::new(MapState{ proj: self.proj.clone() }, dest, false);
         let sub = self.source.sub(s.clone());
         s.set_unsub(&sub);
 

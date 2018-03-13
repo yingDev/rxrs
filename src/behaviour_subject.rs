@@ -2,7 +2,7 @@ use subject::*;
 use std::sync::Mutex;
 use observable::Observable;
 use std::sync::Arc;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use observable::Observer;
 use std::any::Any;
 
@@ -34,10 +34,10 @@ impl<'a, V:Clone+'static> BehaviorSubject<'a, V>
 
 impl<'a, V:Clone+'static> Observable<'a, V> for BehaviorSubject<'a, V>
 {
-    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         if dest._is_closed() {
-            return UnsubRef::empty();
+            return SubRef::empty();
         }
 
         {
@@ -46,7 +46,7 @@ impl<'a, V:Clone+'static> Observable<'a, V> for BehaviorSubject<'a, V>
         }
 
         if dest._is_closed() || self._is_closed() {
-            return UnsubRef::empty();
+            return SubRef::empty();
         }
 
         self.subj.sub(dest)
@@ -97,6 +97,8 @@ mod test
         assert_eq!(s.value().unwrap(), 1);
 
         s.err(Arc::new("error"));
+        assert!(s.value().is_none());
+
         s.next(2);
         assert!(s.value().is_none());
     }

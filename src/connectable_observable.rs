@@ -1,5 +1,5 @@
 use observable::Observable;
-use unsub_ref::UnsubRef;
+use subref::SubRef;
 use std::sync::Arc;
 use observable::Observer;
 use subject::Subject;
@@ -18,7 +18,7 @@ pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>,
 
 impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
 {
-    pub fn connect(&self) -> UnsubRef
+    pub fn connect(&self) -> SubRef
     {
         self.source.sub(self.subject.clone())
     }
@@ -31,27 +31,27 @@ impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Obser
 
 impl<'a, V, Src, Subj> Observable<'a, V> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
 {
-    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> UnsubRef
+    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         self.subject.sub(dest)
     }
 }
-
-#[cfg(test)]
-mod test
-{
-    use super::*;
-    use fac::*;
-    use observable::*;
-    use op::*;
-
-    #[test]
-    fn basic()
-    {
-        let src = rxfac::range(0..10);
-        let multi = ConnectableObservable::new(src.clone(), Subject::new());
-
-        multi.subf(|v| println!("{}", v), (), || println!("comp"));
-        multi.connect();
-    }
-}
+//
+//#[cfg(test)]
+//mod test
+//{
+//    use super::*;
+//    use fac::*;
+//    use observable::*;
+//    use op::*;
+//
+//    #[test]
+//    fn basic()
+//    {
+//        let src = rxfac::range(0..10);
+//        let multi = ConnectableObservable::new(src.clone(), Subject::new());
+//
+//        multi.subf(|v| println!("{}", v), (), || println!("comp"));
+//        multi.connect();
+//    }
+//}

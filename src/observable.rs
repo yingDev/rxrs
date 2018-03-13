@@ -141,6 +141,9 @@ unsafe impl<F> Send for FnCell<F> {}
 unsafe impl<F> Sync for FnCell<F> {}
 impl<F> FnCell<F> { fn new(f:F) -> FnCell<F> { FnCell(UnsafeCell::new(f)) } }
 
+fn _empty<V>(v:V){}
+fn _comp(){}
+
 impl<'a, Obs, V:'a, F> ObservableSubScopedHelper<V,F> for Obs
     where Obs : Observable<'a, V>, F: FnMut(V)+'a+Send+Sync
 {
@@ -150,31 +153,31 @@ impl<'a, Obs, V:'a, F> ObservableSubScopedHelper<V,F> for Obs
 impl<'a, Obs, V:'a, FErr> ObservableSubScopedHelper<V,((),FErr)> for Obs
     where Obs : Observable<'a, V>,  FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
 {
-    fn subf(&self, f: ((),FErr))-> SubRef { sub_helper(self, |v|{}, f.1, ||{}) }
+    fn subf(&self, f: ((),FErr))-> SubRef { sub_helper(self, _empty, f.1, _comp) }
 }
 
 impl<'a, Obs, V:'a, F,FErr, FComp> ObservableSubScopedHelper<V,(F,FErr,FComp)> for Obs
     where Obs : Observable<'a, V>, F: FnMut(V)+'a+Send+Sync, FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync, FComp: FnMut()+Send+Sync+'a,
 {
-    fn subf(&self, f: (F,FErr,FComp))-> SubRef { sub_helper(self, |v|{}, |e|{}, f.2) }
+    fn subf(&self, f: (F,FErr,FComp))-> SubRef { sub_helper(self, _empty, _empty, f.2) }
 }
 
 impl<'a, Obs, V:'a, F,FErr> ObservableSubScopedHelper<V,(F,FErr)> for Obs
     where Obs : Observable<'a, V>, F:FnMut(V)+'a+Send+Sync, FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
 {
-    fn subf(&self, f: (F,FErr))-> SubRef { sub_helper(self, f.0, f.1, ||{}) }
+    fn subf(&self, f: (F,FErr))-> SubRef { sub_helper(self, f.0, f.1, _comp) }
 }
 
 impl<'a, Obs, V:'a, F,FComp> ObservableSubScopedHelper<V,(F,(), FComp)> for Obs
     where Obs : Observable<'a, V>, F:FnMut(V)+'a+Send+Sync, FComp:FnMut()+'a+Send+Sync,
 {
-    fn subf(&self, f: (F,(), FComp))-> SubRef { sub_helper(self, f.0, |e|{}, f.2) }
+    fn subf(&self, f: (F,(), FComp))-> SubRef { sub_helper(self, f.0, _empty, f.2) }
 }
 
 impl<'a, Obs, V:'a, FErr,FComp> ObservableSubScopedHelper<V,((),FErr, FComp)> for Obs
     where Obs : Observable<'a, V>, FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync, FComp:FnMut()+'a+Send+Sync,
 {
-    fn subf(&self, f: ((),FErr,FComp))-> SubRef { sub_helper(self, |v|{}, f.1, f.2) }
+    fn subf(&self, f: ((),FErr,FComp))-> SubRef { sub_helper(self, _empty, f.1, f.2) }
 }
 
 //

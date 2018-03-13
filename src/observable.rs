@@ -118,21 +118,15 @@ pub trait ObservableSubScopedHelper<V,F>
     fn subf(&self, f: F) -> SubRef;
 }
 
-fn sub_helper<'a,V, Src>(observable: &Src,
-                         fnext: impl FnMut(V)+'a+Send+Sync,
-                         ferr: impl FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
-                         fcomp: impl FnMut()+'a+Send+Sync) -> SubRef
-where Src: Observable<'a, V>
+fn sub_helper<'a,V, Src: Observable<'a, V>>(
+    observable: &Src,
+    fnext: impl FnMut(V)+'a+Send+Sync,
+    ferr: impl FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
+    fcomp: impl FnMut()+'a+Send+Sync) -> SubRef
 {
     unsafe{
-        let fnext = FnCell::new(fnext);
-        let fnext = move |v| (*fnext.0.get())(v);
-        let ferr = FnCell::new(ferr);
-        let ferr = move |e| (*ferr.0.get())(e);
-        let fcomp = FnCell::new(fcomp);
-        let fcomp = move || (*fcomp.0.get())();
-
-        observable.sub((fnext, ferr, fcomp, ()))
+        let (next, err, comp) = (FnCell::new(fnext), FnCell::new(ferr), FnCell::new(fcomp));
+        observable.sub(( move |v| (*next.0.get())(v), move |e| (*err.0.get())(e), move || (*comp.0.get())(), ()))
     }
 }
 

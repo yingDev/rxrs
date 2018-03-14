@@ -27,10 +27,10 @@ pub trait Observer<V>
 
 pub trait ObserverHelper<V>
 {
-    fn next(&self, v: V) -> &Self;
-    fn err(&self, e: Arc<Any+Send+Sync>);
-    fn complete(&self);
-    fn _is_closed(&self) -> bool;
+    fn next(&self, v: V){}
+    fn err(&self, e: Arc<Any+Send+Sync>){}
+    fn complete(&self){}
+    fn _is_closed(&self) -> bool{ false }
 }
 
 pub enum RxNoti<V>
@@ -89,35 +89,49 @@ impl<'a:'b, 'b, V, Src> Observable<'a,V> for ByrefOp<'a, 'b, V,Src> where Src: O
         self.source.sub(o)
     }
 }
-impl<V, F: Fn(V)> Observer<V> for F
+
+impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>), FComp: Fn()> Observer<V> for (F, FErr, FComp, PhantomData<()>)
+{
+    #[inline] fn next(&self, v:V) { self.0(v) }
+    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn complete(&self) { self.2() }
+}
+
+
+impl<V, F: Fn(V)> ObserverHelper<V> for F
 {
     #[inline] fn next(&self, v:V) { self(v) }
 }
-impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>)> Observer<V> for (F, FErr)
+impl<V, FErr: Fn(Arc<Any+Send+Sync>)> ObserverHelper<V> for ((), FErr)
+{
+    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+}
+impl<V,FComp: Fn()> ObserverHelper<V> for ((), (), FComp)
+{
+    #[inline] fn complete(&self) { self.2() }
+}
+impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>),FComp: Fn()> ObserverHelper<V> for (F, FErr, FComp)
+{
+    #[inline] fn next(&self, v:V) { self.0(v) }
+    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn complete(&self) { self.2() }
+}
+impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>)> ObserverHelper<V> for (F, FErr)
 {
     #[inline] fn next(&self, v:V) { self.0(v) }
     #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
 }
-impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>), FComp: Fn()> Observer<V> for (F, FErr, FComp)
-{
-    #[inline] fn next(&self, v:V) { self.0(v) }
-    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
-    #[inline] fn complete(&self) { self.2() }
-}
-impl<V, F: Fn(V), FComp: Fn()> Observer<V> for (F, (), FComp)
-{
-    #[inline] fn next(&self, v:V) { self.0(v) }
-    #[inline] fn complete(&self) { self.2() }
-}
-impl<V, FErr: Fn(Arc<Any+Send+Sync>), FComp: Fn()> Observer<V> for ((), FErr, FComp)
+impl<V, FErr: Fn(Arc<Any+Send+Sync>),FComp: Fn()> ObserverHelper<V> for ((), FErr, FComp)
 {
     #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
     #[inline] fn complete(&self) { self.2() }
 }
-impl<V, FComp: Fn()> Observer<V> for ((), (), FComp)
+impl<V,F: Fn(V),FComp: Fn()> ObserverHelper<V> for (F, (), FComp)
 {
+    #[inline] fn next(&self, v:V) { self.0(v) }
     #[inline] fn complete(&self) { self.2() }
 }
+
 
 impl<'a, V, Src> Observable<'a,V> for Arc<Src> where Src : Observable<'a,V>
 {
@@ -129,9 +143,8 @@ impl<'a, V, Src> Observable<'a,V> for Arc<Src> where Src : Observable<'a,V>
 
 impl<V> ObserverHelper<V> for Arc<Observer<V>>
 {
-    #[inline] fn next(&self, v: V) -> &Self {
+    #[inline] fn next(&self, v: V){
         Arc::as_ref(self).next(v);
-        self
     }
     #[inline] fn err(&self, e: Arc<Any+Send+Sync>) {
         Arc::as_ref(self).err(e);
@@ -166,18 +179,17 @@ fn sub_helper<'a,V, Src: Observable<'a, V>>(
 {
     unsafe{
         let (next, err, comp) = (FnCell::new(fnext), FnCell::new(ferr), FnCell::new(fcomp));
-        observable.sub(( move |v| (*next.0.get())(v), move |e| (*err.0.get())(e), move || (*comp.0.get())()))
+        observable.sub(( move |v| (*next.0.get())(v), move |e| (*err.0.get())(e), move || (*comp.0.get())(), PhantomData))
     }
 }
 
-struct FnCell<F>(UnsafeCell<F>);
+pub struct FnCell<F>(pub UnsafeCell<F>);
 unsafe impl<F> Send for FnCell<F> {}
 unsafe impl<F> Sync for FnCell<F> {}
-impl<F> FnCell<F> { fn new(f:F) -> FnCell<F> { FnCell(UnsafeCell::new(f)) } }
+impl<F> FnCell<F> { pub fn new(f:F) -> FnCell<F> { FnCell(UnsafeCell::new(f)) } }
 
 fn _empty<V>(v:V){}
 fn _comp(){}
-
 
 impl<'a, Obs, V:'a, F> SubFHelper<V,F> for Obs
     where Obs : Observable<'a, V>, F: FnMut(V)+'a+Send+Sync

@@ -6,6 +6,8 @@ use subscriber::SubscriberImpl;
 use subscriber::Subscriber;
 use std::any::Any;
 use std::marker::PhantomData;
+use observable::FnCell;
+use observable::ObserverHelper;
 
 pub struct TapOp<V, Src, Obs>
 {
@@ -15,15 +17,16 @@ pub struct TapOp<V, Src, Obs>
 }
 
 pub trait ObservableTap<'x, Src, V:Clone+Send+Sync+'static, Obs> where
-        for<'a> Obs: Observer<&'a V>+Send+Sync+'x+Clone,
-        Src : Observable<'x, V>
+        for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
+        Src : Observable<'x, V>,
+        Self: Sized,
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>;
 }
 
 impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for Src where
     V: Send+Sync+'static,
-    for<'a> Obs: Observer<&'a V>+Send+Sync+'x+Clone,
+    for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
     Src : Observable<'x, V>
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>
@@ -34,7 +37,7 @@ impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for
 
 impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
         V: Send+Sync+'static,
-        for<'a> Obs: Observer<&'a V>+Send+Sync+'static+Clone,
+        for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'static+Clone,
         Src : Observable<'x, V>
 {
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'x) -> SubRef
@@ -51,7 +54,7 @@ struct TapState<Obs>
 
 impl<'a, V, Obs,Dest> SubscriberImpl<V, TapState<Obs>> for Subscriber<'a, V, TapState<Obs>,Dest> where
     Dest: Observer<V>+Send+Sync+'a,
-    for<'x> Obs: Observer<&'x V>+Send+Sync+'static,
+    for<'x> Obs: ObserverHelper<&'x V>+Send+Sync+'static,
 
 {
     fn on_next(&self, v: V)
@@ -97,6 +100,10 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).take(5).tap((|v:&i32| println!("{}", v), (), || println!("comp"))).take(100).subf(|v| {});
+        rxfac::range(0..10).take(5).tap((
+            |v:&i32| println!("{}", v),
+            (),
+            || println!("comp")
+        )).take(100).subf(|v| {});
     }
 }

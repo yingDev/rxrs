@@ -34,22 +34,22 @@ impl<'a, V:Clone+'static> BehaviorSubject<'a, V>
 
 impl<'a, V:Clone+'static> Observable<'a, V> for BehaviorSubject<'a, V>
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
-        if dest._is_closed() {
+        if o._is_closed() {
             return SubRef::empty();
         }
 
         {
             let guard = self.v.lock().unwrap();
-            if let Some(ref val) = *guard { dest.next(val.clone()); }
+            if let Some(ref val) = *guard { o.next(val.clone()); }
         }
 
-        if dest._is_closed() || self._is_closed() {
+        if o._is_closed() || self._is_closed() {
             return SubRef::empty();
         }
 
-        self.subj.sub(dest)
+        self.subj.sub(o)
     }
 }
 

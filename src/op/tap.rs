@@ -39,11 +39,8 @@ impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
 {
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'x) -> SubRef
     {
-        let s = Arc::new(Subscriber::new(TapState{ obs: self.obs.clone() }, dest, false));
-
-        let sub = self.src.sub(s.clone());
-        s.set_unsub(&sub);
-        sub
+        let s = Subscriber::new(TapState{ obs: self.obs.clone() }, dest, false);
+        s.do_sub(&self.src)
     }
 }
 
@@ -52,8 +49,9 @@ struct TapState<Obs>
     obs: Obs
 }
 
-impl<'x, V, Obs,Dest> SubscriberImpl<V, TapState<Obs>> for Subscriber<'x, V, TapState<Obs>,Dest> where
-        for<'a> Obs: Observer<&'a V>+Send+Sync+'static,
+impl<'a, V, Obs,Dest> SubscriberImpl<V, TapState<Obs>> for Subscriber<'a, V, TapState<Obs>,Dest> where
+    Dest: Observer<V>+Send+Sync+'a,
+    for<'x> Obs: Observer<&'x V>+Send+Sync+'static,
 
 {
     fn on_next(&self, v: V)
@@ -99,6 +97,6 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).take(5).tap((|v:&i32| println!("{}", v), (), || println!("comp"))).take(100).subn(|v| {});
+        rxfac::range(0..10).take(5).tap((|v:&i32| println!("{}", v), (), || println!("comp"))).take(100).subf(|v| {});
     }
 }

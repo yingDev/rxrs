@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 #[derive(Clone)]
-pub struct SkipOp<Src, V> //where Src : Observable<'a, V>
+pub struct SkipOp<Src, V>
 {
     source: Src,
     total: isize,
@@ -35,7 +35,7 @@ impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>
     }
 }
 
-impl<'a, V,Dest> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState,Dest>
+impl<'a, V,Dest> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState,Dest> where Dest: Observer<V>+Send+Sync+'a
 {
     fn on_next(&self, v:V)
     {
@@ -71,11 +71,8 @@ impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src
 {
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
-        let s = Arc::new(Subscriber::new(SkipState{ count: AtomicIsize::new(self.total)}, dest, false));
-        let sub = self.source.sub(s.clone());
-        s.set_unsub(&sub);
-
-        sub
+        let s = Subscriber::new(SkipState{ count: AtomicIsize::new(self.total)}, dest, false);
+        s.do_sub(&self.source)
     }
 }
 
@@ -84,19 +81,25 @@ mod test
 {
     use super::*;
     use subject::*;
+    use observable::RxNoti::*;
 
     #[test]
     fn basic()
     {
-        let s = Subject::new();
-        let result = Arc::new(AtomicIsize::new(0));
-        let (a,b) = (result.clone(), result.clone());
+        let mut result = 0;
+        {
+            let s = Subject::new();
 
-        s.rx().skip(1).subf(move |v| { a.fetch_add(v, Ordering::SeqCst); }, (), move || { b.fetch_add(100, Ordering::SeqCst); });
-        s.next(1);
-        s.next(2);
-        s.complete();
+            s.rx().skip(1).sub_noti(|n| match n {
+               Next(v) => result += v ,
+               Comp => result += 100,
+                _=> {}
+            });
+            s.next(1);
+            s.next(2);
+            s.complete();
+        }
 
-        assert_eq!(result.load(Ordering::SeqCst), 102);
+        assert_eq!(result, 102);
     }
 }

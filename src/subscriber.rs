@@ -22,7 +22,7 @@ pub struct Subscriber<'a, V, S, Dest, VOut=V>
 unsafe impl<'a, V, S, Dest, VOut> Send for Subscriber<'a, V, S, Dest, VOut> where Dest : Observer<VOut>+Send+Sync+'a, S:Send+Sync+'a{}
 unsafe impl<'a, V, S, Dest, VOut> Sync for Subscriber<'a, V, S, Dest, VOut> where Dest : Observer<VOut>+Send+Sync+'a, S:Send+Sync+'a{}
 
-impl<'a, 'b, V,S,Dest,VOut> Subscriber<'a, V,S,Dest, VOut> where Dest : Observer<VOut>+Send+Sync+'a, S:Send+Sync+'a, Self: SubscriberImpl<V, S>+'b
+impl<'a, 'b:'a, V,S,Dest,VOut> Subscriber<'a, V,S,Dest, VOut> where Dest : Observer<VOut>+Send+Sync+'a, S:Send+Sync+'b, Self: SubscriberImpl<V, S>+'b
 {
     pub fn new(state: S, dest: Dest, stopped: bool) -> Subscriber<'a, V, S, Dest, VOut>
     {
@@ -36,7 +36,7 @@ impl<'a, 'b, V,S,Dest,VOut> Subscriber<'a, V,S,Dest, VOut> where Dest : Observer
         self._sub.unsub();
     }
 
-    pub fn do_sub(self, src: &impl Observable<'b,V>) -> SubRef
+    pub fn do_sub(self, src: &impl Observable<'a,V>) -> SubRef
     {
         let _sub = self._sub.clone();
         let sub = src.sub(self);

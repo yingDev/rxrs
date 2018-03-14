@@ -23,15 +23,15 @@ use std::sync::Weak;
 use std::cell::UnsafeCell;
 use std::mem;
 
-struct SubRecord<'a, V>
+struct SubRecord<'a,V>
 {
     o: Arc<Observer<V>+Send+Sync+'a>,
     sub: SubRef
 }
 
-impl<'a, V> Clone for SubRecord<'a,V>
+impl<'a,V> Clone for SubRecord<'a, V>
 {
-    fn clone(&self) -> SubRecord<'a, V>
+    fn clone(&self) -> SubRecord<'a,V>
     {
         SubRecord{ o: self.o.clone(), sub: self.sub.clone() }
     }

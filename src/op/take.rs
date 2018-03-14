@@ -10,11 +10,11 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 #[derive(Clone)]
-pub struct TakeOp<'a, Src, V> where Src : Observable<'a, V>
+pub struct TakeOp<Src, V>
 {
     source: Src,
     total: isize,
-    PhantomData: PhantomData<(V,&'a())>
+    PhantomData: PhantomData<(V)>
 }
 
 struct TakeState<'a>
@@ -25,12 +25,12 @@ struct TakeState<'a>
 
 pub trait ObservableTake<'a, Src, V> where Src : Observable<'a, V>
 {
-    fn take(self, total: isize) -> TakeOp<'a, Src, V>;
+    fn take(self, total: isize) -> TakeOp<Src, V>;
 }
 
 impl<'a, Src, V> ObservableTake<'a, Src, V> for Src where Src : Observable<'a, V>,
 {
-    fn take(self, total: isize) -> TakeOp<'a, Self, V>
+    fn take(self, total: isize) -> TakeOp<Self, V>
     {
         TakeOp{ total, PhantomData, source: self  }
     }
@@ -66,7 +66,7 @@ impl<'a, Dest: Observer<V>+Send+Sync+'a, V> SubscriberImpl<V,TakeState<'a>> for 
     }
 }
 
-impl<'a, Src, V:'static+Send+Sync> Observable<'a, V> for TakeOp<'a, Src, V> where Src: Observable<'a, V>
+impl<'a, Src, V:'static+Send+Sync> Observable<'a, V> for TakeOp<Src, V> where Src: Observable<'a, V>
 {
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
@@ -80,86 +80,88 @@ impl<'a, Src, V:'static+Send+Sync> Observable<'a, V> for TakeOp<'a, Src, V> wher
     }
 }
 
-//#[cfg(test)]
-//mod test
-//{
-//    use super::*;
-//    use subject::*;
-//    use fac::*;
-//
-//    #[test]
-//    fn basic()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//        let subj = Subject::<isize>::new();
-//
-//        subj.rx().take(2).subf(move |v| { a.fetch_add(v, Ordering::SeqCst); },
-//                               (),
-//                               move | | { c.fetch_add(1000, Ordering::SeqCst); });
-//        subj.next(1);
-//        subj.next(1);
-//        subj.next(1);
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 1002);
-//    }
-//
-//    #[test]
-//    fn take_over()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//
-//        let subj = Subject::<isize>::new();
-//
-//        subj.rx().take(100).subf(move |v| { a.fetch_add(v, Ordering::SeqCst); },
-//                               (),
-//                               move | | { c.fetch_add(1000, Ordering::SeqCst); });
-//        subj.next(1);
-//        subj.next(1);
-//        subj.next(1);
-//        subj.complete();
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 1003);
-//    }
-//
-//    #[test]
-//    fn unstoppable_source()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//
-//        rxfac::range(0..100).take(2).subf(move |v| { a.fetch_add(1, Ordering::SeqCst); },
-//                                 (),
-//                                 move | | { b.fetch_add(1000, Ordering::SeqCst); });
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 1002);
-//    }
-//
-//    #[test]
-//    fn unsub()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//        let subj = Subject::<isize>::new();
-//
-//        subj.rx().take(2)
-//            .subf(move |_|{ a.fetch_add(1, Ordering::SeqCst); },
-//                  (),
-//                  move | |{ b.fetch_add(1000, Ordering::SeqCst); } )
-//            .add(move ||{ c.fetch_add(10000, Ordering::SeqCst); } );
-//
-//        subj.next(1);
-//        //complete & unsub should run here
-//        subj.next(1);
-//
-//        subj.next(1);
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 11002);
-//    }
-//
-//}
+#[cfg(test)]
+mod test
+{
+    use super::*;
+    use subject::*;
+    use fac::*;
+    use observable::RxNoti::*;
+
+    #[test]
+    fn basic()
+    {
+        let result = Arc::new(AtomicIsize::new(0));
+
+        let subj = Subject::<isize>::new();
+
+        subj.rx().take(2).sub_noti(|n| match n {
+            Next(v) => { result.fetch_add(1, Ordering::SeqCst); },
+            Comp    => { result.fetch_add(1000, Ordering::SeqCst); },
+            _=>{}
+        });
+        subj.next(1);
+        subj.next(1);
+        subj.next(1);
+
+        assert_eq!(result.load(Ordering::SeqCst), 1002);
+    }
+
+    #[test]
+    fn take_over()
+    {
+        let result = Arc::new(AtomicIsize::new(0));
+        let (a,b,c) = (result.clone(), result.clone(), result.clone());
+
+
+        let subj = Subject::<isize>::new();
+
+        subj.rx().take(100).subf((move |v| { a.fetch_add(v, Ordering::SeqCst); },
+                                 (),
+                                 move | | { c.fetch_add(1000, Ordering::SeqCst); }));
+        subj.next(1);
+        subj.next(1);
+        subj.next(1);
+        subj.complete();
+
+        assert_eq!(result.load(Ordering::SeqCst), 1003);
+    }
+
+    #[test]
+    fn unstoppable_source()
+    {
+        let result = Arc::new(AtomicIsize::new(0));
+        let (a,b,c) = (result.clone(), result.clone(), result.clone());
+
+
+        rxfac::range(0..100).take(2).subf((move |v| { a.fetch_add(1, Ordering::SeqCst); },
+                                           (),
+                                           move | | { b.fetch_add(1000, Ordering::SeqCst); }));
+
+        assert_eq!(result.load(Ordering::SeqCst), 1002);
+    }
+
+    #[test]
+    fn unsub()
+    {
+        let result = Arc::new(AtomicIsize::new(0));
+        let (a,b,c) = (result.clone(), result.clone(), result.clone());
+
+        let subj = Subject::<isize>::new();
+
+        subj.rx().take(2)
+            .subf((move |_|{ a.fetch_add(1, Ordering::SeqCst); },
+                   (),
+                   move | |{ b.fetch_add(1000, Ordering::SeqCst); } ))
+            .add(move ||{ c.fetch_add(10000, Ordering::SeqCst); } );
+
+        subj.next(1);
+        //complete & unsub should run here
+        subj.next(1);
+
+        subj.next(1);
+
+        assert_eq!(result.load(Ordering::SeqCst), 11002);
+    }
+
+}

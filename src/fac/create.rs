@@ -28,15 +28,17 @@ pub fn create_static<V, Sub, TRet>(sub:Sub) -> impl Observable<'static, V> where
     StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
-impl<'a,V,F, TRet> Observable<'a,V> for F where F : Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
+pub fn range<'a, V:'static>(range: Range<V>) -> impl Observable<'a,V> where V : Step
 {
-    fn sub(&self, o: impl Observer<V> + Send + Sync + 'a) -> SubRef
-    {
-        Observable::sub(&create(self), o)
-    }
+    create(move |o| {
+        for i in range.clone() {
+            if o._is_closed() { return SubRef::empty() }
+            o.next(i);
+        }
+        o.complete();
+        SubRef::empty()
+    })
 }
-
-
 
 //
 //pub fn create_clonable<'a, V, Sub, O>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(O)->SubRef, O : Observer<V>+Send+Sync+'a
@@ -44,19 +46,7 @@ impl<'a,V,F, TRet> Observable<'a,V> for F where F : Fn(&(Observer<V>+Send+Sync+'
 //    CreatedObservable{ sub:sub, PhantomData  }
 //}
 //
-//pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> where V : Step
-//{
-//    create_clonable(move |o|
-//    {
-//        for i in range.clone()
-//        {
-//            if o._is_closed() { return SubRef::empty() }
-//            o.next(i);
-//        }
-//        o.complete();
-//        SubRef::empty()
-//    })
-//}
+
 //
 //pub fn of<'a, V:Clone+'static>(v:V) -> impl Clone+Observable<'a, V>
 //{
@@ -86,9 +76,9 @@ impl<'a, V,Sub> Clone for CreatedObservable<'a, V,Sub> where Sub : Clone+Fn(&(Ob
 
 impl<'a, V,Sub> Observable<'a, V> for CreatedObservable<'a, V,Sub> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->SubRef
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
-        (self.sub)(&dest)
+        (self.sub)(&o)
     }
 }
 
@@ -99,9 +89,9 @@ pub struct StaticCreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+S
 }
 impl<V,Sub> Observable<'static, V> for StaticCreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
+    fn sub(&self, o: impl Observer<V>+'static+Send+Sync) -> SubRef
     {
-        (self.sub)(Arc::new(dest))
+        (self.sub)(Arc::new(o))
     }
 }
 
@@ -113,25 +103,19 @@ mod test
     #[test]
     fn gen()
     {
-        let i = 9;
+        let mut sum = 0;
 
-        let s = create_static(|o|{
-            o.next(1);
-            ::std::thread::spawn(move || o.next(2)).join();
-        }).subf(|v| println!("{}", v));
+        {
+            let src = create(|o|{
+                for i in 0..3 {
+                    o.next(i);
+                }
+                o.complete();
+            });
 
-        let mut j = 0;
+            src.subf(|v| sum += v);
+        }
 
-        let src = create(|o|{
-            for i in 0..10 {
-                o.next(i);
-            }
-            o.complete();
-        });
-
-        src.rx().subf(|v| { println!("xx {}", { j+=v; v}) });
-        src.subf(|v| { println!("yy {}", v) });
-
-        src.subf(( |v| { println!("yy {}", v) }, (), ||println!("complete!") ));
+        assert_eq!(sum, 3);
     }
 }

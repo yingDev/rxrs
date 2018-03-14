@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 {
-    pred: Arc<F>,
+    pred: F,
     PhantomData: PhantomData<(V,&'a())>
 }
 
@@ -16,7 +16,7 @@ pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 pub struct FilterOp<'a, Src, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 {
     source: Src,
-    pred: Arc<F>,
+    pred: F,
     PhantomData: PhantomData<(V,&'a())>
 }
 
@@ -29,22 +29,21 @@ pub trait ObservableFilter<'a, Src, V:Clone+Send+Sync, FPred> where
 
 impl<'a, Src, V:Clone+Send+Sync, FPred> ObservableFilter<'a, Src, V, FPred> for Src where
     Src : Observable<'a, V>,
-    FPred: 'a+Send+Sync+Fn(&V)->bool
+    FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
 {
     fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>
     {
-        FilterOp { source: self, pred: Arc::new(pred), PhantomData }
+        FilterOp { source: self, pred: pred.clone(), PhantomData }
     }
 }
 
-impl<'a, Src, V:Clone+Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, V, FPred> where
+impl<'a, Src, V:Clone+Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, V, FPred>  where
     Src : Observable<'a, V>,
-    FPred: 'a + Send+Sync+Fn(&V)->bool
+    FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
-        let s = Arc::new(Subscriber::new(FilterState{ pred: self.pred.clone(), PhantomData }, dest, false));
-
+        let s = Subscriber::new(FilterState{ pred: self.pred.clone(), PhantomData }, o, false);
         s.do_sub(&self.source)
     }
 }
@@ -89,18 +88,18 @@ mod test
     #[test]
     fn basic()
     {
-        let r = Arc::new(AtomicUsize::new(0));
-        let (r2,r3) = (r.clone(), r.clone());
+        use observable::RxNoti::*;
 
-        let s = Subject::new();
-        s.rx().filter(|v| v%2 == 0).take(1).subf(
-            move |v| { r.fetch_add(v, Ordering::SeqCst); } ,
-            |e|{},
-            move | | { r2.fetch_add(100, Ordering::SeqCst); } );
-        s.next(1);
-        s.next(2);
-        s.next(3);
+        let mut sum = 0;
 
-        assert_eq!(r3.load(Ordering::SeqCst), 102);
+        {
+            rxfac::range(0..3).filter(|v| v%2 == 0).sub_noti(|n| match n {
+                Next(v) => sum += v,
+                Comp => sum += 100,
+                _ => {}
+            });
+        }
+
+        assert_eq!(sum, 102);
     }
 }

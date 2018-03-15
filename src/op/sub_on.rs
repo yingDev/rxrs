@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::sync::atomic::AtomicIsize;
 
 use observable::*;
-use subscriber::*;
 use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

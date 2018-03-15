@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::any::Any;
 use std::rc::Rc;
 use observable::*;
-use subscriber::*;
 use subref::SubRef;
 use std::sync::Arc;
 use observable::*;

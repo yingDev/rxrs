@@ -2,8 +2,6 @@ use std::sync::Arc;
 use observable::Observer;
 use observable::Observable;
 use subref::SubRef;
-use subscriber::SubscriberImpl;
-use subscriber::Subscriber;
 use std::any::Any;
 use std::marker::PhantomData;
 use observable::FnCell;

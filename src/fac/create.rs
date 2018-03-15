@@ -5,8 +5,6 @@ use std::iter::Step;
 use std::any::{Any, TypeId};
 
 use observable::*;
-use subscriber::SubscriberImpl;
-use subscriber::Subscriber;
 use std::rc::Rc;
 use std::fmt::Debug;
 use subject::*;

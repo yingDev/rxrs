@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::any::Any;
-use subscriber::*;
 use observable::*;
 use subref::SubRef;
 use std::sync::atomic::AtomicBool;

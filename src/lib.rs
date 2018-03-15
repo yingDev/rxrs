@@ -18,7 +18,6 @@
 pub mod observable;
 pub mod subject;
 pub mod behaviour_subject;
-pub mod subscriber;
 pub mod op;
 pub mod fac;
 pub mod subref;

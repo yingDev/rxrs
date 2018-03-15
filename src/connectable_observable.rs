@@ -4,8 +4,6 @@ use std::sync::Arc;
 use observable::Observer;
 use subject::Subject;
 use std::marker::PhantomData;
-use subscriber::SubscriberImpl;
-use subscriber::Subscriber;
 use std::any::Any;
 
 pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a

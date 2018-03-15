@@ -31,6 +31,7 @@ struct SubRecord<'a,V>
 
 impl<'a,V> Clone for SubRecord<'a, V>
 {
+    #[inline(always)]
     fn clone(&self) -> SubRecord<'a,V>
     {
         SubRecord{ o: self.o.clone(), sub: self.sub.clone() }
@@ -55,6 +56,7 @@ struct State<'a, V>
 
 impl<'a, V> Subject<'a,V>
 {
+    #[inline(always)]
     pub fn new()-> Subject<'a,V>
     {
         Subject { x: UnsafeCell::new(None),  state: Arc::new(State{completed: AtomicBool::new(false), err: ArcCell::new(Arc::new(None)), obs: ArcCell::new(Arc::new(Some(Vec::new()))) }) }
@@ -63,6 +65,7 @@ impl<'a, V> Subject<'a,V>
 
 impl<'a, V> Drop for Subject<'a, V>
 {
+    #[inline(always)]
     fn drop(&mut self)
     {
         self.state.unsub(None);
@@ -71,6 +74,7 @@ impl<'a, V> Drop for Subject<'a, V>
 
 impl<'a,V> State<'a,V>
 {
+    #[inline(always)]
     fn unsub(&self, subref: Option<&SubRef>)
     {
         let mut new_obs = None;
@@ -182,6 +186,7 @@ impl<'a, V> Observable<'a,V> for Subject<'a,V>
 
 impl<'a, V:Clone> Observer<V> for Subject<'a, V>
 {
+    #[inline(always)]
     fn next(&self, v: V)
     {
         if let &Some(ref obs) = &*self.state.obs.get() {
@@ -193,6 +198,7 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
         }
     }
 
+    #[inline(always)]
     fn err(&self, e: Arc<Any+Send+Sync>)
     {
         let state = &self.state;
@@ -218,6 +224,7 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
         }
     }
 
+    #[inline(always)]
     fn complete(&self)
     {
         let state = &self.state;

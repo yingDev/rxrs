@@ -27,6 +27,7 @@ pub trait ObservableOpMap<'a, V, Src>
 
 impl<'a, V, Src> ObservableOpMap<'a, V, Src> for Src where Src : Observable<'a, V>
 {
+    #[inline(always)]
     fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src> where FProj : 'a + Send+Sync+Fn(V)->VOut
     {
         MapOp{ proj: proj, source: self, PhantomData }
@@ -37,7 +38,7 @@ impl<'a, 'f, V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable
     FProj : 'a + Clone+Send+Sync+Fn(V)->VOut,
     Src: Observable<'a, V>,
 {
-    #[inline(never)]
+    #[inline(always)]
     fn sub(&self, dest: impl Observer<VOut> + Send + Sync+'a) -> SubRef
     {
         let f = self.proj.clone();

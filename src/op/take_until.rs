@@ -39,6 +39,7 @@ impl<'a, V:'static+Send+Sync, Src, VNoti:'a, Noti> Observable<'a, V> for TakeUnt
     Noti: Observable<'a, VNoti>+Send+Sync+'a,
     Src : Observable<'a, V>,
 {
+    #[inline(never)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let dest = Arc::new(dest);

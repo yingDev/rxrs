@@ -59,16 +59,17 @@ pub trait AsIsClosed
     fn is_closed(&self) -> IsClosed;
 }
 impl AsIsClosed for () {
-    fn is_closed(&self) -> IsClosed { IsClosed::Default }
+    #[inline(always)]fn is_closed(&self) -> IsClosed { IsClosed::Default }
 }
 impl AsIsClosed for IsClosed
 {
-    fn is_closed(&self) -> IsClosed{ *self }
+    #[inline(always)]fn is_closed(&self) -> IsClosed{ *self }
 }
 //===========
 
 impl<'a, V:'a,F, Obs, Ret:AsIsClosed> ObservableSubNotiHelper<V, F> for Obs where Obs:Observable<'a,V>, F: Send+Sync+'a+FnMut(RxNoti<V>)->Ret
 {
+    #[inline(always)]
     fn sub_noti(&self, f: F) -> SubRef
     {
         let f = FnCell::new(f);
@@ -86,12 +87,14 @@ pub struct MatchObserver<V,F>
 }
 impl<V,F> MatchObserver<V,F>
 {
+    #[inline(always)]
     fn new(f:F) -> MatchObserver<V,F>{ MatchObserver{ closed: AtomicBool::new(false), f, PhantomData } }
 }
 unsafe impl<V,F> Send for MatchObserver<V,F> where F: Send{}
 unsafe impl<V,F> Sync for MatchObserver<V,F> where F: Sync{}
 impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sync+'a+Fn(RxNoti<V>)->Ret
 {
+    #[inline(always)]
     fn next(&self, v:V)
     {
         if ! self.closed.load(Ordering::Acquire) {
@@ -101,7 +104,7 @@ impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sy
         }
     }
 
-    #[inline(never)]
+    #[inline(always)]
     fn err(&self, e:Arc<Any+Send+Sync>)
     {
         if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
@@ -111,7 +114,7 @@ impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sy
         }
     }
 
-    #[inline(never)]
+    #[inline(always)]
     fn complete(&self)
     {
         if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
@@ -120,6 +123,8 @@ impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sy
             }
         }
     }
+
+    #[inline(always)]
     fn _is_closed(&self) -> bool { self.closed.load(Ordering::SeqCst) }
 }
 
@@ -137,6 +142,7 @@ pub trait ObservableByref<'a:'b, 'b, V, Src> where Src : Observable<'a, V>+'a
 
 impl<'a:'b,'b, V, Src> ObservableByref<'a, 'b, V, Src> for Src where Src : Observable<'a, V>+'a
 {
+    #[inline(always)]
     fn rx(&'b self) -> ByrefOp<'a, 'b,V, Src>
     {
         ByrefOp{ source: self, PhantomData }
@@ -145,6 +151,7 @@ impl<'a:'b,'b, V, Src> ObservableByref<'a, 'b, V, Src> for Src where Src : Obser
 
 impl<'a:'b, 'b, V, Src> Observable<'a,V> for ByrefOp<'a, 'b, V,Src> where Src: Observable<'a, V>+'a
 {
+    #[inline(always)]
     fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
         self.source.sub(o)
@@ -196,6 +203,7 @@ impl<V,F: Fn(V),FComp: Fn()> ObserverHelper<V> for (F, (), FComp)
 
 impl<'a, V, Src> Observable<'a,V> for Arc<Src> where Src : Observable<'a,V>
 {
+    #[inline(always)]
     fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
         Arc::as_ref(self).sub(o)
@@ -232,22 +240,14 @@ pub trait SubFHelper<V,F>
     fn subf(&self, f: F) -> SubRef;
 }
 
-fn sub_helper<'a,V, Src: Observable<'a, V>>(
-    observable: &Src,
-    fnext: impl FnMut(V)+'a+Send+Sync,
-    ferr: impl FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
-    fcomp: impl FnMut()+'a+Send+Sync) -> SubRef
-{
-    unsafe{
-        let (next, err, comp) = (FnCell::new(fnext), FnCell::new(ferr), FnCell::new(fcomp));
-        observable.sub(( move |v| (*next.0.get())(v), move |e| (*err.0.get())(e), move || (*comp.0.get())(), PhantomData))
-    }
-}
-
 pub struct FnCell<F>(pub UnsafeCell<F>);
 unsafe impl<F> Send for FnCell<F> {}
 unsafe impl<F> Sync for FnCell<F> {}
-impl<F> FnCell<F> { pub fn new(f:F) -> FnCell<F> { FnCell(UnsafeCell::new(f)) } }
+impl<F> FnCell<F>
+{
+    #[inline(always)]
+    pub fn new(f:F) -> FnCell<F> { FnCell(UnsafeCell::new(f)) }
+}
 
 fn _empty<V>(v:V){}
 fn _comp(){}
@@ -255,43 +255,90 @@ fn _comp(){}
 impl<'a, Obs, V:'a, F> SubFHelper<V,F> for Obs
     where Obs : Observable<'a, V>, F: FnMut(V)+'a+Send+Sync
 {
-    fn subf(&self, f: F)-> SubRef { sub_helper(self, f, _empty, _comp) }
+    #[inline(always)]
+    fn subf(&self, f: F)-> SubRef {
+        unsafe{
+            let next = FnCell::new(f);
+            self.sub(( move |v| (*next.0.get())(v), _empty, _comp, PhantomData))
+        }
+    }
 }
 
 impl<'a, Obs, V:'a, FErr> SubFHelper<V,((),FErr)> for Obs
     where Obs : Observable<'a, V>,  FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
 {
-    fn subf(&self, f: ((),FErr))-> SubRef { sub_helper(self, _empty, f.1, _comp) }
+    #[inline(always)]
+    fn subf(&self, f: ((),FErr))-> SubRef
+    {
+        unsafe{
+            let ferr = FnCell::new(f.1);
+            self.sub(( _empty, move |e| (*ferr.0.get())(e), _comp, PhantomData))
+        }
+    }
 }
 
 impl<'a, Obs, V:'a, F,FErr, FComp> SubFHelper<V,(F,FErr,FComp)> for Obs
     where Obs : Observable<'a, V>, F: FnMut(V)+'a+Send+Sync, FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync, FComp: FnMut()+Send+Sync+'a,
 {
-    fn subf(&self, f: (F,FErr,FComp))-> SubRef { sub_helper(self, f.0, f.1, f.2) }
+    #[inline(always)]
+    fn subf(&self, f: (F,FErr,FComp))-> SubRef
+    {
+        unsafe{
+            let (next, err, comp) = (FnCell::new(f.0), FnCell::new(f.1), FnCell::new(f.2));
+            self.sub(( move |v| (*next.0.get())(v), move |e| (*err.0.get())(e), move || (*comp.0.get())(), PhantomData))
+        }
+    }
 }
 
 impl<'a, Obs, V:'a, FComp> SubFHelper<V,((),(),FComp)> for Obs
     where Obs : Observable<'a, V>,  FComp: FnMut()+Send+Sync+'a,
 {
-    fn subf(&self, f: ((),(),FComp))-> SubRef { sub_helper(self, _empty, _empty, f.2) }
+    #[inline(always)]
+    fn subf(&self, f: ((),(),FComp))-> SubRef
+    {
+        unsafe{
+            let comp = FnCell::new(f.2);
+            self.sub((_empty, _empty, move || (*comp.0.get())(), PhantomData))
+        }
+    }
 }
 
 impl<'a, Obs, V:'a, F,FErr> SubFHelper<V,(F,FErr)> for Obs
     where Obs : Observable<'a, V>, F:FnMut(V)+'a+Send+Sync, FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync,
 {
-    fn subf(&self, f: (F,FErr))-> SubRef { sub_helper(self, f.0, f.1, _comp) }
+    #[inline(always)]
+    fn subf(&self, f: (F,FErr))-> SubRef
+    {
+        unsafe{
+            let (next, err) = (FnCell::new(f.0), FnCell::new(f.1));
+            self.sub(( move |v| (*next.0.get())(v), move |e| (*err.0.get())(e), _comp, PhantomData))
+        }
+    }
 }
 
 impl<'a, Obs, V:'a, F,FComp> SubFHelper<V,(F,(), FComp)> for Obs
     where Obs : Observable<'a, V>, F:FnMut(V)+'a+Send+Sync, FComp:FnMut()+'a+Send+Sync,
 {
-    fn subf(&self, f: (F,(), FComp))-> SubRef { sub_helper(self, f.0, _empty, f.2) }
+    #[inline(always)]
+    fn subf(&self, f: (F,(), FComp))-> SubRef
+    {
+        unsafe{
+            let (next,comp) = (FnCell::new(f.0), FnCell::new(f.2));
+            self.sub(( move |v| (*next.0.get())(v), _empty, move || (*comp.0.get())(), PhantomData))
+        }
+    }
 }
 
 impl<'a, Obs, V:'a, FErr,FComp> SubFHelper<V,((),FErr, FComp)> for Obs
     where Obs : Observable<'a, V>, FErr:FnMut(Arc<Any+Send+Sync>)+'a+Send+Sync, FComp:FnMut()+'a+Send+Sync,
 {
-    fn subf(&self, f: ((),FErr,FComp))-> SubRef { sub_helper(self, _empty, f.1, f.2) }
+    #[inline(always)]
+    fn subf(&self, f: ((),FErr,FComp))-> SubRef
+    {
+        unsafe {
+            let ( err, comp) = (FnCell::new(f.1), FnCell::new(f.2));
+            self.sub(( _empty, move |e| (*err.0.get())(e), move || (*comp.0.get())(), PhantomData))
+        } }
 }
 
 //

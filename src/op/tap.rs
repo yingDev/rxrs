@@ -42,7 +42,7 @@ impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
         for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'static+Clone,
         Src : Observable<'x, V>
 {
-    #[inline(never)]
+    #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'x) -> SubRef
     {
         let o = self.obs.clone();

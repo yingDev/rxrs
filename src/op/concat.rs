@@ -31,6 +31,7 @@ impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src> for Src where
     Next: Observable<'a, V>+Send+Sync+Clone,
     Src : Observable<'a, V>
 {
+    #[inline(always)]
     fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next>
     {
         ConcatOp{ source: self, next: next, PhantomData }
@@ -41,6 +42,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
     Next: Observable<'a,V>+Send+Sync+Clone+'a,
     Src : Observable<'a, V>
 {
+    #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let next = self.next.clone();

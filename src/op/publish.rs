@@ -15,6 +15,7 @@ pub trait ObservablePublish<'a, V, Src>  where  Src : Observable<'a, V>, V:Clone
 
 impl<'a, V, Src> ObservablePublish<'a, V, Src> for Src where  Src : Observable<'a, V>, V:Clone
 {
+    #[inline(always)]
     fn publish(self) -> ConnectableObservable<'a, V, Src, Subject<'a, V>>
     {
         ConnectableObservable::new(self, Subject::new())

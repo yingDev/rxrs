@@ -151,11 +151,11 @@ impl<'a, V> Observable<'a,V> for Subject<'a,V>
                 let weak_state: Weak<State<PhantomData<()>>> = unsafe { mem::transmute(Arc::downgrade(state)) };
                 let _sub = SubRef::signal();
                 let _sub2 = _sub.clone();
-                _sub.add(move || {
+                _sub.add(SubRef::from_fn(move || {
                     if let Some(s) = weak_state.upgrade() {
                         s.unsub(Some(&_sub2));
                     }
-                });
+                }));
                 sub = Some(_sub);
                 observer = Some(Arc::new( some_o.take().unwrap()) );
                 new_obs = Some(Arc::new(None));

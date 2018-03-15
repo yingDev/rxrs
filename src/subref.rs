@@ -23,6 +23,7 @@ pub struct SubRef
 
 impl Drop for SubRef
 {
+    #[inline(always)]
     fn drop(&mut self)
     {
         if self._unsub_on_drop {
@@ -40,6 +41,7 @@ struct State
 
 impl SubRef
 {
+    #[inline(never)]
     pub fn from_fn<F: FnMut()+'static+Send+Sync>(unsub: F) -> SubRef
     {
          SubRef { state: Arc::new(
@@ -52,6 +54,7 @@ impl SubRef
         }
     }
 
+    #[inline(never)]
     pub fn signal() -> SubRef
     {
         SubRef { state: Arc::new(
@@ -115,9 +118,8 @@ impl SubRef
     }
 
     #[inline(never)]
-    pub fn add<U>(&self, unsub: U) -> &Self where U:IntoSubRef
+    pub fn add(&self, un: SubRef) -> &Self
     {
-        let un = unsub.into();
         if Arc::ptr_eq(&un.state, &self.state) {return self;}
 
         loop {
@@ -135,13 +137,7 @@ impl SubRef
         return self;
     }
 
-    pub fn combine<U>(self, other: U) -> Self where U : IntoSubRef
-    {
-        self.add(other.into());
-        self
-    }
-
-    #[inline]
+    #[inline(always)]
     pub fn disposed(&self) -> bool { self.state.disposed.load(Ordering::SeqCst)}
 }
 
@@ -188,7 +184,7 @@ mod tests
 
         let v = Arc::new(AtomicBool::new(false));
         let v2 = v.clone();
-        u.add(move || v2.store(true, Ordering::SeqCst));
+        u.add(SubRef::from_fn(move || v2.store(true, Ordering::SeqCst)));
 
         assert!(v.load(Ordering::SeqCst));
     }
@@ -203,9 +199,9 @@ mod tests
         let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {
-            u2.add(move || {  out.lock().unwrap().push_str("A");  });
+            u2.add(SubRef::from_fn(move || {  out.lock().unwrap().push_str("A");  }));
         });
-        u3.add(move || { out2.lock().unwrap().push_str("A"); });
+        u3.add(SubRef::from_fn(move || { out2.lock().unwrap().push_str("A"); }));
 
         let j2  = thread::spawn(move || { u.unsub(); });
 

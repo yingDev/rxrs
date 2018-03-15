@@ -26,6 +26,7 @@ pub trait ObservableSkip<'a, Src, V> where Src : Observable<'a,V>
 
 impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>,
 {
+    #[inline(always)]
     fn skip(self, total: usize) -> SkipOp<Self, V>
     {
         SkipOp{ total, PhantomData, source: self  }
@@ -34,7 +35,7 @@ impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>
 
 impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src: Observable<'a, V>
 {
-    #[inline(never)]
+    #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         let mut count = self.total;

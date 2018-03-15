@@ -33,6 +33,7 @@ impl<'a, Src, V:Clone+Send+Sync, FPred> ObservableFilter<'a, Src, V, FPred> for 
     Src : Observable<'a, V>,
     FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
 {
+    #[inline]
     fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>
     {
         FilterOp { source: self, pred: pred.clone(), PhantomData }
@@ -43,6 +44,7 @@ impl<'a, Src, V:Clone+Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, 
     Src : Observable<'a, V>,
     FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
 {
+    #[inline(always)]
     fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
         let f = self.pred.clone();

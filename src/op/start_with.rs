@@ -31,6 +31,7 @@ impl<'a, Src, V> ObservableStartWith<'a, Src, V> for Src where Src : Observable<
 
 impl<'a, Src, V:'a+Send+Sync+Clone> Observable<'a, V> for StartWithOp<Src, V> where Src: Observable<'a, V>
 {
+    #[inline]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         dest.next(self.v.clone());

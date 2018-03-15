@@ -25,6 +25,7 @@ pub trait ObservableTake<'a, Src, V> where Src : Observable<'a, V>
 
 impl<'a, Src, V> ObservableTake<'a, Src, V> for Src where Src : Observable<'a, V>,
 {
+    #[inline(always)]
     fn take(self, total: isize) -> TakeOp<Self, V>
     {
         TakeOp{ total, PhantomData, source: self  }
@@ -33,7 +34,7 @@ impl<'a, Src, V> ObservableTake<'a, Src, V> for Src where Src : Observable<'a, V
 
 impl<'a, Src, V:'a> Observable<'a, V> for TakeOp<Src, V> where Src: Observable<'a, V>
 {
-    #[inline(never)]
+    #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         if self.total <= 0 {
@@ -148,7 +149,7 @@ mod test
             .subf((move |_|{ a.fetch_add(1, Ordering::SeqCst); },
                    (),
                    move | |{ b.fetch_add(1000, Ordering::SeqCst); } ))
-            .add(move ||{ c.fetch_add(10000, Ordering::SeqCst); } );
+            .add(SubRef::from_fn(move ||{ c.fetch_add(10000, Ordering::SeqCst); }) );
 
         subj.next(1);
         //complete & unsub should run here

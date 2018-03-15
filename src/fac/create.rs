@@ -33,6 +33,11 @@ pub fn create_static<V, Sub, TRet>(sub:Sub) -> impl Observable<'static, V> where
     StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
+pub fn create_clonable_static< V:Clone, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'static, V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
+{
+    StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
+}
+
 pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> where V : Step
 {
     create_clonable(move |o| {
@@ -87,11 +92,13 @@ impl<'a, V,Sub> Observable<'a, V> for CreatedObservable<'a, V,Sub> where Sub : F
     }
 }
 
+#[derive(Clone)]
 pub struct StaticCreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
 {
     sub: Sub,
-    PhantomData: PhantomData<(*const V)>
+    PhantomData: PhantomData<V>
 }
+
 
 impl<V,Sub> Observable<'static, V> for StaticCreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
 {
@@ -140,8 +147,8 @@ mod test
             });
 
             src.sub_noti(|n| match n {
-                Next(v) => { sum += v; true }
-                _ => { false }
+                Next(v) => { sum += v; IsClosed::True }
+                _ => { IsClosed::Default }
             });
         }
 

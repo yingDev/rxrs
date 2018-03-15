@@ -7,11 +7,13 @@ use subscriber::Subscriber;
 use std::any::Any;
 use std::marker::PhantomData;
 use observable::FnCell;
-use observable::ObserverHelper;
+use observable::*;
+use observable::RxNoti::*;
+use observable::IsClosed;
 
 pub struct TapOp<V, Src, Obs>
 {
-    src: Src,
+    source: Src,
     obs: Obs,
     PhantomData: PhantomData<V>
 }
@@ -31,7 +33,7 @@ impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for
 {
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>
     {
-        TapOp{ src: self, obs: o, PhantomData }
+        TapOp{ source: self, obs: o, PhantomData }
     }
 }
 
@@ -40,51 +42,28 @@ impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
         for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'static+Clone,
         Src : Observable<'x, V>
 {
+    #[inline(never)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'x) -> SubRef
     {
-        let s = Subscriber::new(TapState{ obs: self.obs.clone() }, dest, false);
-        s.do_sub(&self.src)
-    }
-}
-
-struct TapState<Obs>
-{
-    obs: Obs
-}
-
-impl<'a, V, Obs,Dest> SubscriberImpl<V, TapState<Obs>> for Subscriber<'a, V, TapState<Obs>,Dest> where
-    Dest: Observer<V>+Send+Sync+'a,
-    for<'x> Obs: ObserverHelper<&'x V>+Send+Sync+'static,
-
-{
-    fn on_next(&self, v: V)
-    {
-        if self._dest._is_closed() {
-            self.complete();
-            return;
-        }
-
-        self._state.obs.next(&v);
-        self._dest.next(v);
-
-        if self._dest._is_closed() {
-            self.complete();
-        }
-    }
-
-    fn on_err(&self, e: Arc<Any + Send + Sync>)
-    {
-        self._state.obs.err(e.clone());
-
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self._state.obs.complete();
-        self.do_unsub();
-        self._dest.complete();
+        let o = self.obs.clone();
+        self.source.sub_noti(move |n| {
+            match n {
+                Next(v) => {
+                    o.next(&v);
+                    dest.next(v);
+                    if dest._is_closed() { return IsClosed::True; }
+                },
+                Err(e) => {
+                    o.err(e.clone());
+                    dest.err(e);
+                },
+                Comp => {
+                    o.complete();
+                    dest.complete();
+                }
+            }
+            IsClosed::Default
+        })
     }
 }
 

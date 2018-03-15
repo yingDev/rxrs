@@ -76,6 +76,7 @@ impl SubRef
         }
     }
 
+    #[inline(never)]
     pub fn empty() -> SubRef
     {
         unsafe {
@@ -97,6 +98,7 @@ impl SubRef
         Arc::ptr_eq(&self.state, &other.state)
     }
 
+    #[inline(never)]
     pub fn unsub(&self)
     {
         if self.state.disposed.compare_and_swap(false, true, Ordering::SeqCst){ return; }
@@ -110,10 +112,9 @@ impl SubRef
                 break;
             }
         }
-
-
     }
 
+    #[inline(never)]
     pub fn add<U>(&self, unsub: U) -> &Self where U:IntoSubRef
     {
         let un = unsub.into();

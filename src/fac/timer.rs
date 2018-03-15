@@ -15,13 +15,14 @@ pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send
 
 pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize>
 {
-    rxfac::create_clonable(move |o|
+    rxfac::create_clonable_static(move |o|
     {
         let count = AtomicUsize::new(0);
         let scheduler2 = scheduler.clone();
         let sig = SubRef::signal();
 
         let sig2 = sig.clone();
+        let o = o.clone();
 
         scheduler.schedule_after(delay, move ||
         {
@@ -62,9 +63,9 @@ mod test
     #[test]
     fn timer_basic()
     {
-        timer(100, Some(100), Arc::new(ImmediateScheduler::new())).take(10).subn(|v|  println!("{}", v));
+        timer(100, Some(100), Arc::new(ImmediateScheduler::new())).take(10).subf(|v|  println!("{}", v));
 
-        timer_once(100, Arc::new(ImmediateScheduler::new())).subn(|v| println!("once..."));
+        timer_once(100, Arc::new(ImmediateScheduler::new())).subf(|v| println!("once..."));
     }
 
     #[test]
@@ -76,11 +77,11 @@ mod test
         let pair = Arc::new((Mutex::new(false), Condvar::new()));
         let pair2 = pair.clone();
 
-        timer(100, Some(100), NewThreadScheduler::get()).take(10).subf(|v|  println!("{}", v), (), move || {
+        timer(100, Some(100), NewThreadScheduler::get()).take(10).subf((|v|  println!("{}", v), (), move || {
             let &(ref lock, ref cvar) = &*pair2;
             *lock.lock().unwrap() = true;
                 cvar.notify_one();
-        });
+        }));
 
         let &(ref lock, ref cvar) = &*pair;
         cvar.wait(lock.lock().unwrap());

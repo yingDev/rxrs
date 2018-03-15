@@ -57,7 +57,7 @@ mod test
     {
         println!("src thread: {:?}", thread::current().id());
         let src = Arc::new(rxfac::timer(100, Some(100), NewThreadScheduler::get()));
-        src.take(30).sub_on(NewThreadScheduler::get()).subn(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
+        src.take(30).sub_on(NewThreadScheduler::get()).subf(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
 
         thread::sleep(Duration::from_secs(10));
     }

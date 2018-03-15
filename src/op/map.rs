@@ -5,6 +5,7 @@ use subscriber::*;
 use observable::*;
 use subref::SubRef;
 use std::sync::Arc;
+use observable::RxNoti::*;
 
 pub struct MapState<FProj>
 {
@@ -36,34 +37,24 @@ impl<'a, 'f, V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable
     FProj : 'a + Clone+Send+Sync+Fn(V)->VOut,
     Src: Observable<'a, V>,
 {
+    #[inline(never)]
     fn sub(&self, dest: impl Observer<VOut> + Send + Sync+'a) -> SubRef
     {
-        let s = Subscriber::new(MapState{ proj: self.proj.clone() }, dest, false);
-        s.do_sub(&self.source)
+        let f = self.proj.clone();
+        self.source.sub_noti(move |n| {
+            match n {
+                Next(v) => {
+                    dest.next( f(v) );
+                    if dest._is_closed() { return IsClosed::True; }
+                },
+                Err(e) => dest.err(e),
+                Comp => dest.complete()
+            }
+            IsClosed::Default
+        })
     }
 }
 
-impl<'a, V,Dest,VOut,FProj> SubscriberImpl<V,MapState<FProj>> for Subscriber<'a, V, MapState<FProj>,Dest,VOut> where
-    FProj : 'a + Send+Sync+Fn(V)->VOut,
-    Dest : Observer<VOut>+Send+Sync+'a
-{
-    fn on_next(&self, v: V)
-    {
-        self._dest.next( (self._state.proj)(v) );
-    }
-
-    fn on_err(&self, e: Arc<Any+Send+Sync>)
-    {
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self.do_unsub();
-        self._dest.complete();
-    }
-}
 
 #[cfg(test)]
 mod test

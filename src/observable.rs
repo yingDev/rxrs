@@ -46,21 +46,28 @@ pub trait ObservableSubNotiHelper<V, F>
     fn sub_noti(&self, f: F) -> SubRef;
 }
 
-//todo: move out
-pub trait BoolLike
+#[derive(PartialEq, Copy, Clone)]
+pub enum IsClosed
 {
-    fn truthy(&self) -> bool;
-    fn falsy(&self) -> bool{ !self.truthy() }
+    Default,
+    True,
+    False
 }
-impl BoolLike for () {
-    fn truthy(&self) -> bool { false }
+
+pub trait AsIsClosed
+{
+    fn is_closed(&self) -> IsClosed;
 }
-impl BoolLike for bool {
-    fn truthy(&self) -> bool { *self }
+impl AsIsClosed for () {
+    fn is_closed(&self) -> IsClosed { IsClosed::Default }
+}
+impl AsIsClosed for IsClosed
+{
+    fn is_closed(&self) -> IsClosed{ *self }
 }
 //===========
 
-impl<'a, V:'a,F, Obs, Ret:BoolLike> ObservableSubNotiHelper<V, F> for Obs where Obs:Observable<'a,V>, F: Send+Sync+'a+FnMut(RxNoti<V>)->Ret
+impl<'a, V:'a,F, Obs, Ret:AsIsClosed> ObservableSubNotiHelper<V, F> for Obs where Obs:Observable<'a,V>, F: Send+Sync+'a+FnMut(RxNoti<V>)->Ret
 {
     fn sub_noti(&self, f: F) -> SubRef
     {
@@ -83,30 +90,32 @@ impl<V,F> MatchObserver<V,F>
 }
 unsafe impl<V,F> Send for MatchObserver<V,F> where F: Send{}
 unsafe impl<V,F> Sync for MatchObserver<V,F> where F: Sync{}
-impl<'a, V,F,Ret:BoolLike> Observer<V> for MatchObserver<V,F> where F: Send+Sync+'a+Fn(RxNoti<V>)->Ret
+impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sync+'a+Fn(RxNoti<V>)->Ret
 {
     fn next(&self, v:V)
     {
         if ! self.closed.load(Ordering::Acquire) {
-            if ((self.f)(RxNoti::Next(v))).truthy() {
+            if ((self.f)(RxNoti::Next(v))).is_closed() == IsClosed::True {
                 self.closed.store(true, Ordering::Release);
             }
         }
     }
 
+    #[inline(never)]
     fn err(&self, e:Arc<Any+Send+Sync>)
     {
         if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
-            if ((self.f)(RxNoti::Err(e))).truthy() {
+            if ((self.f)(RxNoti::Err(e))).is_closed() == IsClosed::False {
                 self.closed.store(false, Ordering::Release);
             }
         }
     }
 
+    #[inline(never)]
     fn complete(&self)
     {
         if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
-            if ((self.f)(RxNoti::Comp)).truthy() {
+            if ((self.f)(RxNoti::Comp)).is_closed() == IsClosed::False {
                 self.closed.store(false, Ordering::Release);
             }
         }

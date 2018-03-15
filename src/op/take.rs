@@ -8,6 +8,7 @@ use subscriber::*;
 use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use observable::RxNoti::*;
 
 #[derive(Clone)]
 pub struct TakeOp<Src, V>
@@ -15,12 +16,6 @@ pub struct TakeOp<Src, V>
     source: Src,
     total: isize,
     PhantomData: PhantomData<(V)>
-}
-
-struct TakeState<'a>
-{
-    count:AtomicIsize,
-    PhantomData: PhantomData<&'a()>
 }
 
 pub trait ObservableTake<'a, Src, V> where Src : Observable<'a, V>
@@ -36,38 +31,9 @@ impl<'a, Src, V> ObservableTake<'a, Src, V> for Src where Src : Observable<'a, V
     }
 }
 
-impl<'a, Dest: Observer<V>+Send+Sync+'a, V> SubscriberImpl<V,TakeState<'a>> for Subscriber<'a, V,TakeState<'a>,Dest>
+impl<'a, Src, V:'a> Observable<'a, V> for TakeOp<Src, V> where Src: Observable<'a, V>
 {
-    fn on_next(&self, v:V)
-    {
-        if self._state.count.fetch_sub(1, Ordering::SeqCst) == 0
-        {
-            self.complete();
-        }else {
-            self._dest.next(v);
-        }
-
-        if self._state.count.load(Ordering::SeqCst) == 0
-        {
-            self.complete();
-        }
-    }
-
-    fn on_err(&self, e:Arc<Any+Send+Sync>)
-    {
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self.do_unsub();
-        self._dest.complete();
-    }
-}
-
-impl<'a, Src, V:'static+Send+Sync> Observable<'a, V> for TakeOp<Src, V> where Src: Observable<'a, V>
-{
+    #[inline(never)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         if self.total <= 0 {
@@ -75,8 +41,37 @@ impl<'a, Src, V:'static+Send+Sync> Observable<'a, V> for TakeOp<Src, V> where Sr
             return SubRef::empty();
         }
 
-        let s =Subscriber::new(TakeState{ count: AtomicIsize::new(self.total), PhantomData}, dest, false);
-        s.do_sub(&self.source)
+        let sub = SubRef::signal();
+        let sub2 = sub.clone();
+        let mut count = self.total;
+
+        sub.add(self.source.sub_noti(move |n| {
+            match n {
+                Next(v) => {
+                    count -= 1;
+                    if count > 0 {
+                        dest.next(v);
+                        if dest._is_closed() { return IsClosed::True; }
+                    }else {
+                        dest.next(v);
+                        sub2.unsub();
+                        dest.complete();
+                        return IsClosed::True;
+                    }
+                },
+                Err(e) => {
+                    sub2.unsub();
+                    dest.err(e);
+                },
+                Comp => {
+                    sub2.unsub();
+                    dest.complete()
+                }
+            }
+            IsClosed::Default
+        }));
+
+        sub
     }
 }
 

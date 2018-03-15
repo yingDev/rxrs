@@ -13,6 +13,7 @@
 #![feature(generic_param_attrs)]
 #![feature(dropck_eyepatch)]
 #![feature(nested_impl_trait)]
+#![type_length_limit="33554432"]
 
 pub mod observable;
 pub mod subject;

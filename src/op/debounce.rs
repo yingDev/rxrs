@@ -56,8 +56,14 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
         let mut timer = SubRef::empty();
         let dest = Arc::new(dest);
 
-        self.source.sub_noti(move |n| {
+        let sub = SubRef::signal();
+        let sub2 = sub.clone();
+
+        sub.add(self.source.sub_noti(move |n| {
             timer.unsub();
+            if sub2.disposed() {
+                return IsClosed::True;
+            }
             match n {
                 Next(v) => {
                     *val.lock().unwrap() = Some(v);
@@ -73,6 +79,7 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
                 },
 
                 Err(e) => {
+                    sub2.unsub();
                     let mut val = val.lock().unwrap();
                     if val.is_some() {
                         dest.next(mem::replace(&mut *val, None).unwrap());
@@ -81,6 +88,7 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
                 },
 
                 Comp => {
+                    sub2.unsub();
                     let mut val = val.lock().unwrap();
                     if val.is_some() {
                         dest.next(mem::replace(&mut *val, None).unwrap());
@@ -88,7 +96,11 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
                     dest.complete();
                 }
             }
-        })
+
+            IsClosed::Default
+        }));
+
+        sub
     }
 
 }

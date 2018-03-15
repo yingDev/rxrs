@@ -46,6 +46,7 @@ impl Scheduler for ImmediateScheduler
         act()
     }
 
+    #[inline(never)]
     fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: impl Send+'static+Fn()) -> SubRef
     {
         while ! sigStop.disposed()
@@ -80,6 +81,7 @@ impl NewThreadScheduler
 
 impl Scheduler for NewThreadScheduler
 {
+    #[inline(never)]
     fn schedule(&self, act: impl Send+'static+FnOnce()->SubRef) -> SubRef
     {
         let unsub = SubRef::signal();
@@ -92,6 +94,7 @@ impl Scheduler for NewThreadScheduler
        unsub
     }
 
+    #[inline(never)]
     fn schedule_after(&self, due: Duration, act: impl Send+'static+FnOnce()->SubRef) -> SubRef
     {
         let unsub = SubRef::signal();
@@ -105,6 +108,7 @@ impl Scheduler for NewThreadScheduler
         unsub
     }
 
+    #[inline(never)]
     fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: impl Send+'static+Fn()) -> SubRef
     {
         let stop = sigStop.clone();

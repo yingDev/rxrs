@@ -34,7 +34,7 @@ mod test
         let result = AtomicIsize::new(0);
 
         let src = rxfac::range(0..10).publish();
-        let sub = src.rx().sub_scoped(|v| { result.fetch_add(1, Ordering::SeqCst); } );
+        let sub = src.rx().subf(|v| { result.fetch_add(1, Ordering::SeqCst); } );
 
         assert_eq!(result.load(Ordering::SeqCst), 0);
         src.connect();

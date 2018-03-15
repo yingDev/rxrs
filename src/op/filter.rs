@@ -5,6 +5,8 @@ use observable::*;
 use subscriber::*;
 use subref::SubRef;
 use std::sync::Arc;
+use observable::*;
+use observable::RxNoti::*;
 
 pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 {
@@ -43,35 +45,19 @@ impl<'a, Src, V:Clone+Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, 
 {
     fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
     {
-        let s = Subscriber::new(FilterState{ pred: self.pred.clone(), PhantomData }, o, false);
-        s.do_sub(&self.source)
-    }
-}
+        let f = self.pred.clone();
 
-impl<'a, V:Clone+Send+Sync,F, Dest : Observer<V>+Send+Sync+'a> SubscriberImpl<V,FilterState<'a, V, F>> for Subscriber<'a, V,FilterState<'a, V,F>, Dest> where F: 'a+Send+Sync+Fn(&V)->bool
-{
-    fn on_next(&self, v: V)
-    {
-        if self._dest._is_closed() {
-            self.complete();
-        }else if (self._state.pred)(&v) {
-            self._dest.next(v);
-        }
-        if self._dest._is_closed() {
-            self.complete();
-        }
-    }
-
-    fn on_err(&self, e: Arc<Any+Send+Sync>)
-    {
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self.do_unsub();
-        self._dest.complete();
+        self.source.sub_noti(move |n| {
+            match n {
+                Next(v) => {
+                    if f(&v) { o.next(v) };
+                    if o._is_closed() { return IsClosed::True; }
+                },
+                Err(e) => o.err(e),
+                Comp => o.complete()
+            }
+            IsClosed::Default
+        })
     }
 }
 

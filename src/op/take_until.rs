@@ -7,12 +7,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::marker::PhantomData;
-
-
-pub struct TakeUntilState
-{
-    notified: Arc<AtomicBool>
-}
+use observable::RxNoti::*;
+use observable::*;
+use op::*;
 
 pub struct TakeUntilOp<VNoti, Src, Noti>
 {
@@ -24,7 +21,6 @@ pub struct TakeUntilOp<VNoti, Src, Noti>
 pub trait ObservableTakeUntil<'a, V, Src, VNoti, Noti> where
     Noti: Observable<'a, VNoti>+Send+Sync,
     Src : Observable<'a, V>,
-    Self: Sized
 {
     fn take_until(self, noti:  Noti) -> TakeUntilOp<VNoti, Src, Noti>;
 }
@@ -39,59 +35,38 @@ impl<'a, V, Src, VNoti, Noti> ObservableTakeUntil<'a, V, Src, VNoti, Noti> for S
     }
 }
 
-impl<'a, V:'static+Send+Sync, Src, VNoti, Noti> Observable<'a, V> for TakeUntilOp<VNoti, Src, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync,
+impl<'a, V:'static+Send+Sync, Src, VNoti:'a, Noti> Observable<'a, V> for TakeUntilOp<VNoti, Src, Noti> where
+    Noti: Observable<'a, VNoti>+Send+Sync+'a,
     Src : Observable<'a, V>,
 {
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
-        let notified = Arc::new(AtomicBool::new(false));
-        let notified2 = notified.clone();
-        let notified3 = notified.clone();
+        let dest = Arc::new(dest);
+        let dest2 = dest.clone();
 
-        let s = Arc::new(Subscriber::new(TakeUntilState{ notified: notified.clone() }, dest, false));
+        let sub = SubRef::signal();
+        let (sub2 , sub3) = (sub.clone(), sub.clone());
 
-        let noti_sub = self.noti.sub(Arc::new((
-            move |v:VNoti| notified2.store(true, Ordering::SeqCst),
-            move |e:Arc<Any+Send+Sync>| notified3.store(true, Ordering::SeqCst),
-            move || {} //dont notify on complete. (same as rxjs)
-        )));
+        let sub_noti = self.noti.rx().take(1).sub_noti(move |n|{
+            dest.complete();
+            sub.unsub();
+            IsClosed::True
+        });
 
-        if notified.load(Ordering::SeqCst) {
-            noti_sub.unsub();
+        if sub_noti.disposed() {
             return SubRef::empty();
         }
 
-        let sub = self.source.sub(s.clone());
-        s.set_unsub(&sub);
+        sub2.add(sub_noti);
 
-        sub
+        let sub = self.source.sub(dest2);
+        sub.add(sub2);
+        sub3.add(sub);
+
+        sub3
     }
 }
 
-impl<'a, V,Dest> SubscriberImpl<V, TakeUntilState> for Subscriber<'a, V, TakeUntilState,Dest>
-{
-    fn on_next(&self, v: V)
-    {
-        if self._state.notified.load(Ordering::SeqCst) {
-            self.complete();
-            return;
-        }
-        self._dest.next(v);
-    }
-
-    fn on_err(&self, e: Arc<Any+Send+Sync>)
-    {
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self.do_unsub();
-        self._dest.complete();
-    }
-}
 
 #[cfg(test)]
 mod test
@@ -109,7 +84,7 @@ mod test
         let r = AtomicIsize::new(0);
         let subj = Subject::<isize>::new();
 
-         let it = subj.rx().subn(|v| {r.fetch_add(v, Ordering::SeqCst);});
+         let it = subj.rx().subf(|v| {r.fetch_add(v, Ordering::SeqCst);});
          subj.next(1);
 
         assert_eq!(r.load(Ordering::SeqCst), 1);
@@ -127,7 +102,7 @@ mod test
         let r2 = r.clone();
 
         {
-            let it = subj.rx().take_until(noti.clone()).subn(move |v| { r.fetch_add(1, Ordering::SeqCst);});
+            let it = subj.rx().take_until(noti.clone()).subf(move |v| { r.fetch_add(1, Ordering::SeqCst);});
             subj.next(1);
 
             let hr = ::std::thread::spawn(move || noti2.next(1));
@@ -146,7 +121,11 @@ mod test
         let (r1, r2) = (result.clone(), result.clone());
 
         let subj = Subject::new();
-        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get())).subf(move |v| {r1.store(v, Ordering::SeqCst);}, (), move || {r2.store(100, Ordering::SeqCst);});
+        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get()))
+            .subf((move |v| {r1.store(v, Ordering::SeqCst);},
+                   (),
+                   move || {r2.store(100, Ordering::SeqCst);}
+            ));
         subj.next(1);
         assert_eq!(result.load(Ordering::SeqCst), 1);
 

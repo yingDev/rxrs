@@ -8,71 +8,53 @@ use subscriber::*;
 use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use observable::*;
+use observable::RxNoti::*;
 
 #[derive(Clone)]
 pub struct SkipOp<Src, V>
 {
     source: Src,
-    total: isize,
+    total: usize,
     PhantomData: PhantomData<V>
-}
-
-struct SkipState
-{
-    count:AtomicIsize
 }
 
 pub trait ObservableSkip<'a, Src, V> where Src : Observable<'a,V>
 {
-    fn skip(self, total: isize) -> SkipOp<Src, V>;
+    fn skip(self, total: usize) -> SkipOp<Src, V>;
 }
 
 impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>,
 {
-    fn skip(self, total: isize) -> SkipOp<Self, V>
+    fn skip(self, total: usize) -> SkipOp<Self, V>
     {
         SkipOp{ total, PhantomData, source: self  }
     }
 }
 
-impl<'a, V,Dest> SubscriberImpl<V,SkipState> for Subscriber<'a, V,SkipState,Dest> where Dest: Observer<V>+Send+Sync+'a
-{
-    fn on_next(&self, v:V)
-    {
-        if self._state.count.load(Ordering::Acquire) <= 0 {
-            if self._dest._is_closed() {
-                self.complete();
-                return;
-            }
-            self._dest.next(v);
-            if self._dest._is_closed() {
-                self.complete();
-            }
-            return;
-        }
-
-        self._state.count.fetch_sub(1, Ordering::SeqCst);
-    }
-
-    fn on_err(&self, e:Arc<Any+Send+Sync>)
-    {
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self.do_unsub();
-        self._dest.complete();
-    }
-}
-
 impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src: Observable<'a, V>
 {
+    #[inline(never)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
-        let s = Subscriber::new(SkipState{ count: AtomicIsize::new(self.total)}, dest, false);
-        s.do_sub(&self.source)
+        let mut count = self.total;
+        if count == 0 {
+            return self.source.sub(dest);
+        }
+
+        self.source.sub_noti(move |n|{
+            match n {
+                Next(v) => {
+                    if count == 0 {
+                        dest.next(v);
+                        if dest._is_closed() { return IsClosed::True; }
+                    } else { count -= 1; }
+                },
+                Err(e) => dest.err(e),
+                Comp => dest.complete()
+            }
+            IsClosed::Default
+        })
     }
 }
 

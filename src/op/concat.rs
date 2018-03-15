@@ -50,33 +50,43 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
 
         let mut dest = Some(dest);
 
-        sub.add(self.source.sub_noti(move |n| match n {
-            Next(v) =>  {
-                dest.as_ref().unwrap().next(v);
-            },
-            Err(e) =>  {
-                dest.as_ref().unwrap().err(e);
-                sub2.unsub();
-            },
-            Comp => {
-                if sub2.disposed() {
-                    dest.as_ref().unwrap().complete();
-                }else {
-                    let dest = mem::replace(&mut dest, None).unwrap();
-                    let sub3 = sub2.clone();
-                    sub2.add(next.sub_noti(move |n| match n {
-                        Next(v) => dest.next(v),
-                        Err(e) => {
-                            dest.err(e);
-                            sub3.unsub();
-                        },
-                        Comp => {
-                            dest.complete();
-                            sub3.unsub();
-                        }
-                    }));
+        sub.add(self.source.sub_noti(move |n| {
+            match n {
+                Next(v) =>  {
+                    dest.as_ref().unwrap().next(v);
+                    if dest.as_ref().unwrap()._is_closed() { return IsClosed::True; }
+                },
+                Err(e) =>  {
+                    dest.as_ref().unwrap().err(e);
+                    sub2.unsub();
+                },
+                Comp => {
+                    if sub2.disposed() {
+                        dest.as_ref().unwrap().complete();
+                    }else {
+                        let dest = mem::replace(&mut dest, None).unwrap();
+                        let sub3 = sub2.clone();
+                        sub2.add(next.sub_noti(move |n| {
+                            match n {
+                                Next(v) => {
+                                    dest.next(v);
+                                    if dest._is_closed() { return IsClosed::True; }
+                                },
+                                Err(e) => {
+                                    dest.err(e);
+                                    sub3.unsub();
+                                },
+                                Comp => {
+                                    dest.complete();
+                                    sub3.unsub();
+                                }
+                            }
+                            IsClosed::Default
+                        }));
+                    }
                 }
             }
+            IsClosed::Default
         }));
 
         sub

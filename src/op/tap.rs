@@ -31,6 +31,7 @@ impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for
     for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
     Src : Observable<'x, V>
 {
+    #[inline(always)]
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>
     {
         TapOp{ source: self, obs: o, PhantomData }

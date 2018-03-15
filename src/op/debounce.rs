@@ -13,40 +13,16 @@ use std::marker::PhantomData;
 use scheduler::Scheduler;
 use std::time::Duration;
 use std::sync::Mutex;
+use observable::RxNoti::*;
+use std::mem;
 
-pub struct DebounceState<V, Sch>
-{
-    scheduler: Arc<Sch>,
-    dur: usize,
-    timer: Mutex<SubRef>,
-    val: Arc<Mutex<Option<V>>>
-}
-
-impl<V,Sch> DebounceState<V,Sch>
-{
-    fn emmit_last(&self, dest: &Arc<Observer<V>+Send+Sync+'static>)
-    {
-        let mut timerLock = self.timer.lock().unwrap();
-        let timer = ::std::mem::replace(&mut *timerLock, SubRef::empty());
-        if ! timer.disposed() {
-            timer.unsub();
-            ::std::mem::drop(timerLock);
-
-            let mut vlock = self.val.lock().unwrap();
-            if let Some(v) = ::std::mem::replace(&mut *vlock, None) {
-                ::std::mem::drop(vlock);
-                dest.next(v);
-            }
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct DebounceOp<V, Src, Sch>
 {
     source : Src,
     scheduler: Arc<Sch>,
-    duration: usize,
+    duration: Duration,
 
     PhantomData: PhantomData<(V)>
 }
@@ -54,19 +30,17 @@ pub struct DebounceOp<V, Src, Sch>
 pub trait ObservableDebounce<'a, V, Src, Sch> where
     Sch: Scheduler+Send+Sync,
     Src : Observable<'a, V>,
-    Self: Sized
 {
-    fn debounce(self, duration: usize, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>;
+    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>;
 }
 
 impl<'a, V,Src, Sch> ObservableDebounce<'a, V, Src, Sch> for Src where
     Sch: Scheduler+Send+Sync+'static,
     Src : Observable<'a, V>,
-    Self: Sized
 {
-    fn debounce(self, duration: usize, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>
+    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>
     {
-        DebounceOp{ source: self, scheduler, duration, PhantomData }
+        DebounceOp{ source: self, scheduler, duration: Duration::from_millis(duration), PhantomData }
     }
 }
 
@@ -76,69 +50,48 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
 {
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
     {
-        let s = Arc::new(Subscriber::new(DebounceState{
-            scheduler: self.scheduler.clone(),
-            dur: self.duration,
-            timer: Mutex::new(SubRef::empty()),
-            val: Arc::new(Mutex::new(None))
-        }, dest, false));
+        let sch = self.scheduler.clone();
+        let dur = self.duration;
+        let val = Arc::new(Mutex::new(None));
+        let mut timer = SubRef::empty();
+        let dest = Arc::new(dest);
 
-        let sub =  self.source.sub(s.clone());
-        s.set_unsub(&sub);
+        self.source.sub_noti(move |n| {
+            timer.unsub();
+            match n {
+                Next(v) => {
+                    *val.lock().unwrap() = Some(v);
+                    let dest = dest.clone();
+                    let val = val.clone();
+                    timer = sch.schedule_after(dur, move ||{
+                        let mut val = val.lock().unwrap();
+                        if val.is_some(){
+                            dest.next(mem::replace(&mut *val, None).unwrap());
+                        }
+                        SubRef::empty()
+                    });
+                },
 
-        sub
-    }
-}
+                Err(e) => {
+                    let mut val = val.lock().unwrap();
+                    if val.is_some() {
+                        dest.next(mem::replace(&mut *val, None).unwrap());
+                    }
+                    dest.err(e);
+                },
 
-impl< V, Sch,Dest> SubscriberImpl<V, DebounceState<V, Sch>> for Subscriber<'static, V, DebounceState<V, Sch>,Dest> where
-    V: Send+Sync+'static,
-    Sch: Scheduler
-{
-    fn on_next(&self, v: V)
-    {
-        let s = &self._state;
-        let dest = self._dest.clone();
-
-        let mut val = s.val.lock().unwrap();
-        let oldVal = ::std::mem::replace(&mut *val, Some(v));
-        if oldVal.is_some() {
-            s.timer.lock().unwrap().unsub();
-        }
-        ::std::mem::drop(val);
-
-        let val2 = Arc::clone(&s.val);
-
-        let timer = s.scheduler.schedule_after(Duration::from_millis(s.dur as u64), move ||{
-            let mut vlock = val2.lock().unwrap();
-            if let Some(v) = ::std::mem::replace(&mut *vlock, None) {
-                ::std::mem::drop(vlock);
-                if !dest._is_closed() {
-                    dest.next(v);
+                Comp => {
+                    let mut val = val.lock().unwrap();
+                    if val.is_some() {
+                        dest.next(mem::replace(&mut *val, None).unwrap());
+                    }
+                    dest.complete();
                 }
             }
-            SubRef::empty()
-        });
-
-        if !timer.disposed(){
-            *s.timer.lock().unwrap() = timer;
-        }
+        })
     }
 
-    fn on_err(&self, e: Arc<Any+Send+Sync>)
-    {
-        self._state.emmit_last(&self._dest);
-        self.do_unsub();
-        self._dest.err(e);
-    }
-
-    fn on_comp(&self)
-    {
-        self._state.emmit_last(&self._dest);
-        self.do_unsub();
-        self._dest.complete();
-    }
 }
-
 
 #[cfg(test)]
 mod test
@@ -160,7 +113,7 @@ mod test
         let r = Arc::new(Mutex::new(vec![]));
         let (r2, r3) = (r.clone(), r.clone());
 
-        rxfac::create(|o|{
+        rxfac::create_static(|o|{
             ::std::thread::spawn(move ||{
                 o.next(1);sleep(10);
                 o.next(2);sleep(110);
@@ -173,10 +126,10 @@ mod test
             });
             SubRef::empty()
         }).debounce(100, NewThreadScheduler::get())
-            .subf(move |v| r2.lock().unwrap().push(v),
+            .subf(( move |v| r2.lock().unwrap().push(v),
                   (),
                   move ||{ r3.lock().unwrap().push(100) }
-            );
+            ));
 
         ::std::thread::sleep(Duration::from_secs(2));
 
@@ -191,7 +144,7 @@ mod test
         let r = Arc::new(Mutex::new(vec![]));
         let (r2, r3, r4) = (r.clone(), r.clone(), r.clone());
 
-        rxfac::create(|o|{
+        rxfac::create_static(|o|{
             ::std::thread::spawn(move ||{
                 o.next(1);sleep(10);
                 o.next(2);o.err(Arc::new(123));
@@ -204,10 +157,10 @@ mod test
             });
             SubRef::empty()
         }).debounce(100, NewThreadScheduler::get())
-            .subf(move |v| r2.lock().unwrap().push(v),
-                  move |e| { r4.lock().unwrap().push(1000)  },
-                  move | |{ r3.lock().unwrap().push(100) }
-            );
+            .subf(( move |v| r2.lock().unwrap().push(v),
+                    move |e| { r4.lock().unwrap().push(1000)  },
+                    move | |{ r3.lock().unwrap().push(100) }
+            ));
 
         ::std::thread::sleep(Duration::from_secs(2));
 

@@ -53,12 +53,10 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
         sub.add(self.source.sub_noti(move |n| match n {
             Next(v) =>  {
                 dest.as_ref().unwrap().next(v);
-                false
             },
             Err(e) =>  {
                 dest.as_ref().unwrap().err(e);
                 sub2.unsub();
-                false
             },
             Comp => {
                 if sub2.disposed() {
@@ -78,7 +76,6 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, S
                         }
                     }));
                 }
-                true //dont close
             }
         }));
 

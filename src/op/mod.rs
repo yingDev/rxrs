@@ -8,7 +8,7 @@ mod skip;
 mod tap;
 mod concat;
 mod start_with;
-//mod debounce;
+mod debounce;
 //mod multicast;
 //mod publish;
 
@@ -22,6 +22,6 @@ pub use self::skip::*;
 //pub use self::observe_on::*;
 pub use self::tap::*;
 pub use self::concat::*;
-//pub use self::debounce::*;
+pub use self::debounce::*;
 //pub use self::multicast::*;
 //pub use self::publish::*;

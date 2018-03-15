@@ -10,6 +10,9 @@ use util::AtomicOption;
 use std::any::TypeId;
 use std::cell::UnsafeCell;
 use std::cell::Cell;
+use std::ops::Not;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 pub trait Observable<'a, V>
 {
@@ -43,23 +46,72 @@ pub trait ObservableSubNotiHelper<V, F>
     fn sub_noti(&self, f: F) -> SubRef;
 }
 
-impl<'a, V:'a,F, Obs, Ret> ObservableSubNotiHelper<V, F> for Obs where Obs:Observable<'a,V>, F: Send+Sync+'a+FnMut(RxNoti<V>)->Ret
+//todo: move out
+pub trait BoolLike
+{
+    fn truthy(&self) -> bool;
+    fn falsy(&self) -> bool{ !self.truthy() }
+}
+impl BoolLike for () {
+    fn truthy(&self) -> bool { false }
+}
+impl BoolLike for bool {
+    fn truthy(&self) -> bool { *self }
+}
+//===========
+
+impl<'a, V:'a,F, Obs, Ret:BoolLike> ObservableSubNotiHelper<V, F> for Obs where Obs:Observable<'a,V>, F: Send+Sync+'a+FnMut(RxNoti<V>)->Ret
 {
     fn sub_noti(&self, f: F) -> SubRef
     {
         let f = FnCell::new(f);
-        self.sub(MatchObserver(move |n| unsafe { (*f.0.get())(n); } , PhantomData))
+        self.sub(MatchObserver::new(move |n| unsafe {
+            (*f.0.get())(n)
+        }))
     }
 }
 
-pub struct MatchObserver<V,F>(F, PhantomData<*const V>);
-unsafe impl<V,F> Send for MatchObserver<V,F> {}
-unsafe impl<V,F> Sync for MatchObserver<V,F> {}
-impl<'a, V,F> Observer<V> for MatchObserver<V,F> where F: Fn(RxNoti<V>)+Send+Sync+'a
+pub struct MatchObserver<V,F>
 {
-    fn next(&self, v:V){ (self.0)(RxNoti::Next(v)) }
-    fn err(&self, e:Arc<Any+Send+Sync>){ (self.0)(RxNoti::Err(e)) }
-    fn complete(&self){ (self.0)(RxNoti::Comp) }
+    pub closed: AtomicBool,
+    pub f: F,
+    PhantomData: PhantomData<*const V>
+}
+impl<V,F> MatchObserver<V,F>
+{
+    fn new(f:F) -> MatchObserver<V,F>{ MatchObserver{ closed: AtomicBool::new(false), f, PhantomData } }
+}
+unsafe impl<V,F> Send for MatchObserver<V,F> where F: Send{}
+unsafe impl<V,F> Sync for MatchObserver<V,F> where F: Sync{}
+impl<'a, V,F,Ret:BoolLike> Observer<V> for MatchObserver<V,F> where F: Send+Sync+'a+Fn(RxNoti<V>)->Ret
+{
+    fn next(&self, v:V)
+    {
+        if ! self.closed.load(Ordering::Acquire) {
+            if ((self.f)(RxNoti::Next(v))).truthy() {
+                self.closed.store(true, Ordering::Release);
+            }
+        }
+    }
+
+    fn err(&self, e:Arc<Any+Send+Sync>)
+    {
+        if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
+            if ((self.f)(RxNoti::Err(e))).truthy() {
+                self.closed.store(false, Ordering::Release);
+            }
+        }
+    }
+
+    fn complete(&self)
+    {
+        if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
+            if ((self.f)(RxNoti::Comp)).truthy() {
+                self.closed.store(false, Ordering::Release);
+            }
+        }
+    }
+    fn _is_closed(&self) -> bool { self.closed.load(Ordering::SeqCst) }
 }
 
 

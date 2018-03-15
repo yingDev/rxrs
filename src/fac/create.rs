@@ -23,14 +23,19 @@ pub fn create<'a, V, Sub, TRet>(sub:Sub) -> impl Observable<'a, V> where Sub : F
     CreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
+pub fn create_clonable<'a, V, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
+{
+    CreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
+}
+
 pub fn create_static<V, Sub, TRet>(sub:Sub) -> impl Observable<'static, V> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
 {
     StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
-pub fn range<'a, V:'static>(range: Range<V>) -> impl Observable<'a,V> where V : Step
+pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> where V : Step
 {
-    create(move |o| {
+    create_clonable(move |o| {
         for i in range.clone() {
             if o._is_closed() { return SubRef::empty() }
             o.next(i);
@@ -63,7 +68,7 @@ pub fn range<'a, V:'static>(range: Range<V>) -> impl Observable<'a,V> where V : 
 pub struct CreatedObservable<'a, V, Sub> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->SubRef
 {
     sub: Sub,
-    PhantomData: PhantomData<(*const V, &'a())>
+    PhantomData: PhantomData<(V, &'a())>
 }
 
 impl<'a, V,Sub> Clone for CreatedObservable<'a, V,Sub> where Sub : Clone+Fn(&(Observer<V>+Send+Sync+'a))->SubRef
@@ -87,6 +92,7 @@ pub struct StaticCreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+S
     sub: Sub,
     PhantomData: PhantomData<(*const V)>
 }
+
 impl<V,Sub> Observable<'static, V> for StaticCreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
 {
     fn sub(&self, o: impl Observer<V>+'static+Send+Sync) -> SubRef
@@ -99,6 +105,7 @@ impl<V,Sub> Observable<'static, V> for StaticCreatedObservable<V,Sub> where Sub 
 mod test
 {
     use super::*;
+    use observable::RxNoti::*;
 
     #[test]
     fn gen()
@@ -117,5 +124,27 @@ mod test
         }
 
         assert_eq!(sum, 3);
+    }
+
+    #[test]
+    fn dest_closed()
+    {
+        let mut sum = 0;
+
+        {
+            let src = create(|o|{
+                for i in 1..3 {
+                    o.next(i);
+                }
+                o.complete();
+            });
+
+            src.sub_noti(|n| match n {
+                Next(v) => { sum += v; true }
+                _ => { false }
+            });
+        }
+
+        assert_eq!(sum, 1);
     }
 }

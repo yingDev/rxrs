@@ -189,7 +189,6 @@ impl<'a, V> Observable<'a,V> for Subject<'a,V>
 
 impl<'a, V:Clone> Observer<V> for Subject<'a, V>
 {
-    #[inline(always)]
     fn next(&self, v: V)
     {
         if let &Some(ref obs) = &*self.state.obs.get() {
@@ -201,7 +200,6 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
         }
     }
 
-    #[inline(always)]
     fn err(&self, e: Arc<Any+Send+Sync>)
     {
         let state = &self.state;
@@ -227,7 +225,6 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
         }
     }
 
-    #[inline(always)]
     fn complete(&self)
     {
         let state = &self.state;

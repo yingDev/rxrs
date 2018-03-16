@@ -247,6 +247,12 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
             }
         }
     }
+
+    #[inline(always)]
+    fn _is_closed(&self) -> bool
+    {
+        self.state.completed.load(Ordering::Acquire) || self.state.err.get().is_some()
+    }
 }
 
 #[cfg(test)]

@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub struct ArcCell<T>(AtomicUsize, PhantomData<Arc<T>>);
 
 impl<T> Drop for ArcCell<T> {
+    #[inline(always)]
     fn drop(&mut self) {
         self.take();
     }
@@ -17,10 +18,12 @@ impl<T> Drop for ArcCell<T> {
 
 impl<T> ArcCell<T> {
     /// Creates a new `ArcCell`.
+    #[inline(always)]
     pub fn new(t: Arc<T>) -> ArcCell<T> {
         ArcCell(AtomicUsize::new(unsafe { mem::transmute(t) }), PhantomData)
     }
 
+    #[inline(always)]
     fn take(&self) -> Arc<T> {
         loop {
             match self.0.swap(0, Ordering::Acquire) {
@@ -30,12 +33,14 @@ impl<T> ArcCell<T> {
         }
     }
 
+    #[inline(always)]
     fn put(&self, t: Arc<T>) {
         debug_assert_eq!(self.0.load(Ordering::SeqCst), 0);
         self.0
             .store(unsafe { mem::transmute(t) }, Ordering::Release);
     }
 
+    #[inline(always)]
     pub fn compare_swap(&self, current: Arc<T>, new: Arc<T>) -> Arc<T>
     {
         unsafe { mem::transmute(self.0.compare_and_swap(mem::transmute(current), mem::transmute(new), Ordering::SeqCst)) }
@@ -43,6 +48,7 @@ impl<T> ArcCell<T> {
 
     /// Stores a new value in the `ArcCell`, returning the previous
     /// value.
+    #[inline(always)]
     pub fn set(&self, t: Arc<T>) -> Arc<T> {
         let old = self.take();
         self.put(t);
@@ -50,6 +56,7 @@ impl<T> ArcCell<T> {
     }
 
     /// Returns a copy of the value stored by the `ArcCell`.
+    #[inline(always)]
     pub fn get(&self) -> Arc<T> {
         let t = self.take();
         // NB: correctness here depends on Arc's clone impl not panicking

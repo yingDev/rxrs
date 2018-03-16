@@ -68,7 +68,7 @@ mod test
         let mut sum = 0;
 
         {
-            rxfac::range(0..3).rx().filter(|v| v%2 == 0).sub_noti(|n| match n {
+            rxfac::range(0..3).filter(|v| v%2 == 0).sub_noti(|n| match n {
                 Next(v) => sum += v,
                 Comp => sum += 100,
                 _ => {}

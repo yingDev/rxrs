@@ -103,11 +103,11 @@ mod test
     #[test]
     fn basic()
     {
-        let src = rxfac::range(0..10).rx();
+        let src = rxfac::range(0..10);
         let even = src.clone().filter(|i:&i32| i % 2 == 0);
         let odd = src.clone().filter(|i:&i32| i %2 == 1);
 
-        even.concat(odd).concat(rxfac::range(100..105).rx().take(3)).take(100).filter(|v|true).subf((
+        even.concat(odd).concat(rxfac::range(100..105).take(3)).take(100).filter(|v|true).subf((
             |v| println!("{}",v),
             (),
             || println!("comp")));

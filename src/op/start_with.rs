@@ -54,7 +54,7 @@ mod test
     {
         let mut result = 0;
         {
-            rxfac::range(1..3).rx().start_with(3).subf(|v| result += v );
+            rxfac::range(1..3).start_with(3).subf(|v| result += v );
         }
         assert_eq!(6, result);
     }

@@ -64,7 +64,7 @@ mod test
         {
             let x = 2018;
             let src = rxfac::range(1..2);
-            src.rx().map(|v| v*x ).subf(|v| r += v );
+            src.map(|v| v*x ).subf(|v| r += v );
         }
 
         assert_eq!(r, 2018);

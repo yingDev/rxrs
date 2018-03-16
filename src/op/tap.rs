@@ -66,7 +66,7 @@ mod test
     #[test]
     fn basic()
     {
-        || rxfac::range(0..10).rx()
+        || rxfac::range(0..10)
             .take(5)
             .tap(|v:&i32| println!("{}", v))
             .take(100)

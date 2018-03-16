@@ -16,15 +16,15 @@ use subref::IntoSubRef;
 
 
 #[inline(always)]
-pub fn create<'a:'b, 'b, V:'a+Send+Sync, Sub, TRet>(sub:Sub) -> impl Observable<'a,V>+'b+Send+Sync where
+pub fn create<'a:'b, 'b, V:'a+Send+Sync, Sub, TRet>(sub:Sub) -> Arc<Observable<'a,V>+'b+Send+Sync> where
     Sub : Send+Sync+'a+Fn(Arc<Observer<V>+Send+Sync+'a>)->TRet,
     TRet: IntoSubRef
 {
-    CreatedObservable{ sub, PhantomData }
+    Arc::new(CreatedObservable{ sub, PhantomData })
 }
 
 #[inline(always)]
-pub fn range<'a:'b, 'b, V:'static+Send+Sync>(range: Range<V>) -> impl Observable<'a,V>+'b+Send+Sync where V : Step
+pub fn range<'a:'b, 'b, V:'static+Send+Sync>(range: Range<V>) -> Arc<Observable<'a,V>+'b+Send+Sync> where V : Step
 {
     create(move |o| {
         for i in range.clone() {
@@ -102,7 +102,7 @@ mod test
                 o.complete();
             });
 
-            src.rx().subf(|v| sum += v);
+            src.subf(|v| sum += v);
         }
 
        // assert_eq!(sum, 3);
@@ -121,7 +121,7 @@ mod test
                 o.complete();
             });
 
-            src.rx().take(1).subf(|v| sum += v);
+            src.take(1).subf(|v| sum += v);
         }
 
         //assert_eq!(sum, 1);

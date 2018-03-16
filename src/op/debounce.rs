@@ -127,7 +127,7 @@ mod test
                 o.next(7);
                 o.complete();
             });
-        }).rx().debounce(100, NewThreadScheduler::get())
+        }).debounce(100, NewThreadScheduler::get())
             .subf(( move |v| r2.lock().unwrap().push(v),
                   (),
                   move ||{ r3.lock().unwrap().push(100) }
@@ -158,7 +158,7 @@ mod test
                 //o.complete();
             });
             SubRef::empty()
-        }).rx().debounce(100, NewThreadScheduler::get())
+        }).debounce(100, NewThreadScheduler::get())
             .subf(( move |v| r2.lock().unwrap().push(v),
                     move |e| { r4.lock().unwrap().push(1000)  },
                     move | |{ r3.lock().unwrap().push(100) }

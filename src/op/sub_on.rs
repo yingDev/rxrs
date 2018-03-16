@@ -55,7 +55,7 @@ mod test
     {
         println!("src thread: {:?}", thread::current().id());
         let src = rxfac::timer(100, Some(100), NewThreadScheduler::get());
-        src.rx().take(30).sub_on(NewThreadScheduler::get()).subf(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
+        src.take(30).sub_on(NewThreadScheduler::get()).subf(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
 
         thread::sleep(Duration::from_secs(10));
     }

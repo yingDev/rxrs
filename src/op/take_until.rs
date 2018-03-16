@@ -112,7 +112,7 @@ mod test
         let (r1, r2) = (result.clone(), result.clone());
 
         let subj = Subject::anew();
-        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get()).rx())
+        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get()))
             .subf((move |v| {r1.store(v, Ordering::SeqCst);},
                    (),
                    move || {r2.store(100, Ordering::SeqCst);}

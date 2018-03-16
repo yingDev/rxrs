@@ -8,12 +8,12 @@ use subref::*;
 use fac::*;
 use scheduler::Scheduler;
 
-pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static,usize>+'static+Send+Sync
+pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> Arc<Observable<'static,usize>+'static+Send+Sync>
 {
     timer_dur(Duration::from_millis(delay), period.map(|v| Duration::from_millis(v)), scheduler)
 }
 
-pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static,usize>+'static+Send+Sync
+pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> Arc<Observable<'static,usize>+'static+Send+Sync>
 {
     rxfac::create(move |o|
     {
@@ -47,7 +47,7 @@ pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl 
     })
 }
 
-pub fn timer_once(delay: u64, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static,usize>+'static+Send+Sync
+pub fn timer_once(delay: u64, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> Arc<Observable<'static,usize>+'static+Send+Sync>
 {
     timer(delay, None, scheduler)
 }
@@ -64,9 +64,9 @@ mod test
     #[test]
     fn timer_basic()
     {
-        timer(100, Some(100), Arc::new(ImmediateScheduler::new())).rx().take(10).subf(|v|  println!("{}", v));
+        timer(100, Some(100), Arc::new(ImmediateScheduler::new())).take(10).subf(|v|  println!("{}", v));
 
-        timer_once(100, Arc::new(ImmediateScheduler::new())).rx().subf(|v| println!("once..."));
+        timer_once(100, Arc::new(ImmediateScheduler::new())).subf(|v| println!("once..."));
     }
 
     #[test]
@@ -78,7 +78,7 @@ mod test
         let pair = Arc::new((Mutex::new(false), Condvar::new()));
         let pair2 = pair.clone();
 
-        timer(100, Some(100), NewThreadScheduler::get()).rx().take(10).subf((|v|  println!("{}", v), (), move || {
+        timer(100, Some(100), NewThreadScheduler::get()).take(10).subf((|v|  println!("{}", v), (), move || {
             let &(ref lock, ref cvar) = &*pair2;
             *lock.lock().unwrap() = true;
                 cvar.notify_one();

@@ -126,7 +126,7 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).rx().take(3).map(|v| format!("*{}*", v)).observe_on(NewThreadScheduler::get())
+        rxfac::range(0..10).take(3).map(|v| format!("*{}*", v)).observe_on(NewThreadScheduler::get())
             .subf(( |v| println!("{} on thread {:?}", v, thread::current().id()), (),
                   || println!("complete on thread {:?}", thread::current().id())));
 
@@ -141,9 +141,9 @@ mod test
 
         let x = 5;
         let toStr = |s:i32| format!("{}", s+x);
-        rxfac::range(0..10).rx().filter(|v| v < &x).take(3).map(toStr).subf(|v| println!("scoped: {}-{}",v,x));
+        rxfac::range(0..10).filter(|v| v < &x).take(3).map(toStr).subf(|v| println!("scoped: {}-{}",v,x));
 
-        let src = rxfac::timer(0, Some(10), NewThreadScheduler::get()).rx()
+        let src = rxfac::timer(0, Some(10), NewThreadScheduler::get())
             .skip(3)
             .filter(|i| i % 2 == 0)
             .take(3)

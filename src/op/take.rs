@@ -148,7 +148,7 @@ mod test
             .subf((move |_|{ a.fetch_add(1, Ordering::SeqCst); },
                    (),
                    move | |{ b.fetch_add(1000, Ordering::SeqCst); } ))
-            .add(SubRef::from_fn(move ||{ c.fetch_add(10000, Ordering::SeqCst); }) );
+            .add(SubRef::from_fn(box move ||{ c.fetch_add(10000, Ordering::SeqCst); }) );
 
         subj.next(1);
         //complete & unsub should run here

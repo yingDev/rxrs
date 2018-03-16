@@ -13,6 +13,8 @@ pub trait ObservableMulticast<'a, V, Src, Subj>  where  Src : Observable<'a, V>,
 
 impl<'a, V, Src, Subj> ObservableMulticast<'a, V, Src, Subj> for Src where  Src : Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'static, V:Clone
 {
+
+    #[inline(always)]
     fn multicast(self, subject: Subj) -> ConnectableObservable<'a, V, Src, Subj>
     {
         ConnectableObservable::new(self, subject)

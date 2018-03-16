@@ -42,12 +42,12 @@ struct State
 impl SubRef
 {
     #[inline(never)]
-    pub fn from_fn<F: FnMut()+'static+Send+Sync>(unsub: F) -> SubRef
+    pub fn from_fn(unsub: Box<FnMut()+'static+Send+Sync>) -> SubRef
     {
          SubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
-                cb: AtomicOption::with(box unsub),
+                cb: AtomicOption::with(unsub),
                 extra: AtomicOption::with(LinkedList::new())
             }),
             _unsub_on_drop: false,
@@ -67,6 +67,7 @@ impl SubRef
         }
     }
 
+    #[inline(never)]
     pub fn scoped() -> SubRef
     {
         SubRef { state: Arc::new(
@@ -96,6 +97,7 @@ impl SubRef
         }
     }
 
+    #[inline(always)]
     pub fn ptr_eq(&self, other: &SubRef) -> bool
     {
         Arc::ptr_eq(&self.state, &other.state)
@@ -147,17 +149,20 @@ pub trait IntoSubRef
 }
 impl<'a, F:Fn()+'static+Send+Sync> IntoSubRef for F
 {
+    #[inline(always)]
     fn into(self) -> SubRef
     {
-        SubRef::from_fn(self)
+        SubRef::from_fn(box self)
     }
 }
 impl IntoSubRef for SubRef
 {
+    #[inline(always)]
     fn into(self) -> SubRef{ self }
 }
 impl IntoSubRef for ()
 {
+    #[inline(always)]
     fn into(self) -> SubRef{ SubRef::empty() }
 }
 
@@ -171,7 +176,7 @@ mod tests
     #[test]
     fn disposed()
     {
-        let u = SubRef::from_fn(||{});
+        let u = SubRef::from_fn(box ||{});
         u.unsub();
         assert!(u.disposed());
     }
@@ -179,12 +184,12 @@ mod tests
     #[test]
     fn add_after_unsub()
     {
-        let u = SubRef::from_fn(||{});
+        let u = SubRef::from_fn(box ||{});
         u.unsub();
 
         let v = Arc::new(AtomicBool::new(false));
         let v2 = v.clone();
-        u.add(SubRef::from_fn(move || v2.store(true, Ordering::SeqCst)));
+        u.add(SubRef::from_fn(box move || v2.store(true, Ordering::SeqCst)));
 
         assert!(v.load(Ordering::SeqCst));
     }
@@ -195,13 +200,13 @@ mod tests
         let out = Arc::new(Mutex::new("".to_owned()));
         let (out2,out3) = (out.clone(), out.clone());
 
-        let u = SubRef::from_fn(||{});
+        let u = SubRef::from_fn(box ||{});
         let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {
-            u2.add(SubRef::from_fn(move || {  out.lock().unwrap().push_str("A");  }));
+            u2.add(SubRef::from_fn(box move || {  out.lock().unwrap().push_str("A");  }));
         });
-        u3.add(SubRef::from_fn(move || { out2.lock().unwrap().push_str("A"); }));
+        u3.add(SubRef::from_fn(box move || { out2.lock().unwrap().push_str("A"); }));
 
         let j2  = thread::spawn(move || { u.unsub(); });
 

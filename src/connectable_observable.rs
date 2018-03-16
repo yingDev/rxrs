@@ -21,6 +21,7 @@ impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Obser
         self.source.sub(self.subject.clone())
     }
 
+    #[inline(always)]
     pub fn new(source: Src, subject: Subj) -> ConnectableObservable<'a, V, Src, Subj>
     {
         ConnectableObservable{ source, subject: Arc::new(subject), PhantomData }
@@ -29,6 +30,7 @@ impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Obser
 
 impl<'a, V, Src, Subj> Observable<'a, V> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
 {
+    #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
         self.subject.sub(dest)

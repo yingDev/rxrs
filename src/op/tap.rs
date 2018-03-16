@@ -16,7 +16,7 @@ pub struct TapOp<V, Src, Obs>
     PhantomData: PhantomData<V>
 }
 
-pub trait ObservableTap<'x, Src, V:Clone+Send+Sync+'static, Obs> where
+pub trait ObservableTap<'x, Src, V:Send+Sync+'static, Obs> where
         for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
         Src : Observable<'x, V>,
         Self: Sized,
@@ -24,7 +24,7 @@ pub trait ObservableTap<'x, Src, V:Clone+Send+Sync+'static, Obs> where
     fn tap(self, o: Obs) -> TapOp<V, Src, Obs>;
 }
 
-impl<'x, Src, V:Clone+Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for Src where
+impl<'x, Src, V:Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for Src where
     V: Send+Sync+'static,
     for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
     Src : Observable<'x, V>

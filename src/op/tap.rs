@@ -9,40 +9,28 @@ use observable::*;
 use observable::RxNoti::*;
 use observable::IsClosed;
 
-pub struct TapOp<V, Src, Obs>
+pub struct TapOp<'a:'b, 'b, V:'a, Obs> where for<'x> Obs : ObserverHelper<&'x V>+Send+Sync+'a+Clone
 {
-    source: Src,
+    source: Arc<Observable<'a, V>+'b+Send+Sync>,
     obs: Obs,
-    PhantomData: PhantomData<V>
 }
 
-pub trait ObservableTap<'x, Src, V:Send+Sync+'static, Obs> where
-        for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
-        Src : Observable<'x, V>,
-        Self: Sized,
+pub trait ObservableTap<'a, 'b, V:'a+Send+Sync, Obs>
 {
-    fn tap(self, o: Obs) -> TapOp<V, Src, Obs>;
+    fn tap(self, o: Obs) -> Arc<Observable<'a,V>+'b+Send+Sync>;
 }
 
-impl<'x, Src, V:Send+Sync+'static, Obs> ObservableTap<'x, Src, V, Obs> for Src where
-    V: Send+Sync+'static,
-    for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'x+Clone,
-    Src : Observable<'x, V>
+impl<'a:'b, 'b, V:'a+Send+Sync, Obs> ObservableTap<'a,'b, V, Obs> for Arc<Observable<'a,V>+'b+Send+Sync> where for<'x> Obs : ObserverHelper<&'x V>+Send+Sync+'a+Clone
 {
-    #[inline(always)]
-    fn tap(self, o: Obs) -> TapOp<V, Src, Obs>
+    fn tap(self, o: Obs) -> Arc<Observable<'a,V>+'b+Send+Sync>
     {
-        TapOp{ source: self, obs: o, PhantomData }
+        Arc::new(TapOp{ source: self, obs: o})
     }
 }
 
-impl<'x, V, Src, Obs> Observable<'x, V> for TapOp<V, Src, Obs> where
-        V: Send+Sync+'static,
-        for<'a> Obs: ObserverHelper<&'a V>+Send+Sync+'static+Clone,
-        Src : Observable<'x, V>
+impl<'a:'b,'b, V:'a, Obs> Observable<'a, V> for TapOp<'a,'b,V, Obs> where for<'x> Obs : ObserverHelper<&'x V>+Send+Sync+'a+Clone
 {
-    #[inline(always)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'x) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V>+Send+Sync+'a>) -> SubRef
     {
         let o = self.obs.clone();
         self.source.sub_noti(move |n| {
@@ -78,7 +66,7 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10)
+        || rxfac::range(0..10).rx()
             .take(5)
             .tap(|v:&i32| println!("{}", v))
             .take(100)

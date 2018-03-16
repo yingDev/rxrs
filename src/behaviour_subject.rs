@@ -35,7 +35,7 @@ impl<'a, V:Clone+'static> BehaviorSubject<'a, V>
 impl<'a, V:Clone+'static> Observable<'a, V> for BehaviorSubject<'a, V>
 {
     #[inline(always)]
-    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
+    fn sub(&self, o: Arc<Observer<V>+'a+Send+Sync>) -> SubRef
     {
         if o._is_closed() {
             return SubRef::empty();

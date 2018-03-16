@@ -10,45 +10,36 @@ use observable::RxNoti::*;
 use observable::*;
 use op::*;
 
-pub struct TakeUntilOp<VNoti, Src, Noti>
+pub struct TakeUntilOp<'a, 'b, V, VNoti>
 {
-    source : Src,
-    noti: Noti,
-    PhantomData: PhantomData<VNoti>
+    source : Arc<Observable<'a,V>+'b+Send+Sync>,
+    noti: Arc<Observable<'a,VNoti>+'a+Send+Sync>,
 }
 
-pub trait ObservableTakeUntil<'a, V, Src, VNoti, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync,
-    Src : Observable<'a, V>,
+pub trait ObservableTakeUntil<'a, 'b, V, VNoti>
 {
-    fn take_until(self, noti:  Noti) -> TakeUntilOp<VNoti, Src, Noti>;
+    fn take_until(self, noti:  Arc<Observable<'a,VNoti>+'a+Send+Sync>) -> Arc<Observable<'a,V>+'b+Send+Sync>;
 }
 
-impl<'a, V, Src, VNoti, Noti> ObservableTakeUntil<'a, V, Src, VNoti, Noti> for Src where
-    Noti: Observable<'a, VNoti>+Send+Sync,
-    Src : Observable<'a, V>,
+impl<'a:'b, 'b, V:'a+Send+Sync, VNoti:'a+Send+Sync> ObservableTakeUntil<'a, 'b, V, VNoti> for Arc<Observable<'a,V>+'b+Send+Sync>
 {
-    fn take_until(self, noti: Noti) -> TakeUntilOp<VNoti, Src, Noti>
+    fn take_until(self, noti:  Arc<Observable<'a,VNoti>+'a+Send+Sync>) -> Arc<Observable<'a,V>+'b+Send+Sync>
     {
-        TakeUntilOp{ source: self, noti: noti, PhantomData }
+        Arc::new(TakeUntilOp{ source: self, noti: noti })
     }
 }
 
-impl<'a, V:'static+Send+Sync, Src, VNoti:'a, Noti> Observable<'a, V> for TakeUntilOp<VNoti, Src, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync+'a,
-    Src : Observable<'a, V>,
+impl<'a:'b, 'b, V:'a+Send+Sync, VNoti:'a> Observable<'a, V> for TakeUntilOp<'a, 'b, V, VNoti>
 {
-    #[inline(never)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> SubRef
     {
-        let dest = Arc::new(dest);
         let dest2 = dest.clone();
 
         let sub = SubRef::signal();
         let (sub2 , sub3) = (sub.clone(), sub.clone());
 
-        let sub_noti = self.noti.rx().take(1).sub_noti(move |n|{
-            dest.complete();
+        let sub_noti = self.noti.clone().take(1).sub_noti(move |n|{
+            dest2.complete();
             sub.unsub();
             IsClosed::True
         });
@@ -59,7 +50,7 @@ impl<'a, V:'static+Send+Sync, Src, VNoti:'a, Noti> Observable<'a, V> for TakeUnt
 
         sub2.add(sub_noti);
 
-        let sub = self.source.sub(dest2);
+        let sub = self.source.sub(dest);
         sub.add(sub2);
         sub3.add(sub);
 
@@ -82,7 +73,7 @@ mod test
     fn basic()
     {
         let r = AtomicIsize::new(0);
-        let subj = Subject::<isize>::new();
+        let subj = Subject::<isize>::anew();
 
          let it = subj.rx().subf(|v| {r.fetch_add(v, Ordering::SeqCst);});
          subj.next(1);
@@ -94,7 +85,7 @@ mod test
     fn threads()
     {
         let noti = Arc::new(Subject::<i32>::new());
-        let subj = Subject::<i32>::new();
+        let subj = Subject::<i32>::anew();
 
         let noti2 = noti.clone();
 
@@ -102,7 +93,7 @@ mod test
         let r2 = r.clone();
 
         {
-            let it = subj.rx().take_until(noti.clone()).subf(move |v| { r.fetch_add(1, Ordering::SeqCst);});
+            let it = subj.rx().take_until(noti.rx()).subf(move |v| { r.fetch_add(1, Ordering::SeqCst);});
             subj.next(1);
 
             let hr = ::std::thread::spawn(move || noti2.next(1));
@@ -120,8 +111,8 @@ mod test
         let result = Arc::new(AtomicIsize::new(0));
         let (r1, r2) = (result.clone(), result.clone());
 
-        let subj = Subject::new();
-        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get()))
+        let subj = Subject::anew();
+        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get()).rx())
             .subf((move |v| {r1.store(v, Ordering::SeqCst);},
                    (),
                    move || {r2.store(100, Ordering::SeqCst);}

@@ -7,44 +7,33 @@ use std::sync::Arc;
 use observable::*;
 use observable::RxNoti::*;
 
-pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
-{
-    pred: F,
-    PhantomData: PhantomData<(V,&'a())>
-}
-
 #[derive(Clone)]
-pub struct FilterOp<'a, Src, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
+pub struct FilterOp<'a:'b, 'b, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
 {
-    source: Src,
+    source: Arc<Observable<'a,V>+'b+Send+Sync>,
     pred: F,
     PhantomData: PhantomData<(V,&'a())>
 }
 
-pub trait ObservableFilter<'a, Src, V:Send+Sync, FPred> where
-    Src : Observable<'a, V>,
-    FPred: 'a+Send+Sync+Fn(&V)->bool
+pub trait ObservableFilter<'a:'b, 'b, V:'static+Send+Sync, F> where
+    F: 'a+Send+Sync+Fn(&V)->bool
 {
-    fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>;
+    fn filter(self, pred: F) -> Arc<Observable<'a, V>+'b+Send+Sync>;
 }
 
-impl<'a, Src, V:Send+Sync, FPred> ObservableFilter<'a, Src, V, FPred> for Src where
-    Src : Observable<'a, V>,
-    FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
+impl<'a:'b, 'b, V:'static+Send+Sync, F> ObservableFilter<'a, 'b, V, F> for Arc<Observable<'a, V>+'b+Send+Sync> where
+    F: 'a+Clone+Send+Sync+Fn(&V)->bool
 {
-    #[inline(always)]
-    fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>
+    fn filter(self, pred: F) -> Arc<Observable<'a, V>+'b+Send+Sync>
     {
-        FilterOp { source: self, pred: pred.clone(), PhantomData }
+        Arc::new(FilterOp { source: self, pred: pred.clone(), PhantomData })
     }
 }
 
-impl<'a, Src, V:Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, V, FPred>  where
-    Src : Observable<'a, V>,
+impl<'a:'b, 'b, V:Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, 'b, V, FPred> where
     FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
 {
-    #[inline(always)]
-    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
+    fn sub(&self, o: Arc<Observer<V>+'a+Send+Sync>) -> SubRef
     {
         let f = self.pred.clone();
 
@@ -67,7 +56,6 @@ mod test
 {
     use super::*;
     use fac::rxfac;
-    use subject::*;
     use op::*;
     use std::cell::RefCell;
     use std::sync::atomic::{Ordering, AtomicUsize};
@@ -80,7 +68,7 @@ mod test
         let mut sum = 0;
 
         {
-            rxfac::range(0..3).filter(|v| v%2 == 0).sub_noti(|n| match n {
+            rxfac::range(0..3).rx().filter(|v| v%2 == 0).sub_noti(|n| match n {
                 Next(v) => sum += v,
                 Comp => sum += 100,
                 _ => {}

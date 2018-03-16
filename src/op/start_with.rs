@@ -9,29 +9,29 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 #[derive(Clone)]
-pub struct StartWithOp<Src, V>
+pub struct StartWithOp<'a:'b, 'b, V>
 {
-    source: Src,
+    source: Arc<Observable<'a,V>+'b+Send+Sync>,
     v: V,
 }
 
-pub trait ObservableStartWith<'a, Src, V> where Src : Observable<'a, V>
+pub trait ObservableStartWith<'a, 'b, V>
 {
-    fn start_with(self, v: V) -> StartWithOp<Src, V>;
+    fn start_with(self, v: V) -> Arc<Observable<'a,V>+'b+Send+Sync>;
 }
 
-impl<'a, Src, V> ObservableStartWith<'a, Src, V> for Src where Src : Observable<'a, V>,
+impl<'a:'b, 'b, V:'a+Send+Sync+Clone> ObservableStartWith<'a, 'b, V> for Arc<Observable<'a,V>+'b+Send+Sync>
 {
-    fn start_with(self, v: V) -> StartWithOp<Self, V>
+    fn start_with(self, v: V) -> Arc<Observable<'a,V>+'b+Send+Sync>
     {
-        StartWithOp{ v, source: self  }
+        Arc::new(StartWithOp{ v, source: self  })
     }
 }
 
-impl<'a, Src, V:'a+Send+Sync+Clone> Observable<'a, V> for StartWithOp<Src, V> where Src: Observable<'a, V>
+impl<'a:'b, 'b, V:'a+Send+Sync+Clone> Observable<'a, V> for StartWithOp<'a,'b, V>
 {
     #[inline]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> SubRef
     {
         dest.next(self.v.clone());
         if dest._is_closed() {
@@ -54,7 +54,7 @@ mod test
     {
         let mut result = 0;
         {
-            rxfac::range(1..3).start_with(3).subf(|v| result += v );
+            rxfac::range(1..3).rx().start_with(3).subf(|v| result += v );
         }
         assert_eq!(6, result);
     }

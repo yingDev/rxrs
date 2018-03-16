@@ -17,43 +17,35 @@ use std::mem;
 
 
 #[derive(Clone)]
-pub struct DebounceOp<V, Src, Sch>
+pub struct DebounceOp<'a, 'b, V, Sch>
 {
-    source : Src,
+    source : Arc<Observable<'a,V>+'b+Send+Sync>,
     scheduler: Arc<Sch>,
     duration: Duration,
-
-    PhantomData: PhantomData<(V)>
 }
 
-pub trait ObservableDebounce<'a, V, Src, Sch> where
-    Sch: Scheduler+Send+Sync,
-    Src : Observable<'a, V>,
+pub trait ObservableDebounce<'b, V, Sch> where Sch: Scheduler+Send+Sync
 {
-    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>;
+    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> Arc<Observable<'static, V> + 'b+Send+Sync>;
 }
 
-impl<'a, V,Src, Sch> ObservableDebounce<'a, V, Src, Sch> for Src where
-    Sch: Scheduler+Send+Sync+'static,
-    Src : Observable<'a, V>,
+impl<'a:'b, 'b, V: 'static+Send+Sync, Sch> ObservableDebounce<'b, V, Sch> for Arc<Observable<'a,V>+'b+Send+Sync> where Sch: Scheduler+Send+Sync+'static
 {
-    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>
+    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> Arc<Observable<'static, V> + 'b+Send+Sync>
     {
-        DebounceOp{ source: self, scheduler, duration: Duration::from_millis(duration), PhantomData }
+        Arc::new(DebounceOp{ source: self, scheduler, duration: Duration::from_millis(duration) })
     }
 }
 
-impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V, Src, Sch> where
-    Sch: Scheduler+Send+Sync+'static,
-    Src : Observable<'a, V>
+impl<'a:'b, 'b, V:'static+Send+Sync, Sch> Observable<'static, V> for DebounceOp<'a,'b, V, Sch> where
+    Sch: Scheduler+Send+Sync+'static
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'static>) -> SubRef
     {
         let sch = self.scheduler.clone();
         let dur = self.duration;
         let val = Arc::new(Mutex::new(None));
         let mut timer = SubRef::empty();
-        let dest = Arc::new(dest);
 
         let sub = SubRef::signal();
         let sub2 = sub.clone();
@@ -124,7 +116,7 @@ mod test
         let r = Arc::new(Mutex::new(vec![]));
         let (r2, r3) = (r.clone(), r.clone());
 
-        rxfac::create_static(|o|{
+        rxfac::create(|o|{
             ::std::thread::spawn(move ||{
                 o.next(1);sleep(10);
                 o.next(2);sleep(110);
@@ -135,8 +127,7 @@ mod test
                 o.next(7);
                 o.complete();
             });
-            SubRef::empty()
-        }).debounce(100, NewThreadScheduler::get())
+        }).rx().debounce(100, NewThreadScheduler::get())
             .subf(( move |v| r2.lock().unwrap().push(v),
                   (),
                   move ||{ r3.lock().unwrap().push(100) }
@@ -155,7 +146,7 @@ mod test
         let r = Arc::new(Mutex::new(vec![]));
         let (r2, r3, r4) = (r.clone(), r.clone(), r.clone());
 
-        rxfac::create_static(|o|{
+        rxfac::create(|o|{
             ::std::thread::spawn(move ||{
                 o.next(1);sleep(10);
                 o.next(2);o.err(Arc::new(123));
@@ -167,7 +158,7 @@ mod test
                 //o.complete();
             });
             SubRef::empty()
-        }).debounce(100, NewThreadScheduler::get())
+        }).rx().debounce(100, NewThreadScheduler::get())
             .subf(( move |v| r2.lock().unwrap().push(v),
                     move |e| { r4.lock().unwrap().push(1000)  },
                     move | |{ r3.lock().unwrap().push(100) }

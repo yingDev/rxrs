@@ -8,14 +8,14 @@ use subref::*;
 use fac::*;
 use scheduler::Scheduler;
 
-pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize>
+pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static,usize>+'static+Send+Sync
 {
     timer_dur(Duration::from_millis(delay), period.map(|v| Duration::from_millis(v)), scheduler)
 }
 
-pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize>
+pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static,usize>+'static+Send+Sync
 {
-    rxfac::create_clonable_static(move |o|
+    rxfac::create(move |o|
     {
         let count = AtomicUsize::new(0);
         let scheduler2 = scheduler.clone();
@@ -47,7 +47,7 @@ pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl 
     })
 }
 
-pub fn timer_once(delay: u64, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static, usize>
+pub fn timer_once(delay: u64, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static,usize>+'static+Send+Sync
 {
     timer(delay, None, scheduler)
 }
@@ -59,13 +59,14 @@ mod test
     use scheduler::*;
     use observable::*;
     use op::*;
+    use observable;
 
     #[test]
     fn timer_basic()
     {
-        timer(100, Some(100), Arc::new(ImmediateScheduler::new())).take(10).subf(|v|  println!("{}", v));
+        timer(100, Some(100), Arc::new(ImmediateScheduler::new())).rx().take(10).subf(|v|  println!("{}", v));
 
-        timer_once(100, Arc::new(ImmediateScheduler::new())).subf(|v| println!("once..."));
+        timer_once(100, Arc::new(ImmediateScheduler::new())).rx().subf(|v| println!("once..."));
     }
 
     #[test]
@@ -77,7 +78,7 @@ mod test
         let pair = Arc::new((Mutex::new(false), Condvar::new()));
         let pair2 = pair.clone();
 
-        timer(100, Some(100), NewThreadScheduler::get()).take(10).subf((|v|  println!("{}", v), (), move || {
+        timer(100, Some(100), NewThreadScheduler::get()).rx().take(10).subf((|v|  println!("{}", v), (), move || {
             let &(ref lock, ref cvar) = &*pair2;
             *lock.lock().unwrap() = true;
                 cvar.notify_one();
@@ -85,5 +86,35 @@ mod test
 
         let &(ref lock, ref cvar) = &*pair;
         cvar.wait(lock.lock().unwrap());
+    }
+
+    #[test]
+    fn lifetime()
+    {
+        use op::*;
+
+        let i = 123;
+        let x = X{ a: &324234 }.rx();
+
+        x.take(1).subf(|v| println!("ok {}", 2123));
+    }
+
+    struct X<'a>
+    {
+        a: &'a i32
+    }
+
+    impl<'a> Observable<'static, i32> for X<'a>
+    {
+        fn sub(&self, o: Arc<Observer<i32>+'static+Send+Sync>) -> SubRef
+        {
+            ::std::thread::spawn(move || {
+                o.next(123);
+                o.complete();
+            });
+
+
+            SubRef::empty()
+        }
     }
 }

@@ -18,30 +18,29 @@ use std::sync::Mutex;
 use observable::*;
 use observable::RxNoti::*;
 
-pub struct ObserveOn<Src, V, Sch> //where Src: Observable<'a, V> + Send + Sync, Sch: Scheduler + Send + Sync
+pub struct ObserveOn<'a, 'b, V, Sch> //where Src: Observable<'a, V> + Send + Sync, Sch: Scheduler + Send + Sync
 {
-    source: Src,
+    source: Arc<Observable<'a,V>+'b+Send+Sync>,
     scheduler: Arc<Sch>,
-    PhantomData: PhantomData<(V)>
 }
 
-pub trait ObservableObserveOn<Src, V, Sch> where Src: Observable<'static, V> + Send + Sync, Sch: Scheduler + Send + Sync
+pub trait ObservableObserveOn<'b, V, Sch>
 {
-    fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch>;
+    fn observe_on(self, scheduler: Arc<Sch>) -> Arc<Observable<'static, V>+'b+Send+Sync>;
 }
 
-impl<Src, V, Sch> ObservableObserveOn<Src, V, Sch> for Src where Src: Observable<'static, V> + Send + Sync, Sch: Scheduler + Send + Sync
+impl<'a:'b, 'b, V:'static+Send+Sync, Sch> ObservableObserveOn<'b, V, Sch> for Arc<Observable<'a, V> + 'b+Send+Sync> where Sch: 'static + Scheduler + Send + Sync
 {
-    fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn<Src, V, Sch>
+    fn observe_on(self, scheduler: Arc<Sch>) -> Arc<Observable<'static, V>+'b+Send+Sync>
     {
-        ObserveOn { scheduler, PhantomData, source: self }
+        Arc::new(ObserveOn { scheduler, source: self })
     }
 }
 
-impl<Src, V: 'static + Send + Sync, Sch> Observable<'static, V> for ObserveOn<Src, V, Sch> where Src: Observable<'static, V> + Send + Sync, Sch: Scheduler + Send + Sync + 'static
+impl<'a:'b,'b, V: 'static + Send + Sync, Sch> Observable<'static, V> for ObserveOn<'a, 'b, V, Sch> where Sch: Scheduler + Send + Sync + 'static
 {
     #[inline(never)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'static>) -> SubRef
     {
         let scheduler = self.scheduler.clone();
         let queue =  Arc::new((Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new()));
@@ -53,7 +52,7 @@ impl<Src, V: 'static + Send + Sync, Sch> Observable<'static, V> for ObserveOn<Sr
 
         let stopped2 = stopped.clone();
         sub.add(self.scheduler.schedule_long_running(sub.clone(), move || {
-            dispatch(&dest, q, scheduler, stopped2);
+            dispatch(dest, q, scheduler, stopped2);
         }));
 
         sub.add(self.source.sub_noti(move |n| {
@@ -88,7 +87,7 @@ impl<Src, V: 'static + Send + Sync, Sch> Observable<'static, V> for ObserveOn<Sr
 }
 
 #[inline(never)]
-fn dispatch<V, Sch>(dest: &Observer<V>, queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any+Send+Sync>>)>, scheduler: Arc<Sch>, stopped: Arc<AtomicBool>) where
+fn dispatch<V, Sch>(dest: Arc<Observer<V>>, queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any+Send+Sync>>)>, scheduler: Arc<Sch>, stopped: Arc<AtomicBool>) where
     Sch: Scheduler,
 {
     loop {
@@ -127,7 +126,7 @@ mod test
     #[test]
     fn basic()
     {
-        rxfac::range(0..10).take(3).map(|v| format!("*{}*", v)).observe_on(NewThreadScheduler::get())
+        rxfac::range(0..10).rx().take(3).map(|v| format!("*{}*", v)).observe_on(NewThreadScheduler::get())
             .subf(( |v| println!("{} on thread {:?}", v, thread::current().id()), (),
                   || println!("complete on thread {:?}", thread::current().id())));
 
@@ -142,9 +141,9 @@ mod test
 
         let x = 5;
         let toStr = |s:i32| format!("{}", s+x);
-        rxfac::range(0..10).filter(|v| v < &x).take(3).map(toStr).subf(|v| println!("scoped: {}-{}",v,x));
+        rxfac::range(0..10).rx().filter(|v| v < &x).take(3).map(toStr).subf(|v| println!("scoped: {}-{}",v,x));
 
-        let src = rxfac::timer(0, Some(10), NewThreadScheduler::get())
+        let src = rxfac::timer(0, Some(10), NewThreadScheduler::get()).rx()
             .skip(3)
             .filter(|i| i % 2 == 0)
             .take(3)

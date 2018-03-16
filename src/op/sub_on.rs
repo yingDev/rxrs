@@ -9,29 +9,28 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use scheduler::Scheduler;
 
-pub struct SubOnOp<Src, V, Sch> //where Src : Observable<'a, V>+Send+Sync, Sch: Scheduler+Send+Sync
+pub struct SubOnOp<V, Sch>
 {
-    source: Arc<Src>,
+    source: Arc<Observable<'static, V> + 'static + Send+ Sync>,
     scheduler: Arc<Sch>,
-    PhantomData: PhantomData<V>
 }
 
-pub trait ObservableSubOn<Src, V, Sch> where Src : Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
+pub trait ObservableSubOn<V, Sch>
 {
-    fn sub_on(self, scheduler: Arc<Sch>) -> SubOnOp<Src, V, Sch> ;
+    fn sub_on(self, scheduler: Arc<Sch>) -> Arc<Observable<'static, V>+'static+Send+Sync>;
 }
 
-impl<Src, V, Sch> ObservableSubOn<Src, V, Sch> for Src where Src : 'static+Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
+impl<V:'static+Send+Sync, Sch> ObservableSubOn<V, Sch> for Arc<Observable<'static, V>+'static+ Send+ Sync> where Sch: 'static + Scheduler+Send+Sync
 {
-    fn sub_on(self, scheduler: Arc<Sch>) -> SubOnOp<Src, V, Sch>
+    fn sub_on(self, scheduler: Arc<Sch>) -> Arc<Observable<'static, V>+'static+Send+Sync>
     {
-        SubOnOp{ scheduler, PhantomData, source: Arc::new(self)  }
+        Arc::new(SubOnOp{ scheduler, source: self  })
     }
 }
 
-impl<Src, V:'static+Send+Sync, Sch> Observable<'static, V> for SubOnOp<Src, V, Sch> where Src : 'static+Observable<'static, V>+Send+Sync, Sch: Scheduler+Send+Sync
+impl<V:'static+Send+Sync, Sch> Observable<'static, V> for SubOnOp<V, Sch> where Sch: 'static + Scheduler+Send+Sync
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'static>) -> SubRef
     {
         let src = self.source.clone();
         self.scheduler.schedule(move ||{
@@ -55,8 +54,8 @@ mod test
     fn basic()
     {
         println!("src thread: {:?}", thread::current().id());
-        let src = Arc::new(rxfac::timer(100, Some(100), NewThreadScheduler::get()));
-        src.take(30).sub_on(NewThreadScheduler::get()).subf(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
+        let src = rxfac::timer(100, Some(100), NewThreadScheduler::get());
+        src.rx().take(30).sub_on(NewThreadScheduler::get()).subf(|v| println!("next {} thread: {:?}", v, thread::current().id() ));
 
         thread::sleep(Duration::from_secs(10));
     }

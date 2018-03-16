@@ -7,17 +7,17 @@ use std::sync::Arc;
 use connectable_observable::*;
 use subject::Subject;
 
-pub trait ObservablePublish<'a, V, Src>  where  Src : Observable<'a, V>, V:Clone
+pub trait ObservablePublish<'a, 'b, V:Clone>
 {
-    fn publish(self) -> ConnectableObservable<'a, V, Src, Subject<'a, V>>;
+    fn publish(self) -> Arc<ConnectableObservable<'a, 'b, V, Subject<'a, V>>>;
 }
 
-impl<'a, V, Src> ObservablePublish<'a, V, Src> for Src where  Src : Observable<'a, V>, V:Clone
+impl<'a:'b, 'b, V:Clone> ObservablePublish<'a, 'b, V> for Arc<Observable<'a, V>+'b+Send+Sync>
 {
     #[inline(always)]
-    fn publish(self) -> ConnectableObservable<'a, V, Src, Subject<'a, V>>
+    fn publish(self) -> Arc<ConnectableObservable<'a, 'b, V, Subject<'a, V>>>
     {
-        ConnectableObservable::new(self, Subject::new())
+        Arc::new(ConnectableObservable::new(self, Subject::new()))
     }
 }
 
@@ -33,7 +33,7 @@ mod test
     {
         let result = AtomicIsize::new(0);
 
-        let src = rxfac::range(0..10).publish();
+        let src = rxfac::range(0..10).rx().publish();
         let sub = src.rx().subf(|v| { result.fetch_add(1, Ordering::SeqCst); } );
 
         assert_eq!(result.load(Ordering::SeqCst), 0);

@@ -11,31 +11,30 @@ use observable::*;
 use observable::RxNoti::*;
 
 #[derive(Clone)]
-pub struct SkipOp<Src, V>
+pub struct SkipOp<'a:'b, 'b, V>
 {
-    source: Src,
+    source: Arc<Observable<'a,V>+'b+Send+Sync>,
     total: usize,
-    PhantomData: PhantomData<V>
 }
 
-pub trait ObservableSkip<'a, Src, V> where Src : Observable<'a,V>
+pub trait ObservableSkip<'a:'b, 'b, V>
 {
-    fn skip(self, total: usize) -> SkipOp<Src, V>;
+    fn skip(self, total: usize) -> Arc<Observable<'a,V>+'b+Send+Sync>;
 }
 
-impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>,
+impl<'a:'b,'b, V:'a+Send+Sync> ObservableSkip<'a,'b, V> for Arc<Observable<'a, V>+'b+Send+Sync>
 {
     #[inline(always)]
-    fn skip(self, total: usize) -> SkipOp<Self, V>
+    fn skip(self, total: usize) -> Arc<Observable<'a,V>+'b+Send+Sync>
     {
-        SkipOp{ total, PhantomData, source: self  }
+        Arc::new(SkipOp{ total, source: self })
     }
 }
 
-impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src: Observable<'a, V>
+impl<'a:'b,'b, V:'a+Send+Sync> Observable<'a,V> for SkipOp<'a, 'b, V>
 {
     #[inline(always)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> SubRef
     {
         let mut count = self.total;
         if count == 0 {
@@ -70,7 +69,7 @@ mod test
     {
         let mut result = 0;
         {
-            let s = Subject::new();
+            let s = Subject::anew();
 
             s.rx().skip(1).sub_noti(|n| match n {
                Next(v) => result += v ,

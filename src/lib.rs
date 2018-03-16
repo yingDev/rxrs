@@ -14,6 +14,7 @@
 #![feature(dropck_eyepatch)]
 #![feature(nested_impl_trait)]
 #![type_length_limit="33554432"]
+#![feature(trait_alias)]
 
 pub mod observable;
 pub mod subject;

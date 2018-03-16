@@ -6,16 +6,14 @@ use subref::SubRef;
 use std::sync::Arc;
 use connectable_observable::*;
 
-pub trait ObservableMulticast<'a, V, Src, Subj>  where  Src : Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'static,V:Clone
+pub trait ObservableMulticast<'a, 'b, V, Subj> where Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a, V:Clone
 {
-    fn multicast(self, subject: Subj) -> ConnectableObservable<'a, V, Src, Subj>;
+    fn multicast(self, subject: Subj) -> ConnectableObservable<'a, 'b, V, Subj>;
 }
 
-impl<'a, V, Src, Subj> ObservableMulticast<'a, V, Src, Subj> for Src where  Src : Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'static, V:Clone
+impl<'a:'b, 'b, V, Subj> ObservableMulticast<'a, 'b, V, Subj> for Arc<Observable<'a, V>+'b+Send+Sync> where Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a, V:Clone
 {
-
-    #[inline(always)]
-    fn multicast(self, subject: Subj) -> ConnectableObservable<'a, V, Src, Subj>
+    fn multicast(self, subject: Subj) -> ConnectableObservable<'a, 'b, V, Subj>
     {
         ConnectableObservable::new(self, subject)
     }

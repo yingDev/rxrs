@@ -8,33 +8,40 @@ use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use observable::RxNoti::*;
+use std::mem;
+use util::traicks::*;
+use util::sarc::Sarc;
+use util::sarc::SendSyncInfo;
 
 #[derive(Clone)]
-pub struct TakeOp<'a, 'b, V>
+pub struct TakeOp<'a, 'b, V, S:YesNo>
 {
-    source: Arc<Observable<'a,V>+'b+Send+Sync>,
-    total: isize,
+    source: Sarc<S, Observable<'a,V=V,SSO=S>+'b>,
+    total: usize,
 }
 
-pub trait ObservableTake<'a, 'b, V>
+pub trait ObservableTake<'a, 'b, V, S:YesNo>
 {
-    fn take(self, total: isize) -> Arc<Observable<'a, V>+'b+Send+Sync>;
+    fn take(self, total: usize) -> Sarc<S, TakeOp<'a, 'b, V, S>>;
 }
 
-impl<'a:'b,'b, V:'a> ObservableTake<'a, 'b, V> for Arc<Observable<'a,V>+'b+Send+Sync>
+impl<'a: 'b, 'b, V: 'a, S: YesNo+'static, O> ObservableTake<'a, 'b, V, S> for Sarc<S, O> where O: Observable<'a,V=V,SSO=S>+'b
 {
-    fn take(self, total: isize) -> Arc<Observable<'a, V>+'b+Send+Sync>
+    fn take(self, total: usize) -> Sarc<S, TakeOp<'a, 'b, V, S>>
     {
-        Arc::new(TakeOp{ total, source: self  })
+        Sarc::new(TakeOp { total, source: self })
     }
 }
 
-impl<'a:'b, 'b, V:'a> Observable<'a, V> for TakeOp<'a,'b, V>
+impl<'a: 'b, 'b, V: 'a, S:YesNo+'static> Observable<'a> for TakeOp<'a, 'b, V, S>
 {
-    fn sub(&self, dest: Arc<Observer<V> + Send + Sync+'a>) -> SubRef
+    type V = V;
+    type SSO = S;
+
+    fn sub(&self, o: Sarc<Self::SSO, Observer<Self::V>+'a>) -> SubRef
     {
-        if self.total <= 0 {
-            dest.complete();
+        if self.total == 0 {
+            o.complete();
             return SubRef::empty();
         }
 
@@ -47,22 +54,22 @@ impl<'a:'b, 'b, V:'a> Observable<'a, V> for TakeOp<'a,'b, V>
                 Next(v) => {
                     count -= 1;
                     if count > 0 {
-                        dest.next(v);
-                        if dest._is_closed() { return IsClosed::True; }
+                        o.next(v);
+                        if o._is_closed() { return IsClosed::True; }
                     }else {
-                        dest.next(v);
+                        o.next(v);
                         sub2.unsub();
-                        dest.complete();
+                        o.complete();
                         return IsClosed::True;
                     }
                 },
                 Err(e) => {
                     sub2.unsub();
-                    dest.err(e);
+                    o.err(e);
                 },
                 Comp => {
                     sub2.unsub();
-                    dest.complete()
+                    o.complete()
                 }
             }
             IsClosed::Default
@@ -75,85 +82,94 @@ impl<'a:'b, 'b, V:'a> Observable<'a, V> for TakeOp<'a,'b, V>
 #[cfg(test)]
 mod test
 {
-//    use super::*;
-//    use subject::*;
-//    use fac::*;
-//    use observable::RxNoti::*;
-//
-//    #[test]
-//    fn basic()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//
-//        let subj = Subject::<isize>::new();
-//
-//        subj.rx().take(2).sub_noti(|n| match n {
-//            Next(v) => { result.fetch_add(1, Ordering::SeqCst); },
-//            Comp    => { result.fetch_add(1000, Ordering::SeqCst); },
-//            _=>{}
-//        });
-//        subj.next(1);
-//        subj.next(1);
-//        subj.next(1);
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 1002);
-//    }
-//
-//    #[test]
-//    fn take_over()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//
-//        let subj = Subject::<isize>::new();
-//
-//        subj.rx().take(100).subf((move |v| { a.fetch_add(v, Ordering::SeqCst); },
-//                                 (),
-//                                 move | | { c.fetch_add(1000, Ordering::SeqCst); }));
-//        subj.next(1);
-//        subj.next(1);
-//        subj.next(1);
-//        subj.complete();
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 1003);
-//    }
-//
-//    #[test]
-//    fn unstoppable_source()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//
-//        rxfac::range(0..100).take(2).subf((move |v| { a.fetch_add(1, Ordering::SeqCst); },
-//                                           (),
-//                                           move | | { b.fetch_add(1000, Ordering::SeqCst); }));
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 1002);
-//    }
-//
-//    #[test]
-//    fn unsub()
-//    {
-//        let result = Arc::new(AtomicIsize::new(0));
-//        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-//
-//        let subj = Subject::<isize>::new();
-//
-//        subj.rx().take(2)
-//            .subf((move |_|{ a.fetch_add(1, Ordering::SeqCst); },
-//                   (),
-//                   move | |{ b.fetch_add(1000, Ordering::SeqCst); } ))
-//            .add(SubRef::from_fn(box move ||{ c.fetch_add(10000, Ordering::SeqCst); }) );
-//
-//        subj.next(1);
-//        //complete & unsub should run here
-//        subj.next(1);
-//
-//        subj.next(1);
-//
-//        assert_eq!(result.load(Ordering::SeqCst), 11002);
-//    }
+    use util::sarc;
 
+    use super::*;
+    use std::sync::atomic::*;
+    use std::thread;
+    use std::time::Duration;
+    use op::*;
+    use util::sarc::SendSyncInfo;
+
+
+    #[test]
+    fn basic()
+    {
+        {
+            let mut out = 0;
+
+            {
+                let src = Src::sarc();
+                src.take(2).subf(|v| out += v);
+            }
+
+            assert_eq!(out, 3);
+        }
+
+        {
+            let out = Arc::new(AtomicIsize::new(0));
+            let out2 = out.clone();
+            let src = ThreadedSrc::sarc();
+
+            //extect compile fail
+            //src.take(2).subf(|v| { out.fetch_add(v as isize, Ordering::SeqCst); });
+
+            src.take(2).subf(move |v| { out2.fetch_add(v as isize, Ordering::SeqCst); });
+            thread::sleep(Duration::from_millis(500));
+
+            assert_eq!(out.load(Ordering::SeqCst), 3);
+        }
+    }
+
+    struct Src<'a>(PhantomData<&'a ()>);
+
+    impl<'a> Src<'a>
+    {
+        fn sarc() -> Sarc<No, Src<'a>>{ Sarc::new(Src(PhantomData))}
+    }
+
+    impl<'a> Observable<'a> for Src<'a>
+    {
+        type V = i32;
+        type SSO = No;
+
+        fn sub(&self, o: Sarc<Self::SSO, Observer<Self::V>+'a>) -> SubRef
+        {
+            o.next(1);
+            o.next(2);
+            o.next(3);
+            o.complete();
+
+            SubRef::empty()
+        }
+    }
+
+
+    struct ThreadedSrc;
+    impl ThreadedSrc
+    {
+        fn sarc() -> Sarc<Yes, ThreadedSrc> { Sarc::new(ThreadedSrc) }
+    }
+
+    impl Observable<'static> for ThreadedSrc
+    {
+        type V = i32;
+        type SSO = Yes;
+
+        fn sub(&self, o: Sarc<Self::SSO, Observer<Self::V>+'static>) -> SubRef
+        {
+            let u = SubRef::signal();
+            let u2 = u.clone();
+
+            ::std::thread::spawn(move || {
+                for i in 1..4 {
+                    if u2.disposed() { break; }
+                    o.next(i);
+                }
+                o.complete();
+            });
+
+            u
+        }
+    }
 }

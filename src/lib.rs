@@ -14,14 +14,20 @@
 #![feature(dropck_eyepatch)]
 #![feature(nested_impl_trait)]
 #![type_length_limit="33554432"]
-#![feature(trait_alias)]
+#![feature(optin_builtin_traits)]
+#![feature(coerce_unsized)]
+#![feature(unsize)]
+#![feature(specialization)]
+#![feature(associated_consts)]
+
+pub mod util;
 
 pub mod observable;
-pub mod subject;
-pub mod behaviour_subject;
+//pub mod subject;
+//pub mod behaviour_subject;
 pub mod op;
-pub mod fac;
+//pub mod fac;
 pub mod subref;
-pub mod util;
+
 pub mod scheduler;
-pub mod connectable_observable;
+//pub mod connectable_observable;

@@ -103,7 +103,9 @@ src
 
 # TODO
 - [x] basic operators,factories,`Scheduler`s
-- [ ] WIP: refactor towards zero-cost abstractions
+- [ ] refactor towards zero-cost abstractions
+    - FAILED! It turns out that Rust's generics lead to horrible code bloat ☠️!
+    - Going back for `Arc` ...
 - [ ] advanced operators,factories,`Scheduler`s
 - [ ] provide practical examples
 - [ ] docs

@@ -80,7 +80,46 @@ impl<'a, Src, V:'a> Observable<'a, V, Yes> for TakeOp<Src, V, Yes> where Src: Ob
 }
 impl<'a, Src, V:'a> Observable<'a, V, No> for TakeOp<Src, V, No> where Src: Observable<'a, V, No>
 {
-    fn_sub!();
+    #[inline(always)]
+    fn sub(&self, dest: impl Observer<V> + 'a) -> SubRef
+    {
+        if self.total <= 0 {
+            dest.complete();
+            return SubRef::empty();
+        }
+
+        let sub = SubRef::signal();
+        let sub2 = sub.clone();
+        let mut count = self.total;
+
+        sub.add(self.source.sub_noti(move |n| {
+            match n {
+                Next(v) => {
+                    count -= 1;
+                    if count > 0 {
+                        dest.next(v);
+                        if dest._is_closed() { return IsClosed::True; }
+                    }else {
+                        dest.next(v);
+                        sub2.unsub();
+                        dest.complete();
+                        return IsClosed::True;
+                    }
+                },
+                Err(e) => {
+                    sub2.unsub();
+                    dest.err(e);
+                },
+                Comp => {
+                    sub2.unsub();
+                    dest.complete()
+                }
+            }
+            IsClosed::Default
+        }));
+
+        sub
+    }
 }
 
 

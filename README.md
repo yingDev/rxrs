@@ -5,7 +5,7 @@
 </p>
 <br>
 
-### 🌱  This project is currently at its early stage... most of the features is experimental!
+### 🌱  This project is currently at its early stage... most of the features are experimental!
 ### 🦀  Contributions Are Welcome!
 
 # Example
@@ -103,10 +103,8 @@ src
 
 # TODO
 - [x] basic operators,factories,`Scheduler`s
-- [ ] refactor towards zero-cost abstractions
-    - FAILED! It turns out that Rust's generics lead to horrible code bloat ☠️!
-    - Going back for `Arc` ...
-- [ ] advanced operators,factories,`Scheduler`s
-- [ ] provide practical examples
+- [x] refactor towards zero-cost abstractions
+- [ ] WIP: advanced operators,factories,`Scheduler`s
+- [ ] WIP: provide practical examples
 - [ ] docs
 - [ ] release a crate

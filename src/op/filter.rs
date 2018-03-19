@@ -7,30 +7,30 @@ use std::sync::Arc;
 use observable::*;
 use observable::RxNoti::*;
 
-pub struct FilterState<'a, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
+pub struct FilterState<'a, V, F: 'a+Fn(&V)->bool>
 {
     pred: F,
     PhantomData: PhantomData<(V,&'a())>
 }
 
 #[derive(Clone)]
-pub struct FilterOp<'a, Src, V: 'static+Send+Sync, F: 'a+Send+Sync+Fn(&V)->bool>
+pub struct FilterOp<'a, Src, V: 'static, F: 'a+Fn(&V)->bool>
 {
     source: Src,
     pred: F,
     PhantomData: PhantomData<(V,&'a())>
 }
 
-pub trait ObservableFilter<'a, Src, V:Send+Sync, FPred> where
+pub trait ObservableFilter<'a, Src, V, FPred> where
     Src : Observable<'a, V>,
-    FPred: 'a+Send+Sync+Fn(&V)->bool
+    FPred: 'a+Fn(&V)->bool
 {
     fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>;
 }
 
 impl<'a, Src, V:Send+Sync, FPred> ObservableFilter<'a, Src, V, FPred> for Src where
     Src : Observable<'a, V>,
-    FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
+    FPred: 'a+Clone+Fn(&V)->bool
 {
     #[inline(always)]
     fn filter(self, pred: FPred) -> FilterOp<'a, Src, V, FPred>
@@ -41,10 +41,10 @@ impl<'a, Src, V:Send+Sync, FPred> ObservableFilter<'a, Src, V, FPred> for Src wh
 
 impl<'a, Src, V:Send+Sync, FPred> Observable<'a, V> for FilterOp<'a, Src, V, FPred>  where
     Src : Observable<'a, V>,
-    FPred: 'a+Clone+Send+Sync+Fn(&V)->bool
+    FPred: 'a+Clone+Fn(&V)->bool
 {
     #[inline(always)]
-    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
+    fn sub(&self, o: impl Observer<V>+'a) -> SubRef
     {
         let f = self.pred.clone();
 

@@ -8,12 +8,12 @@ use subref::*;
 use fac::*;
 use scheduler::Scheduler;
 
-pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize>
+pub fn timer(delay: u64, period: Option<u64>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize, Yes>
 {
     timer_dur(Duration::from_millis(delay), period.map(|v| Duration::from_millis(v)), scheduler)
 }
 
-pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize>
+pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Clone+Observable<'static,usize, Yes>
 {
     rxfac::create_clonable_static(move |o|
     {
@@ -47,7 +47,7 @@ pub fn timer_dur(delay: Duration, period: Option<Duration>, scheduler: Arc<impl 
     })
 }
 
-pub fn timer_once(delay: u64, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static, usize>
+pub fn timer_once(delay: u64, scheduler: Arc<impl Scheduler+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
 {
     timer(delay, None, scheduler)
 }

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use subref::SubRef;
 use observable::Observer;
 use std::any::Any;
+use observable::Yes;
 
 pub struct BehaviorSubject<'a, V:Clone+'static>
 {
@@ -32,7 +33,7 @@ impl<'a, V:Clone+'static> BehaviorSubject<'a, V>
     }
 }
 
-impl<'a, V:Clone+'static> Observable<'a, V> for BehaviorSubject<'a, V>
+impl<'a, V:Clone+'static> Observable<'a, V, Yes> for BehaviorSubject<'a, V>
 {
     #[inline(always)]
     fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef

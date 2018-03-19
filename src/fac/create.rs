@@ -17,31 +17,31 @@ use subref::IntoSubRef;
 
 
 #[inline(always)]
-pub fn create<'a, V, Sub, TRet>(sub:Sub) -> impl Observable<'a, V> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
+pub fn create<'a, V, Sub, TRet>(sub:Sub) -> impl Observable<'a, V, Yes> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
 {
     CreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
 #[inline(always)]
-pub fn create_clonable<'a, V, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
+pub fn create_clonable<'a, V, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'a, V, Yes> where Sub : Clone+Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
 {
     CreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
 #[inline(always)]
-pub fn create_static<V, Sub, TRet>(sub:Sub) -> impl Observable<'static, V> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
+pub fn create_static<V, Sub, TRet>(sub:Sub) -> impl Observable<'static, V, Yes> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
 {
     StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
 #[inline(always)]
-pub fn create_clonable_static< V:Clone, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'static, V> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
+pub fn create_clonable_static< V:Clone, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'static, V, Yes> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
 {
     StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
 }
 
 #[inline(always)]
-pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V> where V : Step
+pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V, Yes> where V : Step
 {
     create_clonable(move |o| {
         for i in range.clone() {
@@ -88,7 +88,7 @@ impl<'a, V,Sub> Clone for CreatedObservable<'a, V,Sub> where Sub : Clone+Fn(&(Ob
     }
 }
 
-impl<'a, V,Sub> Observable<'a, V> for CreatedObservable<'a, V,Sub> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->SubRef
+impl<'a, V,Sub> Observable<'a, V, Yes> for CreatedObservable<'a, V,Sub> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->SubRef
 {
 
     #[inline(always)]
@@ -106,7 +106,7 @@ pub struct StaticCreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+S
 }
 
 
-impl<V,Sub> Observable<'static, V> for StaticCreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
+impl<V,Sub> Observable<'static, V, Yes> for StaticCreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
 {
     #[inline(always)]
     fn sub(&self, o: impl Observer<V>+'static+Send+Sync) -> SubRef

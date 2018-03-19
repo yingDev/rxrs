@@ -5,8 +5,9 @@ use observable::Observer;
 use subject::Subject;
 use std::marker::PhantomData;
 use std::any::Any;
+use observable::Yes;
 
-pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
+pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V, Yes>, Subj : Observer<V>+Observable<'a, V, Yes>+Send+Sync+'a
 {
     source: Src,
     subject: Arc<Subj>,
@@ -14,7 +15,7 @@ pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V>,
     PhantomData: PhantomData<(V,&'a ())>
 }
 
-impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
+impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V, Yes>, Subj : Observer<V>+Observable<'a, V, Yes>+Send+Sync+'a
 {
     pub fn connect(&self) -> SubRef
     {
@@ -28,7 +29,7 @@ impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Obser
     }
 }
 
-impl<'a, V, Src, Subj> Observable<'a, V> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V>+Send+Sync, Subj : Observer<V>+Observable<'a, V>+Send+Sync+'a
+impl<'a, V, Src, Subj> Observable<'a, V, Yes> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V, Yes>+Send+Sync, Subj : Observer<V>+Observable<'a, V, Yes>+Send+Sync+'a
 {
     #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef

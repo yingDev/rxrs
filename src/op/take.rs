@@ -10,29 +10,28 @@ use std::sync::atomic::Ordering;
 use observable::RxNoti::*;
 
 #[derive(Clone)]
-pub struct TakeOp<Src, V>
+pub struct TakeOp<Src, V, SSO>
 {
     source: Src,
     total: isize,
-    PhantomData: PhantomData<(V)>
+    PhantomData: PhantomData<(V, SSO)>
 }
 
-pub trait ObservableTake<'a, Src, V> where Src : Observable<'a, V>
+pub trait ObservableTake<'a, Src, V, SSO> where Src : Observable<'a, V, SSO>
 {
-    fn take(self, total: isize) -> TakeOp<Src, V>;
+    fn take(self, total: isize) -> TakeOp<Src, V, SSO>;
 }
 
-impl<'a, Src, V> ObservableTake<'a, Src, V> for Src where Src : Observable<'a, V>,
+impl<'a, Src, V, SSO> ObservableTake<'a, Src, V, SSO> for Src where Src : Observable<'a, V, SSO>,
 {
     #[inline(always)]
-    fn take(self, total: isize) -> TakeOp<Self, V>
+    fn take(self, total: isize) -> TakeOp<Self, V, SSO>
     {
         TakeOp{ total, PhantomData, source: self  }
     }
 }
 
-impl<'a, Src, V:'a> Observable<'a, V> for TakeOp<Src, V> where Src: Observable<'a, V>
-{
+macro_rules! fn_sub(()=>{
     #[inline(always)]
     fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
     {
@@ -73,7 +72,17 @@ impl<'a, Src, V:'a> Observable<'a, V> for TakeOp<Src, V> where Src: Observable<'
 
         sub
     }
+});
+
+impl<'a, Src, V:'a> Observable<'a, V, Yes> for TakeOp<Src, V, Yes> where Src: Observable<'a, V, Yes>
+{
+    fn_sub!();
 }
+impl<'a, Src, V:'a> Observable<'a, V, No> for TakeOp<Src, V, No> where Src: Observable<'a, V, No>
+{
+    fn_sub!();
+}
+
 
 #[cfg(test)]
 mod test
@@ -82,81 +91,48 @@ mod test
     use subject::*;
     use fac::*;
     use observable::RxNoti::*;
+    use test_fixture::*;
+
 
     #[test]
-    fn basic()
+    fn src_sso()
     {
-        let result = Arc::new(AtomicIsize::new(0));
+        //SSO: No
+        let s = SimpleObservable;
 
-        let subj = Subject::<isize>::new();
+        let o = NonSendObserver(Rc::new(1));
+        s.sub_nss(o);
+        //should not compile
+        //s.sub(o);
 
-        subj.rx().take(2).sub_noti(|n| match n {
-            Next(v) => { result.fetch_add(1, Ordering::SeqCst); },
-            Comp    => { result.fetch_add(1000, Ordering::SeqCst); },
-            _=>{}
-        });
-        subj.next(1);
-        subj.next(1);
-        subj.next(1);
+        let o = NonSendObserver(Rc::new(2));
+        s.rx().take(1).sub_nss(o);
 
-        assert_eq!(result.load(Ordering::SeqCst), 1002);
-    }
+        let o = SimpleObserver;
+        s.rx().take(1).sub(o);
 
-    #[test]
-    fn take_over()
-    {
-        let result = Arc::new(AtomicIsize::new(0));
-        let (a,b,c) = (result.clone(), result.clone(), result.clone());
+        let s = ThreadedObservable;
+        let o = NonSendObserver(Rc::new(3));
+        //should not compile
+        //s.sub_nss(o);
+        let o = SimpleObserver;
+        //s.sub(o);
+        s.rx().take(1).sub(o);
 
+        let i = 1;
+        let o = LocalObserver(&i);
+        let s = ThreadedObservable;
+        //should not compile
+        //s.sub(o);
+        //s.rx().take(1).sub(o);
 
-        let subj = Subject::<isize>::new();
-
-        subj.rx().take(100).subf((move |v| { a.fetch_add(v, Ordering::SeqCst); },
-                                 (),
-                                 move | | { c.fetch_add(1000, Ordering::SeqCst); }));
-        subj.next(1);
-        subj.next(1);
-        subj.next(1);
-        subj.complete();
-
-        assert_eq!(result.load(Ordering::SeqCst), 1003);
-    }
-
-    #[test]
-    fn unstoppable_source()
-    {
-        let result = Arc::new(AtomicIsize::new(0));
-        let (a,b,c) = (result.clone(), result.clone(), result.clone());
+        let i = 1;
+        let s = SimpleObservable;
+        let o = LocalObserver(&i);
+        //s.sub(o);
+        s.rx().take(1).sub(o);
 
 
-        rxfac::range(0..100).take(2).subf((move |v| { a.fetch_add(1, Ordering::SeqCst); },
-                                           (),
-                                           move | | { b.fetch_add(1000, Ordering::SeqCst); }));
-
-        assert_eq!(result.load(Ordering::SeqCst), 1002);
-    }
-
-    #[test]
-    fn unsub()
-    {
-        let result = Arc::new(AtomicIsize::new(0));
-        let (a,b,c) = (result.clone(), result.clone(), result.clone());
-
-        let subj = Subject::<isize>::new();
-
-        subj.rx().take(2)
-            .subf((move |_|{ a.fetch_add(1, Ordering::SeqCst); },
-                   (),
-                   move | |{ b.fetch_add(1000, Ordering::SeqCst); } ))
-            .add(SubRef::from_fn(box move ||{ c.fetch_add(10000, Ordering::SeqCst); }) );
-
-        subj.next(1);
-        //complete & unsub should run here
-        subj.next(1);
-
-        subj.next(1);
-
-        assert_eq!(result.load(Ordering::SeqCst), 11002);
     }
 
 }

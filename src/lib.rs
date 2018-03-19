@@ -14,6 +14,7 @@
 #![feature(dropck_eyepatch)]
 #![feature(nested_impl_trait)]
 #![type_length_limit="33554432"]
+#![feature(specialization)]
 
 pub mod observable;
 pub mod subject;
@@ -24,3 +25,6 @@ pub mod subref;
 pub mod util;
 pub mod scheduler;
 pub mod connectable_observable;
+
+#[cfg(test)]
+mod test_fixture;

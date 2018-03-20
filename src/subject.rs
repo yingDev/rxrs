@@ -124,7 +124,7 @@ impl<'a,V> State<'a,V>
 
 impl<'a, V> Observable<'a,V, Yes> for Subject<'a,V>
 {
-    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<V>+'a>) -> SubRef
     {
         let state = &self.state;
 

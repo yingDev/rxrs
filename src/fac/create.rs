@@ -7,158 +7,103 @@ use std::any::{Any, TypeId};
 use observable::*;
 use std::rc::Rc;
 use std::fmt::Debug;
-use subject::*;
 use observable::*;
 use subref::SubRef;
 use std::sync::Arc;
 use observable::Observable;
 use observable::Observer;
 use subref::IntoSubRef;
+use util::mss::*;
+use std::cell::UnsafeCell;
 
-
-#[inline(always)]
-pub fn create<'a, V, Sub, TRet>(sub:Sub) -> impl Observable<'a, V, Yes> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
+pub fn create<'a, V, F, R>(sub: F) -> impl Observable<'a, V, No+'static> where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef
 {
-    CreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
-}
-
-#[inline(always)]
-pub fn create_clonable<'a, V, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'a, V, Yes> where Sub : Clone+Fn(&(Observer<V>+Send+Sync+'a))->TRet, TRet: IntoSubRef
-{
-    CreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
-}
-
-#[inline(always)]
-pub fn create_static<V, Sub, TRet>(sub:Sub) -> impl Observable<'static, V, Yes> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
-{
-    StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
-}
-
-#[inline(always)]
-pub fn create_clonable_static< V:Clone, Sub, TRet>(sub:Sub) -> impl Clone+Observable<'static, V, Yes> where Sub : Clone+Fn(Arc<Observer<V>+Send+Sync+'static>)->TRet, TRet: IntoSubRef
-{
-    StaticCreatedObservable{ sub: move |o| { sub(o).into() }, PhantomData  }
-}
-
-#[inline(always)]
-pub fn range<'a, V:'static>(range: Range<V>) -> impl Clone+Observable<'a,V, Yes> where V : Step
-{
-    create_clonable(move |o| {
-        for i in range.clone() {
-            if o._is_closed() { return SubRef::empty() }
-            o.next(i);
+    struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), R, V)>) where F: Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef;
+    impl<'a,V, F, R> Observable<'a, V, No> for LocalObservable<'a, V, F, R> where F: Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef
+    {
+        fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef
+        {
+            let sub = (self.0)(Mss::<No, _>::new(&o.into_inner()));
+            IntoSubRef::into(sub)
         }
-        o.complete();
-        SubRef::empty()
-    })
-}
-
-//
-//pub fn create_clonable<'a, V, Sub, O>(sub:Sub) -> impl Clone+Observable<'a, V> where Sub : Clone+Fn(O)->SubRef, O : Observer<V>+Send+Sync+'a
-//{
-//    CreatedObservable{ sub:sub, PhantomData  }
-//}
-//
-
-//
-//pub fn of<'a, V:Clone+'static>(v:V) -> impl Clone+Observable<'a, V>
-//{
-//    create_clonable(move |o|
-//    {
-//        o.next(v.clone());
-//        o.complete();
-//
-//        SubRef::empty()
-//    })
-//}
-//
-////fixme: semantics on `drop`: complete or just abort ?
-pub struct CreatedObservable<'a, V, Sub> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->SubRef
-{
-    sub: Sub,
-    PhantomData: PhantomData<(V, &'a())>
-}
-
-impl<'a, V,Sub> Clone for CreatedObservable<'a, V,Sub> where Sub : Clone+Fn(&(Observer<V>+Send+Sync+'a))->SubRef
-{
-    #[inline(always)]
-    fn clone(&self) -> CreatedObservable<'a, V,Sub>
-    {
-        CreatedObservable{ sub: self.sub.clone(), PhantomData}
     }
+    let cell = UnsafeCell::new(sub);
+    unsafe { LocalObservable(move |o| (*cell.get())(o),PhantomData) }
 }
 
-impl<'a, V,Sub> Observable<'a, V, Yes> for CreatedObservable<'a, V,Sub> where Sub : Fn(&(Observer<V>+Send+Sync+'a))->SubRef
+pub fn create_boxed<'a, V, F, R>(sub: F) -> impl Observable<'a, V, No+'static> where F: FnMut(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef
 {
-
-    #[inline(always)]
-    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
+    struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), R, V)>) where F: Fn(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef;
+    impl<'a,V, F, R> Observable<'a, V, No> for LocalObservable<'a, V, F, R> where F: Fn(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef
     {
-        (self.sub)(&o)
+        fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef
+        {
+            let sub = (self.0)(o.into_boxed());
+            IntoSubRef::into(sub)
+        }
     }
+
+    let cell = UnsafeCell::new(sub);
+    unsafe { LocalObservable(move |o| (*cell.get())(o),PhantomData) }
 }
 
-#[derive(Clone)]
-pub struct StaticCreatedObservable<V, Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
+pub fn create_sso<'a, V, F, R>(sub: F) -> impl Observable<'static, V, Yes> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef
 {
-    sub: Sub,
-    PhantomData: PhantomData<V>
-}
-
-
-impl<V,Sub> Observable<'static, V, Yes> for StaticCreatedObservable<V,Sub> where Sub : Fn(Arc<Observer<V>+Send+Sync+'static>)->SubRef
-{
-    #[inline(always)]
-    fn sub(&self, o: impl Observer<V>+'static+Send+Sync) -> SubRef
+    struct SendSyncObserverObservable<V, F, R>(F, PhantomData<(R, V)>) where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef;
+    impl<V, F, R> Observable<'static, V, Yes> for SendSyncObserverObservable<V, F, R> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef
     {
-        (self.sub)(Arc::new(o))
+        fn sub(&self, o: Mss<Yes, impl Observer<V>+'static>) -> SubRef
+        {
+            let sub = (self.0)(o.into_boxed());
+            IntoSubRef::into(sub)
+        }
     }
+    SendSyncObserverObservable(sub, PhantomData)
 }
+
 
 #[cfg(test)]
 mod test
 {
     use super::*;
-    use observable::RxNoti::*;
+    use std::sync::atomic::AtomicIsize;
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
 
     #[test]
-    fn gen()
+    fn basic()
     {
-        let mut sum = 0;
+        let mut i = 100;
 
         {
-            let src = create(|o|{
-                for i in 0..3 {
-                    o.next(i);
-                }
+            let src = create(|o| {
+                o.next(1+i);
+                o.next(2);
                 o.complete();
+                i+=1;
             });
-
-            src.subf(|v| sum += v);
+            src.subf(|v| println!("{}", v));
         }
 
-        assert_eq!(sum, 3);
+        assert_eq!(i, 101);
     }
 
     #[test]
-    fn dest_closed()
+    fn send_sync()
     {
-        let mut sum = 0;
-
-        {
-            let src = create(|o|{
-                for i in 1..3 {
-                    o.next(i);
-                }
+        let src = create_sso(|o| {
+            ::std::thread::spawn(move ||{
+                o.next(1);
+                o.next(2);
                 o.complete();
             });
+        });
 
-            src.sub_noti(|n| match n {
-                Next(v) => { sum += v; IsClosed::True }
-                _ => { IsClosed::Default }
-            });
-        }
+        let i = Arc::new(AtomicIsize::new(0));
+        let i2 = i.clone();
+        src.subf(move |v| i2.fetch_add(v, Ordering::SeqCst));
 
-        assert_eq!(sum, 1);
+        ::std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(i.load(Ordering::SeqCst), 3);
     }
 }

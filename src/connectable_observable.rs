@@ -6,6 +6,7 @@ use subject::Subject;
 use std::marker::PhantomData;
 use std::any::Any;
 use observable::Yes;
+use observable::Mss;
 
 pub struct ConnectableObservable<'a, V, Src, Subj> where Src: Observable<'a, V, Yes>, Subj : Observer<V>+Observable<'a, V, Yes>+Send+Sync+'a
 {
@@ -32,7 +33,7 @@ impl<'a, V, Src, Subj> ConnectableObservable<'a, V, Src, Subj>  where Src: Obser
 impl<'a, V, Src, Subj> Observable<'a, V, Yes> for ConnectableObservable<'a, V, Src, Subj>  where Src: Observable<'a, V, Yes>+Send+Sync, Subj : Observer<V>+Observable<'a, V, Yes>+Send+Sync+'a
 {
     #[inline(always)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, dest: Mss<Yes, impl Observer<V> +'a>) -> SubRef
     {
         self.subject.sub(dest)
     }

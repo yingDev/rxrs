@@ -6,6 +6,7 @@ use subref::SubRef;
 use observable::Observer;
 use std::any::Any;
 use observable::Yes;
+use observable::Mss;
 
 pub struct BehaviorSubject<'a, V:Clone+'static>
 {
@@ -36,7 +37,7 @@ impl<'a, V:Clone+'static> BehaviorSubject<'a, V>
 impl<'a, V:Clone+'static> Observable<'a, V, Yes> for BehaviorSubject<'a, V>
 {
     #[inline(always)]
-    fn sub(&self, o: impl Observer<V>+'a+Send+Sync) -> SubRef
+    fn sub(&self, o: Mss<Yes,impl Observer<V>+'a>) -> SubRef
     {
         if o._is_closed() {
             return SubRef::empty();

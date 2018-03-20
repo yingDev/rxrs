@@ -9,16 +9,6 @@ impl No for Yes{}
 pub struct _No;
 impl No for _No{}
 
-pub trait YesNoValue{
-    fn value() -> bool;
-}
-impl YesNoValue for No {
-    default fn value() -> bool { false }
-}
-impl YesNoValue for Yes {
-    fn value() -> bool { true }
-}
-
 ///'Maybe Send+Sync'
 pub struct Mss<S:?Sized, T>
 {

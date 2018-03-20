@@ -93,8 +93,8 @@ mod test
     fn send_sync()
     {
         let src = create_sso(|o| {
+            o.next(1);
             ::std::thread::spawn(move ||{
-                o.next(1);
                 o.next(2);
                 o.complete();
             });

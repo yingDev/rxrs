@@ -44,24 +44,27 @@ complete on ThreadId(2)
 
 ### Play with [gtk-rs](https://github.com/gtk-rs/gtk) 
 ```rust 
-let clicks = btn_clicks(button.clone()).publish();
+fn main()
+{
+    if gtk::init().is_err() { return; }
 
-let sub = clicks.rx().map(|i| format!("{} Clicks", i)).sub_scoped(
-    move |s:String| button.set_label(&s)
-);
+    let window = Window::new(WindowType::Toplevel);
+    window.connect_delete_event(|_, _| { gtk::main_quit(); Inhibit(false) });
 
-let sub2 = rxfac::timer(0, Some(250), GtkScheduler::get())
-    .take_until(clicks.rx().skip(3))
-    .map(|i| format!("{}", i))
-    .sub_scoped((
-        move |s:String| win1.set_title(&s),
-        (),
-        move | | win2.set_title("Stopped!")
-    ));
+    let btn = Button::new_with_label("Click me!");
+    window.add(&btn);
 
-clicks.connect();
+    let clicks = rxrs::create_boxed(|o| {
+        let i = Cell::new(0);
+        let id = btn.connect_clicked(move |_| o.next(i.replace(i.get() + 1)) );
+    });
 
-gtk::main();
+    let btn = btn.clone();
+    clicks.subf(move |i| btn.set_label( &format!("hello {}", i) ) );
+
+    window.show_all();
+    gtk::main();
+}
 ```
 <img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
 

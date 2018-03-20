@@ -76,13 +76,14 @@ mod test
         let mut i = 100;
 
         {
+            let j = 0;
             let src = create(|o| {
                 o.next(1+i);
                 o.next(2);
                 o.complete();
                 i+=1;
             });
-            src.subf(|v| println!("{}", v));
+            src.subf(|v| println!("{}", v+j));
         }
 
         assert_eq!(i, 101);

@@ -1,6 +1,6 @@
 mod take;
 //mod filter;
-//mod map;
+mod map;
 //mod take_until;
 //mod skip;
 //mod sub_on;
@@ -14,7 +14,7 @@ mod start_with;
 //
 pub use self::take::*;
 //pub use self::filter::*;
-//pub use self::map::*;
+pub use self::map::*;
 pub use self::start_with::*;
 //pub use self::take_until::*;
 //pub use self::skip::*;

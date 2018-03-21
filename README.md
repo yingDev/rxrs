@@ -42,7 +42,9 @@ cur thread ThreadId(1)
 complete on ThreadId(2)
 ```
 
-### Play with [gtk-rs](https://github.com/gtk-rs/gtk) 
+### Play with [gtk-rs](https://github.com/gtk-rs/gtk)
+ <img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
+
 ```rust 
 fn main()
 {
@@ -51,22 +53,36 @@ fn main()
     let window = Window::new(WindowType::Toplevel);
     window.connect_delete_event(|_, _| { gtk::main_quit(); Inhibit(false) });
 
-    let btn = Button::new_with_label("Click me!");
-    window.add(&btn);
+    let btn = Button::new();
+    let (btn_a,btn_b) = (btn.clone(), btn.clone());
 
+    //the button clicks stream
     let clicks = rxrs::create_boxed(|o| {
+        let btn = btn.clone();
         let i = Cell::new(0);
         let id = btn.connect_clicked(move |_| o.next(i.replace(i.get() + 1)) );
+
+        SubRef::new(move ||signal_handler_disconnect(&btn, id))
     });
 
-    let btn = btn.clone();
-    clicks.subf(move |i| btn.set_label( &format!("hello {}", i) ) );
+    //do some transforms ...
+    let greetings = clicks
+        .take(3)
+        .map(|i| format!("*{}*", i))
+        .start_with("hello world!".to_owned());
 
+    //observe the greeting msgs
+    greetings.subf((
+        move |s:String| btn_a.set_label(&s),
+        (),
+        move || btn_b.set_label("bye!")
+    ));
+
+    window.add(&btn);
     window.show_all();
     gtk::main();
 }
 ```
-<img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
 
 # File Structure
 ```

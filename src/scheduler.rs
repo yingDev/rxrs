@@ -11,14 +11,14 @@ pub trait Scheduler
 {
     type SSA:?Sized;
 
-    fn schedule(&self, act: Mss<Self::SSA,impl 'static+FnOnce()->SubRef>) -> SubRef;
-    fn schedule_after(&self, due: Duration, act: Mss<Self::SSA, impl 'static+FnOnce()->SubRef>) -> SubRef;
+    fn schedule(&self, act: Mss<Self::SSA,impl 'static+FnOnce()->SubRef<Self::SSA>>) -> SubRef<Self::SSA>;
+    fn schedule_after(&self, due: Duration, act: Mss<Self::SSA, impl 'static+FnOnce()->SubRef<Self::SSA>>) -> SubRef<Self::SSA>;
 
-    fn schedule_periodic(&self, period: Duration,sigStop: SubRef, act: Mss<Self::SSA, impl 'static+Fn()>) -> SubRef
+    fn schedule_periodic(&self, period: Duration,sigStop: SubRef<Self::SSA>, act: Mss<Self::SSA, impl 'static+Fn()>) -> SubRef<Self::SSA>
     {
         unimplemented!()
     }
-    fn schedule_long_running(&self, sigStop: SubRef, act: Mss<Self::SSA, impl 'static+FnOnce()>) -> SubRef;
+    fn schedule_long_running(&self, sigStop: SubRef<Self::SSA>, act: Mss<Self::SSA, impl 'static+FnOnce()>) -> SubRef<Self::SSA>;
 }
 
 pub struct ImmediateScheduler;
@@ -32,18 +32,18 @@ impl Scheduler for ImmediateScheduler
 {
     type SSA = No;
 
-    fn schedule(&self, act: Mss<Self::SSA,impl 'static+FnOnce()->SubRef>) -> SubRef
+    fn schedule(&self, act: Mss<Self::SSA,impl 'static+FnOnce()->SubRef<Self::SSA>>) -> SubRef<Self::SSA>
     {
         (act.into_inner())()
     }
 
-    fn schedule_after(&self, due: Duration, act: Mss<Self::SSA,impl 'static+FnOnce()->SubRef>) -> SubRef
+    fn schedule_after(&self, due: Duration, act: Mss<Self::SSA,impl 'static+FnOnce()->SubRef<Self::SSA>>) -> SubRef<Self::SSA>
     {
         ::std::thread::sleep(due);
         (act.into_inner())()
     }
 
-    fn schedule_long_running(&self, sigStop: SubRef, act: Mss<Self::SSA, impl 'static+FnOnce()>) -> SubRef
+    fn schedule_long_running(&self, sigStop: SubRef<Self::SSA>, act: Mss<Self::SSA, impl 'static+FnOnce()>) -> SubRef<Self::SSA>
     {
         if sigStop.disposed() { return sigStop; }
         let act = act.into_inner();
@@ -54,7 +54,7 @@ impl Scheduler for ImmediateScheduler
         }))
     }
 
-    fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: Mss<Self::SSA,impl 'static+Fn()>) -> SubRef
+    fn schedule_periodic(&self, period: Duration, sigStop: SubRef<Self::SSA>, act: Mss<Self::SSA,impl 'static+Fn()>) -> SubRef<Self::SSA>
     {
         while ! sigStop.disposed()
         {

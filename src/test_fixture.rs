@@ -8,7 +8,7 @@ use util::mss::*;
 pub struct SimpleObservable;
 impl<'a> Observable<'a, i32, No> for SimpleObservable
 {
-    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef
+    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef<No>
     {
        o.next(1);
        o.next(2);
@@ -37,7 +37,7 @@ impl<'a> StoreObserverObservable<'a>
 }
 impl<'a> Observable<'a, i32, No> for StoreObserverObservable<'a>
 {
-    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef
+    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef<No>
     {
         *self.o.borrow_mut() = Some(Box::new(o.into_inner()));
         SubRef::empty()
@@ -48,7 +48,7 @@ impl<'a> Observable<'a, i32, No> for StoreObserverObservable<'a>
 pub struct ThreadedObservable;
 impl Observable<'static, i32, Yes> for ThreadedObservable
 {
-    fn sub(&self, o: Mss<Yes, impl Observer<i32>+'static>) -> SubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<i32>+'static>) -> SubRef<Yes>
     {
         ::std::thread::spawn(move ||{
             o.next(1);

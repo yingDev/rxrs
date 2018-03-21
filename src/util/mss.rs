@@ -2,7 +2,7 @@ use std::ops::CoerceUnsized;
 use std::ops::Deref;
 use std::marker::Unsize;
 
-pub trait No{}
+pub trait No {}
 pub struct Yes;
 impl Yes{}
 impl No for Yes{}

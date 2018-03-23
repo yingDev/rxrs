@@ -17,13 +17,13 @@ pub struct MapOp<FProj, V, Src, SSO:?Sized>
 
 pub trait ObservableOpMap<'a, V, Src, SSO:?Sized>
 {
-    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO> where FProj : 'a + Send+Sync+Fn(V)->VOut;
+    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO> where FProj : 'a + Fn(V)->VOut;
 }
 
 impl<'a, V, Src, SSO:?Sized> ObservableOpMap<'a, V, Src, SSO> for Src where Src : Observable<'a, V, SSO>
 {
     #[inline(always)]
-    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO> where FProj : 'a + Send+Sync+Fn(V)->VOut
+    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO> where FProj : 'a +Fn(V)->VOut
     {
         MapOp{ proj: proj, source: self, PhantomData }
     }

@@ -32,7 +32,7 @@ impl<'a, V, Src, SSO:?Sized> ObservableOpMap<'a, V, Src, SSO> for Src where Src 
 macro_rules! fn_sub(
 ($s:ty) => {
     #[inline(always)]
-    fn sub(&self, o: Mss<$s, impl Observer<VOut> +'a>) -> SubRef<$s>
+    fn sub(&self, o: Mss<$s, impl Observer<VOut> +'a>) -> SubRef
     {
         let f = self.proj.clone();
         self.source.sub_noti(move |n| {

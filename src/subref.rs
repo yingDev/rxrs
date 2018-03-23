@@ -18,22 +18,21 @@ use std::mem;
 static mut EMPTY_SUB_REF: Option<Arc<State>> = None;
 static EMPTY_SUB_REF_INIT: Once = ONCE_INIT;
 
-pub struct SubRef<SS:?Sized>
+pub struct SubRef
 {
-    state: Arc<State>,
-    PhantomData:PhantomData<*const SS>
+    state: Arc<State>
 }
 
-impl<SS:?Sized> Clone for SubRef<SS>
+impl Clone for SubRef
 {
-    fn clone(&self) -> SubRef<SS>
+    fn clone(&self) -> SubRef
     {
-        SubRef{ state: self.state.clone(), PhantomData }
+        SubRef{ state: self.state.clone()}
     }
 }
 
-unsafe impl Send for SubRef<Yes> {}
-unsafe impl Sync for SubRef<Yes> {}
+unsafe impl Send for SubRef {}
+unsafe impl Sync for SubRef {}
 
 struct State
 {
@@ -59,45 +58,21 @@ impl State
         }
     }
 }
-pub trait NewSubRef<SS: ?Sized, F>
+
+impl SubRef
 {
-    fn new(f:F) -> SubRef<SS>;
-}
-impl<F: 'static+Send+Sync+FnBox()> NewSubRef<Yes, F> for SubRef<Yes>
-{
-    fn new(f: F) -> SubRef<Yes>
+    pub fn new<F>(f: F) -> SubRef where F: 'static+FnBox()+Send+Sync
     {
         SubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: AtomicOption::with(box f),
-                extra: AtomicOption::with(LinkedList::new())
+                extra: AtomicOption::with(LinkedList::new()),
             }),
-            PhantomData
         }
     }
-}
-impl<F: 'static+FnBox()> NewSubRef<No, F> for SubRef<No>
-{
-    fn new(f: F) -> SubRef<No>
-    {
-        let f: Box<FnBox()+'static> = box f;
-        let f : Box<FnBox()+'static+Send+Sync> = unsafe{ mem::transmute(f) };
 
-        SubRef { state: Arc::new(
-            State{
-                disposed: AtomicBool::new(false),
-                cb: AtomicOption::with(f),
-                extra: AtomicOption::with(LinkedList::new())
-            }),
-            PhantomData
-        }
-    }
-}
-
-impl SubRef<No>
-{
-    pub fn add(&self, un: SubRef<No>) -> &Self
+    pub fn add(&self, un: SubRef) -> &Self
     {
         if Arc::ptr_eq(&un.state, &self.state) {return self;}
 
@@ -108,7 +83,7 @@ impl SubRef<No>
                 un.unsub();
                 break;
             }else if let Some(mut lst) = self.state.extra.take(Ordering::SeqCst) {
-                lst.push_back(un.state);
+                lst.push_back(un.state.clone());
                 self.state.extra.swap(lst, Ordering::SeqCst);
                 break;
             }
@@ -116,15 +91,12 @@ impl SubRef<No>
         return self;
     }
 
-    pub fn addf<F>(&self, f: F) where F : FnBox()+'static
+    pub fn addf<F>(&self, f: F) where F: 'static+FnBox()+Send+Sync
     {
-        self.add(SubRef::<No>::new(f));
+        self.add(SubRef::new(f));
     }
-}
 
-impl<SS:?Sized> SubRef<SS>
-{
-    pub fn signal() -> SubRef<SS>
+    pub fn signal() -> SubRef
     {
         SubRef { state: Arc::new(
             State{
@@ -132,12 +104,11 @@ impl<SS:?Sized> SubRef<SS>
                 cb: AtomicOption::new(),
                 extra: AtomicOption::with(LinkedList::new())
             }),
-            PhantomData
         }
     }
 
     #[inline(never)]
-    pub fn empty() -> SubRef<SS>
+    pub fn empty() -> SubRef
     {
         unsafe {
             EMPTY_SUB_REF_INIT.call_once(|| {
@@ -146,12 +117,12 @@ impl<SS:?Sized> SubRef<SS>
                     State{cb: AtomicOption::new(), extra: AtomicOption::new(), disposed: AtomicBool::new(true) },
                 ));
             });
-            SubRef{ state: EMPTY_SUB_REF.as_ref().unwrap().clone(), PhantomData }
+            SubRef{ state: EMPTY_SUB_REF.as_ref().unwrap().clone() }
         }
     }
 
     #[inline(always)]
-    pub fn ptr_eq(&self, other: &SubRef<SS>) -> bool
+    pub fn ptr_eq(&self, other: &SubRef) -> bool
     {
         Arc::ptr_eq(&self.state, &other.state)
     }
@@ -162,62 +133,39 @@ impl<SS:?Sized> SubRef<SS>
         self.state.unsub();
     }
 
-    pub fn addf_ss<F>(&self, f: F) where F : FnBox()+Send+Sync+'static
-    {
-        self.add_ss(SubRef::<Yes>::new(f));
-    }
-
-    pub fn add_ss(&self, un: SubRef<Yes>)
-    {
-        if Arc::ptr_eq(&un.state, &self.state) {return;}
-
-        loop {
-            if un.disposed() {
-                break;
-            }else if self.state.disposed.load(Ordering::SeqCst) {
-                un.unsub();
-                break;
-            }else if let Some(mut lst) = self.state.extra.take(Ordering::SeqCst) {
-                lst.push_back(un.state);
-                self.state.extra.swap(lst, Ordering::SeqCst);
-                break;
-            }
-        }
-    }
-
     #[inline(always)]
     pub fn disposed(&self) -> bool { self.state.disposed.load(Ordering::SeqCst)}
 }
 
-pub trait IntoSubRef<SS:?Sized>
+pub trait IntoSubRef
 {
-    fn into(self) -> SubRef<SS>;
+    fn into(self) -> SubRef;
 }
-impl<SS:?Sized> IntoSubRef<SS> for ()
+impl IntoSubRef for ()
 {
     #[inline(always)]
-    fn into(self) -> SubRef<SS> { SubRef::empty() }
+    fn into(self) -> SubRef { SubRef::empty() }
 }
-//impl<'a, F:FnBox()+'static+Send+Sync> IntoSubRef<Yes> for F
+//impl<'a, F:FnBox()+'static+Send+Sync> IntoSubRef for F
 //{
 //    #[inline(always)]
-//    fn into(self) -> SubRef<Yes>
+//    fn into(self) -> SubRef
 //    {
 //        SubRef::new(self)
 //    }
 //}
-//impl<'a, F:FnBox()+'static> IntoSubRef<No> for F
+//impl<'a, F:FnBox()+'static> IntoSubRef for F
 //{
 //    #[inline(always)]
-//    fn into(self) -> SubRef<No>
+//    fn into(self) -> SubRef
 //    {
 //        SubRef::new(self)
 //    }
 //}
-impl<SS:?Sized> IntoSubRef<SS> for SubRef<SS>
+impl IntoSubRef for SubRef
 {
     #[inline(always)]
-    fn into(self) -> SubRef<SS>{ self }
+    fn into(self) -> SubRef{ self }
 }
 
 
@@ -231,14 +179,14 @@ mod tests
     #[test]
     fn basic()
     {
-        let a = SubRef::<No>::new(||{});
-        a.add_ss(SubRef::<Yes>::new(||{}));
+        let a = SubRef::new(||{});
+        a.add(SubRef::new(||{}));
     }
 
     #[test]
     fn disposed()
     {
-        let u = SubRef::<Yes>::new(||{});
+        let u = SubRef::new(||{});
         u.unsub();
         assert!(u.disposed());
     }
@@ -246,12 +194,12 @@ mod tests
     #[test]
     fn add_after_unsub()
     {
-        let u = SubRef::<Yes>::new(||{});
+        let u = SubRef::new(||{});
         u.unsub();
 
         let v = Arc::new(AtomicBool::new(false));
         let v2 = v.clone();
-        u.add_ss(SubRef::new(move || v2.store(true, Ordering::SeqCst)));
+        u.add(SubRef::new(move || v2.store(true, Ordering::SeqCst)));
 
         assert!(v.load(Ordering::SeqCst));
     }
@@ -262,13 +210,13 @@ mod tests
         let out = Arc::new(Mutex::new("".to_owned()));
         let (out2,out3) = (out.clone(), out.clone());
 
-        let u = SubRef::<Yes>::new(||{});
+        let u = SubRef::new(||{});
         let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {
-            u2.add_ss(SubRef::new(move || {  out.lock().unwrap().push_str("A");  }));
+            u2.add(SubRef::new(move || {  out.lock().unwrap().push_str("A");  }));
         });
-        u3.add_ss(SubRef::new(move || { out2.lock().unwrap().push_str("A"); }));
+        u3.add(SubRef::new(move || { out2.lock().unwrap().push_str("A"); }));
 
         let j2  = thread::spawn(move || { u.unsub(); });
 

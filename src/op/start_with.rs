@@ -8,6 +8,7 @@ use subref::SubRef;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use util::mss::Mss;
+use util::mss::Yes;
 
 #[derive(Clone)]
 pub struct StartWithOp<Src, V, SSO:?Sized>
@@ -33,7 +34,7 @@ impl<'a, Src, V, SSO:?Sized> ObservableStartWith<'a, Src, V, SSO> for Src where 
 impl<'a, Src, V:'a+Send+Sync+Clone, SSO:?Sized> Observable<'a, V,SSO> for StartWithOp<Src, V,SSO> where Src: Observable<'a, V,SSO>
 {
     #[inline]
-    fn sub(&self, o: Mss<SSO, impl Observer<V> +'a>) -> SubRef<SSO>
+    fn sub(&self, o: Mss<SSO, impl Observer<V> +'a>) -> SubRef
     {
         o.next(self.v.clone());
         if o._is_closed() {

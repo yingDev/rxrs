@@ -9,13 +9,14 @@ use fac::*;
 use scheduler::Scheduler;
 use util::mss::*;
 use std::marker::PhantomData;
+use scheduler::SchedulerPeriodic;
 
-pub fn timer(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl Scheduler<SSA=No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>
+pub fn timer(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<SSA=No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>
 {
     timer_dur(Duration::from_millis(delay), period.into().map(|v| Duration::from_millis(v)), scheduler)
 }
 
-pub fn timer_ss(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl Scheduler<SSA=Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
+pub fn timer_ss(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<SSA=Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
 {
     timer_dur_ss(Duration::from_millis(delay), period.into().map(|v| Duration::from_millis(v)), scheduler)
 }
@@ -44,7 +45,7 @@ macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident) =
     }))
 }});
 
-pub fn timer_dur(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl Scheduler<SSA=No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>
+pub fn timer_dur(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<SSA=No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>
 {
     let period = period.into();
     create_boxed(move |o: Mss<No, Box<Observer<usize>+'static>>| {
@@ -52,7 +53,7 @@ pub fn timer_dur(delay: Duration, period: impl Into<Option<Duration>>, scheduler
     })
 }
 
-pub fn timer_dur_ss(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl Scheduler<SSA=Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
+pub fn timer_dur_ss(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<SSA=Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
 {
     let period = period.into();
     create_sso(move |o: Mss<Yes, Box<Observer<usize>+'static>>| {
@@ -71,10 +72,6 @@ mod test
     #[test]
     fn timer_basic()
     {
-        timer(100, 100, Arc::new(ImmediateScheduler::new())).take(10).subf(|v|  println!("{}", v));
-
-        timer(100, None, Arc::new(ImmediateScheduler::new()));
-
 
     }
 

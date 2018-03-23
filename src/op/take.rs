@@ -31,15 +31,11 @@ impl<'a, Src, V, SSO:?Sized> ObservableTake<'a, Src, V, SSO> for Src where Src :
         TakeOp{ total, PhantomData, source: self  }
     }
 }
-macro_rules! fn_sub(
-(Yes) => { fn_sub_!(Yes, add_ss);} ;
-(No) => { fn_sub_!(No, add); };
-);
 
-macro_rules! fn_sub_(
-($s: ty, $add:ident)=>{
+macro_rules! fn_sub(
+($s: ty)=>{
     #[inline(always)]
-    fn sub(&self, dest: Mss<$s, impl Observer<V> +'a>) -> SubRef<$s>
+    fn sub(&self, dest: Mss<$s, impl Observer<V> +'a>) -> SubRef
     {
         if self.total <= 0 {
             dest.complete();
@@ -50,7 +46,7 @@ macro_rules! fn_sub_(
         let sub2 = sub.clone();
         let mut count = self.total;
 
-        sub.$add(self.source.sub_noti(move |n| {
+        sub.add(self.source.sub_noti(move |n| {
             match n {
                 Next(v) => {
                     count -= 1;

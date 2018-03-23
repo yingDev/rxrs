@@ -14,6 +14,7 @@ use observable::RxNoti::*;
 use util::AtomicOption;
 use std::any::Any;
 use util::mss::*;
+use std::mem;
 
 //todo: facade
 
@@ -247,76 +248,39 @@ impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes> for ObserveOnNew
 }
 impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes> for ObserveOnNewThread<'sa, V, Src, No> where Src: Observable<'sa, V, No>
 {
-    fn sub(&self, o: Mss<Yes, impl Observer<V> +'static>) -> SubRef
-    {
-        let scheduler = self.scheduler.clone();
-        let queue =  Arc::new((Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new()));
-        let stopped = Arc::new(AtomicBool::new(false));
-
-        let q = queue.clone();
-        let sub = SubRef::signal();
-        let sub2 = sub.clone();
-
-        let stopped2 = stopped.clone();
-        sub.add(self.scheduler.schedule_long_running(sub.clone(), Mss::new(move || {
-            dispatch(o, q, stopped2);
-        })));
-
-        let src_sub = self.source.sub_noti(move |n| {
-            let &(ref cond, ref q, ref err) = &*queue;
-
-            match n {
-                Next(v) => {
-                    q.lock().unwrap().push_back(v);
-                },
-                Err(e) => {
-                    if stopped.compare_and_swap(false, true, Ordering::Acquire) {
-                        q.lock().unwrap();
-                        sub2.unsub();
-                        err.swap(e, Ordering::SeqCst);
-                    }
-                },
-                Comp => {
-                    if stopped.compare_and_swap(false, true, Ordering::Acquire) {
-                        sub2.unsub();
-                    }
-                }
-            }
-            cond.notify_one();
-            if stopped.load(Ordering::Acquire) {
-                return IsClosed::True;
-            }
-            return IsClosed::Default;
-        });
-
-        sub.add(src_sub);
-
-        sub
-    }
+    fn_sub!(No);
 }
 
 #[inline(never)]
 fn dispatch<V>(o: Mss<Yes, impl Observer<V>+'static>, queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any+Send+Sync>>)>, stopped: Arc<AtomicBool>)
 {
-    loop {
+    let mut buffer = VecDeque::new();
         let &(ref cond, ref lock, ref err) = &*queue;
 
-        //todo: take all at once
-        while let Some(v) = lock.lock().unwrap().pop_front() {
+    'out: loop {
+        let mut lock = lock.lock().unwrap();
+        if let Some(v) = lock.pop_front() {
             if o._is_closed() { break; }
-            o.next(v);
+            buffer.push_back(v);
         }
-
-        if stopped.load(Ordering::Acquire) {
-            if let Some(e) = err.take(Ordering::Acquire) {
-                o.err(e);
-            } else {
-                o.complete();
+        if buffer.len() > 0 {
+            mem::drop(lock);
+            while let Some(v) = buffer.pop_front() {
+                if o._is_closed() { break 'out; }
+                o.next(v);
             }
-            return;
+        }else {
+            if stopped.load(Ordering::Acquire) {
+                mem::drop(lock);
+                if let Some(e) = err.take(Ordering::Acquire) {
+                    o.err(e);
+                } else {
+                    o.complete();
+                }
+                return;
+            }
+            cond.wait(lock);
         }
-
-        cond.wait(lock.lock().unwrap());
     }
 }
 

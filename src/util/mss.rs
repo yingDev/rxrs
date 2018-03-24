@@ -18,6 +18,7 @@ pub struct Mss<S:?Sized, T>
 unsafe impl<T> Send for Mss<Yes, T>{}
 unsafe impl<T> Sync for Mss<Yes, T>{}
 impl<T> CoerceUnsized<Mss<No, T>> for Mss<Yes, T>{}
+impl<T> CoerceUnsized<Mss<No, T>> for Mss<_No, T>{}
 
 impl<S:?Sized, T> Mss<S,T>
 {

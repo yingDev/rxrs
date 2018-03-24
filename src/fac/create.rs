@@ -15,26 +15,29 @@ use observable::Observer;
 use subref::IntoSubRef;
 use util::mss::*;
 use std::cell::UnsafeCell;
+use std::mem;
 
-pub fn create<'a, V, F, R>(sub: F) -> impl Observable<'a, V, No+'static> where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef
+pub fn create<'a:'b, 'b, V:'a, F, R>(sub: F) -> impl Observable<'a, V, No+'static>+'b where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef+'static
 {
-    struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), R, V)>) where F: Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef;
-    impl<'a,V, F, R> Observable<'a, V, No> for LocalObservable<'a, V, F, R> where F: Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef
+    struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), *const R, *const V)>) where F: 'a+Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef+'static;
+    impl<'a:'b,'b,V, F, R> Observable<'a, V, No> for LocalObservable<'a, V, F, R> where F: 'a+Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef+'static
     {
         fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef
         {
-            let sub = (self.0)(Mss::<No, _>::new(&o.into_inner()));
+            let sub = (self.0)(Mss::no(&o.into_inner()));
             IntoSubRef::into(sub)
         }
     }
     let cell = UnsafeCell::new(sub);
-    unsafe { LocalObservable(move |o| (*cell.get())(o),PhantomData) }
+    unsafe {
+        LocalObservable(move |o| (*cell.get())(o), PhantomData)
+    }
 }
 
-pub fn create_boxed<'a, V, F, R>(sub: F) -> impl Observable<'a, V, No+'static> where F: FnMut(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef
+pub fn create_boxed<'a:'b, 'b, V:'a, F, R>(sub: F) -> impl Observable<'a, V, No+'static>+'b where F: FnMut(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef+'static
 {
-    struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), R, V)>) where F: Fn(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef;
-    impl<'a,V, F, R> Observable<'a, V, No> for LocalObservable<'a, V, F, R> where F: Fn(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef
+    struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), R, V)>) where F: 'a+Fn(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef+'static;
+    impl<'a:'b, 'b, V:'a, F, R> Observable<'a, V, No> for LocalObservable<'a, V, F, R> where F: 'a+Fn(Mss<No, Box<Observer<V>+'a>>) -> R, R: IntoSubRef+'static
     {
         fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef
         {

@@ -35,17 +35,28 @@ macro_rules! fn_sub(
     fn sub(&self, o: Mss<$s, impl Observer<VOut> +'a>) -> SubRef
     {
         let f = self.proj.clone();
-        self.source.sub_noti(move |n| {
+        let sub = SubRef::signal();
+
+        sub.clone().added(self.source.sub_noti(byclone!(sub => move |n| {
         match n {
             Next(v) => {
                 o.next( f(v) );
-                if o._is_closed() { return IsClosed::True; }
+                if o._is_closed() {
+                    sub.unsub();
+                    return IsClosed::True;
+                }
             },
-            Err(e) => o.err(e),
-            Comp => o.complete()
+            Err(e) => {
+                sub.unsub();
+                o.err(e);
+            },
+            Comp => {
+                sub.unsub();
+                o.complete();
+            }
         }
         IsClosed::Default
-        })
+        })).added(sub))
     }
 });
 

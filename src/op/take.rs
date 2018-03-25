@@ -43,34 +43,36 @@ macro_rules! fn_sub(
         }
 
         let sub = SubRef::signal();
-        let sub2 = sub.clone();
         let mut count = self.total;
 
-        sub.add(self.source.sub_noti(move |n| {
+        sub.add(self.source.sub_noti(byclone!(sub => move |n| {
             match n {
                 Next(v) => {
                     count -= 1;
                     if count > 0 {
                         dest.next(v);
-                        if dest._is_closed() { return IsClosed::True; }
+                        if dest._is_closed() {
+                           sub.unsub();
+                           return IsClosed::True;
+                        }
                     }else {
                         dest.next(v);
-                        sub2.unsub();
+                        sub.unsub();
                         dest.complete();
                         return IsClosed::True;
                     }
                 },
                 Err(e) => {
-                    sub2.unsub();
+                    sub.unsub();
                     dest.err(e);
                 },
                 Comp => {
-                    sub2.unsub();
+                    sub.unsub();
                     dest.complete()
                 }
             }
             IsClosed::Default
-        }));
+        })));
 
         sub
     }

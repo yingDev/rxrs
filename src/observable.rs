@@ -33,6 +33,17 @@ pub trait Observer<V>
     fn complete(&self){}
 
     fn _is_closed(&self) -> bool { false }
+
+    fn next_noti(&self, n:RxNoti<V>)
+    {
+        use self::RxNoti::*;
+
+        match n {
+            Next(v) => self.next(v),
+            Err(e) => self.err(e),
+            Comp => self.complete()
+        }
+    }
 }
 
 pub trait ObserverHelper<V>

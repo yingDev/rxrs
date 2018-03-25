@@ -98,17 +98,17 @@ impl SchedulerLongRunning for ImmediateScheduler
 
 
 
-static mut NEW_THREAD_SCHEDULER: Option<Arc<NewThreadScheduler>> = None;
-static NEW_THREAD_SCHEDULER_INIT: Once = ONCE_INIT;
-
 pub struct NewThreadScheduler;
 impl NewThreadScheduler
 {
     pub fn get() -> Arc<NewThreadScheduler> {
-        NEW_THREAD_SCHEDULER_INIT.call_once(|| {
-            unsafe { NEW_THREAD_SCHEDULER = Some(Arc::new(NewThreadScheduler{})); }
+
+        static mut VALUE: Option<Arc<NewThreadScheduler>> = None;
+        static VALUE_INIT: Once = ONCE_INIT;
+        VALUE_INIT.call_once(|| {
+            unsafe { VALUE = Some(Arc::new(NewThreadScheduler{})); }
         });
-        unsafe { NEW_THREAD_SCHEDULER.as_ref().unwrap().clone() }
+        unsafe { VALUE.as_ref().unwrap().clone() }
     }
 }
 
@@ -236,7 +236,7 @@ macro_rules! fn_sub(
                 return IsClosed::True;
             }
             return IsClosed::Default;
-        }));
+        }).added(sub.clone()));
 
         sub
     }

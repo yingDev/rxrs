@@ -42,17 +42,13 @@ impl State
 {
     fn unsub(&self)
     {
-        if self.disposed.load(Ordering::Acquire) {
+        if self.disposed.compare_and_swap(false, true, Ordering::Release) {
             return;
         }
 
         let cb = self.cb.set(empty_cb());
         if ! Arc::ptr_eq(&cb, &empty_cb()) {
             Arc::try_unwrap(cb).ok().unwrap().call_box(());
-        }
-
-        if self.disposed.compare_and_swap(false, true, Ordering::Release) {
-            return;
         }
 
         self._unsub_extra();

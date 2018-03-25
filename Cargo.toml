@@ -2,7 +2,7 @@
 version = "0.1.0-alpha1"
 description="Reactive Extensions for Rust"
 license="MIT"
-name = "rxrs"
+name = "rx"
 repository="https://github.com/yingDev/rxrs"
 authors = ["YingDev <ying@yingDev.com>"]
 

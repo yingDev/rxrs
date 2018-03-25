@@ -50,7 +50,6 @@ let slider = Scale::new_with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
 
 event!(slider.connect_value_changed, it => it.get_value() )
     .start_with(0.0)
-    
     .observe_on(NewThreadScheduler::get()) //do heavy work on the other thread
     .map(|v| format!("*{}*", v*v))
     .observe_on(GtkScheduler::get()) //schedule results back to main thread

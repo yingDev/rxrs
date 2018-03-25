@@ -2,8 +2,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::ptr;
-use std::sync::Once;
-use std::sync::ONCE_INIT;
 
 unsafe impl<T: Send> Send for AtomicOption<T> {}
 unsafe impl<T: Send> Sync for AtomicOption<T> {}

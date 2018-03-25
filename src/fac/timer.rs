@@ -6,9 +6,7 @@ use std::sync::atomic::Ordering;
 use observable::*;
 use subref::*;
 use fac::*;
-use scheduler::Scheduler;
 use util::mss::*;
-use std::marker::PhantomData;
 use scheduler::SchedulerPeriodic;
 
 pub fn timer(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<SSA=No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>

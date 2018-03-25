@@ -7,7 +7,6 @@
 #![feature(universal_impl_trait)]
 #![feature(generators, generator_trait, step_trait)]
 #![feature(fnbox)]
-#![feature(copy_closures, clone_closures)]
 #![feature(get_type_id)]
 #![feature(generic_param_attrs)]
 #![feature(dropck_eyepatch)]
@@ -17,6 +16,7 @@
 #![feature(coerce_unsized)]
 #![feature(unsize)]
 #![feature(conservative_impl_trait)]
+#![allow(non_snake_case)]
 
 #[macro_use] pub mod util;
 

@@ -1,19 +1,12 @@
 use std::sync::Once;
 use std::sync::ONCE_INIT;
-use std::cell::RefCell;
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::atomic::{ AtomicBool, AtomicUsize};
+use std::sync::atomic::{ AtomicBool};
 use std::sync::atomic::Ordering;
 use std::collections::LinkedList;
 
 use util::ArcCell;
-use std::marker::PhantomData;
-use util::mss::*;
 use std::boxed::FnBox;
-use observable::FnCell;
-use std::mem;
-use std::ptr;
 
 pub struct SubRef
 {
@@ -121,7 +114,7 @@ impl SubRef
 
             let old = state.extra.get();
             {
-                let mut newlst = Arc::get_mut(&mut new).unwrap();
+                let newlst = Arc::get_mut(&mut new).unwrap();
                 newlst.clear();
                 newlst.extend(old.iter().map(|s| s.clone()));
                 newlst.push_back(un.state.clone());
@@ -195,7 +188,7 @@ fn empty_extra() -> Arc<LinkedList<Arc<State>>>
         INIT.call_once(||{
             VALUE = Some(Arc::new(LinkedList::new()))
         });
-        unsafe{ VALUE.clone().unwrap() }
+        VALUE.clone().unwrap()
     }
 }
 
@@ -208,7 +201,7 @@ fn empty_cb() -> Arc<Box<FnBox()+Send+Sync>>
         INIT.call_once(||{
             VALUE = Some(Arc::new(box ||{}))
         });
-        unsafe{ VALUE.clone().unwrap() }
+        VALUE.clone().unwrap()
     }
 }
 

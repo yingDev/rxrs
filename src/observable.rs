@@ -1,24 +1,10 @@
-#[macro_use] use util::mss;
-
 use std::any::Any;
-use std::rc::Rc;
-use std::sync::{Once, ONCE_INIT};
-use std::cell::RefCell;
 use subref::*;
 use std::sync::Arc;
 use std::marker::PhantomData;
-use std::boxed::FnBox;
-use util::AtomicOption;
-use std::any::TypeId;
 use std::cell::UnsafeCell;
-use std::cell::Cell;
-use std::ops::Not;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::mem;
-use std::ops::CoerceUnsized;
-use std::marker::Unsize;
-use std::ops::Deref;
 use util::mss::*;
 
 pub trait Observable<'a, V, SSO:?Sized>
@@ -28,8 +14,8 @@ pub trait Observable<'a, V, SSO:?Sized>
 
 pub trait Observer<V>
 {
-    fn next(&self, v:V){}
-    fn err(&self, e:Arc<Any+Send+Sync>){} //todo
+    fn next(&self, _:V){}
+    fn err(&self, _:Arc<Any+Send+Sync>){} //todo
     fn complete(&self){}
 
     fn _is_closed(&self) -> bool { false }
@@ -48,8 +34,8 @@ pub trait Observer<V>
 
 pub trait ObserverHelper<V>
 {
-    fn next(&self, v: V){}
-    fn err(&self, e: Arc<Any+Send+Sync>){}
+    fn next(&self, _: V){}
+    fn err(&self, _: Arc<Any+Send+Sync>){}
     fn complete(&self){}
     fn _is_closed(&self) -> bool{ false }
 }
@@ -280,7 +266,7 @@ impl<F> FnCell<F>
     pub fn new(f:F) -> FnCell<F> { FnCell(UnsafeCell::new(f)) }
 }
 
-fn _empty<V>(v:V){}
+fn _empty<V>(_:V){}
 fn _comp(){}
 
 impl<'a, Obs, V:'a, F, R> SubFHelper<V,F, No> for Obs

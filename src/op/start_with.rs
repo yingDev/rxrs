@@ -1,17 +1,9 @@
+use util::mss::*;
 use std::marker::PhantomData;
-use std::any::{Any};
-use std::rc::Rc;
-use std::sync::atomic::AtomicIsize;
-
 use observable::*;
-use subref::SubRef;
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use util::mss::Mss;
-use util::mss::Yes;
+use subref::*;
 
-#[derive(Clone)]
-pub struct StartWithOp<Src, V, SSO:?Sized>
+pub struct StartWithOp<Src, V, SSO: ? Sized>
 {
     source: Src,
     v: V,

@@ -1,21 +1,10 @@
 use std::marker::PhantomData;
-use std::cell::RefCell;
-use std::ops::Range;
-use std::iter::Step;
-use std::any::{Any, TypeId};
-
-use observable::*;
-use std::rc::Rc;
-use std::fmt::Debug;
-use observable::*;
 use subref::SubRef;
-use std::sync::Arc;
 use observable::Observable;
 use observable::Observer;
 use subref::IntoSubRef;
 use util::mss::*;
 use std::cell::UnsafeCell;
-use std::mem;
 
 pub fn create<'a:'b, 'b, V:'a, F, R>(sub: F) -> impl Observable<'a, V, No+'static>+'b where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef+'static
 {

@@ -13,7 +13,6 @@ use observable::*;
 use observable::RxNoti::*;
 use util::AtomicOption;
 use std::any::Any;
-use util::mss::*;
 use std::mem;
 
 //todo: facade
@@ -198,20 +197,17 @@ macro_rules! fn_sub(
 ($s: ty)=>{
     fn sub(&self, o: Mss<Yes, impl Observer<V> +'static>) -> SubRef
     {
-        let scheduler = self.scheduler.clone();
         let queue =  Arc::new((Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new()));
         let stopped = Arc::new(AtomicBool::new(false));
 
         let q = queue.clone();
         let sub = SubRef::signal();
-        let sub2 = sub.clone();
 
-        let stopped2 = stopped.clone();
-        sub.add(self.scheduler.schedule_long_running(sub.clone(), Mss::new(move || {
-            dispatch(o, q, stopped2);
-        })));
+        sub.add(self.scheduler.schedule_long_running(sub.clone(), Mss::new(byclone!(q, stopped => move || {
+            dispatch(o, q, stopped);
+        }))));
 
-        sub.add(self.source.sub_noti(move |n| {
+        sub.add(self.source.sub_noti(byclone!(sub => move |n| {
             let &(ref cond, ref q, ref err) = &*queue;
 
             match n {
@@ -220,14 +216,14 @@ macro_rules! fn_sub(
                 },
                 Err(e) => {
                     if stopped.compare_and_swap(false, true, Ordering::Acquire) {
-                        q.lock().unwrap();
-                        sub2.unsub();
+                        //q.lock().unwrap();
+                        sub.unsub();
                         err.swap(e, Ordering::SeqCst);
                     }
                 },
                 Comp => {
                     if stopped.compare_and_swap(false, true, Ordering::Acquire) {
-                        sub2.unsub();
+                        sub.unsub();
                     }
                 }
             }
@@ -236,7 +232,7 @@ macro_rules! fn_sub(
                 return IsClosed::True;
             }
             return IsClosed::Default;
-        }).added(sub.clone()));
+        })).added(sub.clone()));
 
         sub
     }
@@ -279,7 +275,8 @@ fn dispatch<V>(o: Mss<Yes, impl Observer<V>+'static>, queue: Arc<(Condvar, Mutex
                 }
                 return;
             }
-            cond.wait(lock);
+            let r = cond.wait(lock);
+            r.ok();
         }
     }
 }

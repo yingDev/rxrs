@@ -46,42 +46,18 @@ complete on ThreadId(2)
  <img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
 
 ```rust 
-fn main()
-{
-    if gtk::init().is_err() { return; }
+let slider = Scale::new_with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
 
-    let window = Window::new(WindowType::Toplevel);
-    window.connect_delete_event(|_, _| { gtk::main_quit(); Inhibit(false) });
-
-    let btn = Button::new();
-    let (btn_a,btn_b) = (btn.clone(), btn.clone());
-
-    //the button clicks stream
-    let clicks = rxrs::create_boxed(|o| {
-        let btn = btn.clone();
-        let i = Cell::new(0);
-        let id = btn.connect_clicked(move |_| o.next(i.replace(i.get() + 1)) );
-
-        SubRef::new(move ||signal_handler_disconnect(&btn, id))
-    });
-
-    //do some transforms ...
-    let greetings = clicks
-        .take(3)
-        .map(|i| format!("*{}*", i))
-        .start_with("hello world!".to_owned());
-
-    //observe the greeting msgs
-    greetings.subf((
-        move |s:String| btn_a.set_label(&s),
-        (),
-        move || btn_b.set_label("bye!")
-    ));
-
-    window.add(&btn);
-    window.show_all();
-    gtk::main();
-}
+event!(slider.connect_value_changed, it => it.get_value() )
+    .start_with(0.0)
+    //do some heavy work on the other thread
+    .observe_on(NewThreadScheduler::get())
+    .map(|v| format!("*{}*", v*v))
+    //schedule the result back to main thread
+    .observe_on(GtkScheduler::get())
+    .subf(
+        byclone!(btn => move |v:String| btn.set_label(&v) ),
+    );
 ```
 
 # File Structure

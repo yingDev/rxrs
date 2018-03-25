@@ -50,11 +50,10 @@ let slider = Scale::new_with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
 
 event!(slider.connect_value_changed, it => it.get_value() )
     .start_with(0.0)
-    //do some heavy work on the other thread
-    .observe_on(NewThreadScheduler::get())
+    
+    .observe_on(NewThreadScheduler::get()) //do heavy work on the other thread
     .map(|v| format!("*{}*", v*v))
-    //schedule the result back to main thread
-    .observe_on(GtkScheduler::get())
+    .observe_on(GtkScheduler::get()) //schedule results back to main thread
     .subf(
         byclone!(btn => move |v:String| btn.set_label(&v) ),
     );

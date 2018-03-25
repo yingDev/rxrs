@@ -18,7 +18,7 @@ fn timer()
 {
     println!("cur thread {:?}", thread::current().id());
 
-    rxfac::timer(0, Some(10), NewThreadScheduler::get())
+    rx::timer(0, Some(10), NewThreadScheduler::get())
         .skip(3)
         .filter(|i| i % 2 == 0)
         .take(3)

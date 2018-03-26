@@ -66,7 +66,7 @@ macro_rules! fn_sub(
                 }
             }
             IsClosed::Default
-        })));
+        })).added(sub.clone()));
 
         sub
     }

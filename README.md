@@ -43,9 +43,12 @@ complete on ThreadId(2)
 ```
 
 ### Play with [gtk-rs](https://github.com/gtk-rs/gtk)
+
  <img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
 
 ```rust 
+//(lib for this demo is also a WIP)
+
 let slider = Scale::new_with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
 
 // create an `Observable` from the slider's `value_changed` event

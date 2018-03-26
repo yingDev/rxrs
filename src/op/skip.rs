@@ -9,79 +9,82 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use observable::*;
 use observable::RxNoti::*;
+use util::mss::*;
 
 #[derive(Clone)]
-pub struct SkipOp<Src, V>
+pub struct SkipOp<'a, Src, V, SSO:?Sized+'static>
 {
     source: Src,
     total: usize,
-    PhantomData: PhantomData<V>
+    PhantomData: PhantomData<(*const V, *const SSO, &'a ())>
 }
 
-pub trait ObservableSkip<'a, Src, V> where Src : Observable<'a,V>
+pub trait ObservableSkip<'a, Src, V, SSO:?Sized+'static> where Src : Observable<'a,V,SSO>
 {
-    fn skip(self, total: usize) -> SkipOp<Src, V>;
+    fn skip(self, total: usize) -> SkipOp<'a, Src, V, SSO>;
 }
 
-impl<'a,Src, V> ObservableSkip<'a, Src, V> for Src where Src : Observable<'a, V>,
+impl<'a,Src, V, SSO:?Sized+'static> ObservableSkip<'a, Src, V, SSO> for Src where Src : Observable<'a, V, SSO>,
 {
     #[inline(always)]
-    fn skip(self, total: usize) -> SkipOp<Self, V>
+    fn skip(self, total: usize) -> SkipOp<'a, Src, V, SSO>
     {
         SkipOp{ total, PhantomData, source: self  }
     }
 }
 
-impl<'a, Src, V:'static+Send+Sync> Observable<'a,V> for SkipOp<Src, V> where Src: Observable<'a, V>
-{
-    #[inline(always)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+macro_rules! fn_sub(($s: ty) => {
+     fn sub(&self, o: Mss<$s, impl Observer<V> +'a>) -> SubRef
     {
         let mut count = self.total;
         if count == 0 {
-            return self.source.sub(dest);
+            return self.source.sub(o);
         }
 
-        self.source.sub_noti(move |n|{
+        let sub = SubRef::signal();
+
+        sub.add(self.source.sub_noti(byclone!(sub => move |n|{
             match n {
                 Next(v) => {
                     if count == 0 {
-                        dest.next(v);
-                        if dest._is_closed() { return IsClosed::True; }
+                        o.next(v);
+                        if o._is_closed(){
+                            sub.unsub();
+                            return IsClosed::True;
+                        }
                     } else { count -= 1; }
                 },
-                Err(e) => dest.err(e),
-                Comp => dest.complete()
+                Err(e) => { sub.unsub();o.err(e); }
+                Comp => { sub.unsub();o.complete();}
             }
             IsClosed::Default
-        })
+        })).added(sub.clone()));
+        sub
     }
+});
+
+impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, Yes> for SkipOp<'a, Src, V, Yes> where Src: Observable<'a, V, Yes>
+{
+    fn_sub!(Yes);
+}
+impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, No> for SkipOp<'a, Src, V, No> where Src: Observable<'a, V, No>
+{
+    fn_sub!(No);
 }
 
 #[cfg(test)]
 mod test
 {
     use super::*;
-    use subject::*;
-    use observable::RxNoti::*;
+    use test_fixture::*;
 
     #[test]
     fn basic()
     {
-        let mut result = 0;
-        {
-            let s = Subject::new();
+        let src = SimpleObservable;
+        let mut out = 0;
+        src.rx().skip(1).subf(|v| out += v);
 
-            s.rx().skip(1).sub_noti(|n| match n {
-               Next(v) => result += v ,
-               Comp => result += 100,
-                _=> {}
-            });
-            s.next(1);
-            s.next(2);
-            s.complete();
-        }
-
-        assert_eq!(result, 102);
+        assert_eq!(5, out);
     }
 }

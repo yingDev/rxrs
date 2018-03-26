@@ -60,6 +60,13 @@ impl State
     }
 }
 
+impl Drop for State {
+    fn drop(&mut self)
+    {
+        println!("State Drop");
+    }
+}
+
 impl SubRef
 {
     pub fn new<F>(f: F) -> SubRef where F: 'static+FnBox()+Send+Sync

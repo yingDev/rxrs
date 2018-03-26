@@ -50,6 +50,7 @@ impl<T> ArcCell<T> {
                 let current: Arc<T> = mem::transmute(current);
                 mem::transmute(new)
             } else {
+                let _old: Arc<T> = mem::transmute(current);
                 mem::transmute(current)
             }
         }

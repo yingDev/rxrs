@@ -56,7 +56,6 @@ impl State
                 break;
             }
         }
-
     }
 }
 
@@ -116,11 +115,12 @@ impl SubRef
             let len = oldval.map(|v| v.len()).or(Some(0)).unwrap()+1;
 
             {
-                let mut newlst = Arc::get_mut(&mut new).unwrap();
+                let newlst = Arc::get_mut(&mut new).unwrap();
                 let lst = newlst.get_or_insert_with(|| Vec::with_capacity(len));
                 lst.clear();
+                lst.reserve(len);
                 if let Some(v) = oldval {
-                    lst.extend(v.iter().map(|s| s.clone()));
+                    for s in v { lst.push(s.clone()); }
                 }
                 lst.push(un.state.clone());
             }

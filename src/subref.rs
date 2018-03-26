@@ -3,7 +3,6 @@ use std::sync::ONCE_INIT;
 use std::sync::Arc;
 use std::sync::atomic::{ AtomicBool};
 use std::sync::atomic::Ordering;
-use std::collections::LinkedList;
 
 use util::ArcCell;
 use std::boxed::FnBox;
@@ -113,13 +112,14 @@ impl SubRef
             if un.state.disposed.load(Ordering::Acquire) { return; }
 
             let old = state.extra.get();
-            let len = Arc::as_ref(&old).as_ref().map(|v| v.len()).or(Some(0)).unwrap();
+            let oldval = Arc::as_ref(&old).as_ref();
+            let len = oldval.map(|v| v.len()).or(Some(0)).unwrap()+1;
 
             {
                 let mut newlst = Arc::get_mut(&mut new).unwrap();
-                let lst = newlst.get_or_insert_with(|| Vec::with_capacity(len+1));
+                let lst = newlst.get_or_insert_with(|| Vec::with_capacity(len));
                 lst.clear();
-                if let &Some(ref v) = Arc::as_ref(&old) {
+                if let Some(v) = oldval {
                     lst.extend(v.iter().map(|s| s.clone()));
                 }
                 lst.push(un.state.clone());

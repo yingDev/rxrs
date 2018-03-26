@@ -18,6 +18,8 @@
 #![feature(conservative_impl_trait)]
 #![allow(non_snake_case)]
 
+extern crate proc_macro;
+
 #[macro_use] pub mod util;
 
 pub mod observable;
@@ -33,3 +35,9 @@ pub use fac::*;
 
 #[cfg(test)]
 mod test_fixture;
+
+#[cfg(test)]
+mod test
+{
+
+}

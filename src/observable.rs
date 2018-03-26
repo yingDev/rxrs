@@ -454,6 +454,10 @@ mod test
     use super::*;
     use test_fixture::*;
     use util::mss::*;
+    use std::rc::Rc;
+    use std::sync::Mutex;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicIsize;
 
     #[test]
     fn hello_world()

@@ -88,7 +88,7 @@ mod test
     use super::*;
     use observable::RxNoti::*;
     use test_fixture::*;
-
+    use std::rc::Rc;
 
     #[test]
     fn src_sso()

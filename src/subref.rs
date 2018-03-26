@@ -211,6 +211,7 @@ mod tests
     use super::*;
     use std::thread;
     use observable::*;
+    use std::sync::Mutex;
 
     #[test]
     fn basic()

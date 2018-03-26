@@ -58,9 +58,11 @@ pub fn create_sso<'a, V, F, R>(sub: F) -> impl Observable<'static, V, Yes> where
 mod test
 {
     use super::*;
+    use observable::*;
     use std::sync::atomic::AtomicIsize;
     use std::sync::atomic::Ordering;
     use std::time::Duration;
+    use std::sync::Arc;
 
     #[test]
     fn basic()

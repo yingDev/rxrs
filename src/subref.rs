@@ -27,14 +27,14 @@ struct State
 {
     disposed: AtomicBool,
     cb: ArcCell<Box<FnBox()+Send+Sync>>,
-    extra: ArcCell<Option<Vec<Arc<State>>>>,
+    extra: ArcCell<Vec<Arc<State>>>,
 }
 
 impl State
 {
     fn unsub(&self)
     {
-        if self.disposed.compare_and_swap(false, true, Ordering::Release) {
+        if self.disposed.compare_and_swap(false, true, Ordering::AcqRel) {
             return;
         }
 
@@ -48,10 +48,9 @@ impl State
 
     fn _unsub_extra(&self)
     {
-        let mut old;
         loop{
-            old = self.extra.get();
-            Arc::as_ref(&old).as_ref().and_then(|v| Some(v.iter().for_each(|s| s.unsub())));
+            let old = self.extra.get();
+            old.iter().for_each(|s| s.unsub());
             if Arc::ptr_eq(&self.extra.compare_swap(old.clone(), empty_extra()), &old) {
                 break;
             }
@@ -105,31 +104,26 @@ impl SubRef
         if un.state.disposed.load(Ordering::Acquire) { return; }
 
         let state = self.state.clone();
-        let mut new: Arc<Option<Vec<Arc<State>>>> = Arc::new(None);
+        let mut new = None;
 
         loop{
-            if un.state.disposed.load(Ordering::Acquire) { return; }
-
             let old = state.extra.get();
-            let oldval = Arc::as_ref(&old).as_ref();
-            let len = oldval.map(|v| v.len()).or(Some(0)).unwrap()+1;
+            let len = old.len() + 1;
+            let new = new.get_or_insert_with(|| Arc::new(Vec::with_capacity(len)));
 
             {
-                let lst = Arc::get_mut(&mut new).unwrap();
-                let lst = lst.get_or_insert_with(|| Vec::with_capacity(len));
-                lst.clear();
-                lst.reserve(len);
-                if let Some(v) = oldval {
-                    for s in v { lst.push(s.clone()); }
-                }
-                lst.push(un.state.clone());
+                let new = Arc::get_mut(new).unwrap();
+                new.clear();
+                new.reserve(len);
+                for s in old.iter() { new.push(s.clone()); }
+                new.push(un.state.clone());
             }
 
+            if un.state.disposed.load(Ordering::Acquire) { return; }
             if Arc::ptr_eq(&state.extra.compare_swap(old.clone(), new.clone()), &old) {
                 break;
             }
         }
-        if un.state.disposed.load(Ordering::Acquire) { return; }
         if state.disposed.load(Ordering::SeqCst) {
             state._unsub_extra();
         }
@@ -184,14 +178,14 @@ impl IntoSubRef for SubRef
     fn into(self) -> SubRef{ self }
 }
 
-fn empty_extra() -> Arc<Option<Vec<Arc<State>>>>
+fn empty_extra() -> Arc<Vec<Arc<State>>>
 {
     unsafe {
-        static mut VALUE: Option<Arc<Option<Vec<Arc<State>>>>> = None;
+        static mut VALUE: Option<Arc<Vec<Arc<State>>>> = None;
         static INIT: Once = ONCE_INIT;
 
         INIT.call_once(||{
-            VALUE = Some(Arc::new(None))
+            VALUE = Some(Arc::new(Vec::new()))
         });
         VALUE.clone().unwrap()
     }

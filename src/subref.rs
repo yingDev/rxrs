@@ -7,6 +7,8 @@ use std::sync::atomic::Ordering;
 use util::ArcCell;
 use std::boxed::FnBox;
 
+//todo: object pool ?
+
 pub struct SubRef
 {
     state: Arc<State>

@@ -52,6 +52,8 @@ impl Observable<'static, i32, Yes> for ThreadedObservable
     {
         ::std::thread::spawn(move ||{
             o.next(1);
+            o.next(2);
+            o.next(3);
             o.complete();
         });
 

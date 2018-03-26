@@ -4,16 +4,16 @@ use observable::*;
 use scheduler::SchedulerObserveOn;
 
 
-pub trait ObservableObserveOn<'sa, Src, V:'static+Send+Sync, SrcSSO:?Sized, Sch, ObserveOn: Observable<'static, V, Sch::SSA>>
+pub trait ObservableObserveOn<'sa, Src, V:'static+Send+Sync, SSA:?Sized+'static, SrcSSO:?Sized, Sch, ObserveOn: Observable<'static, V, SSA>>
     where Src: Observable<'sa, V, SrcSSO>,
-          Sch: Scheduler+SchedulerObserveOn<'sa, V, Src, SrcSSO, ObserveOn>
+          Sch: SchedulerObserveOn<'sa, V, Src, SSA, SrcSSO, ObserveOn>
 {
     fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn;
 }
 
-impl<'sa, Src, V:'static+Send+Sync, SrcSSO:?Sized, Sch, ObserveOn: Observable<'static, V, Sch::SSA>> ObservableObserveOn<'sa, Src, V, SrcSSO, Sch, ObserveOn> for Src
+impl<'sa, Src, V:'static+Send+Sync, SSA:?Sized+'static, SrcSSO:?Sized, Sch, ObserveOn: Observable<'static, V, SSA>> ObservableObserveOn<'sa, Src, V, SSA, SrcSSO, Sch, ObserveOn> for Src
     where Src: Observable<'sa, V, SrcSSO>,
-        Sch: Scheduler+SchedulerObserveOn<'sa, V, Src, SrcSSO, ObserveOn>
+          Sch: SchedulerObserveOn<'sa, V, Src, SSA, SrcSSO, ObserveOn>
 {
     fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn
     {

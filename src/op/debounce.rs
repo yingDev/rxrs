@@ -187,7 +187,7 @@ mod test
         src.debounce(100, NewThreadScheduler::get()).subf(byclone!(out => move |v| { println!("{}",v); out.fetch_add(v as isize, Ordering::SeqCst); }));
 
         thread::sleep(Duration::from_millis(300));
-        assert_eq!(out.load(Ordering::SeqCst), 4);
+        assert_eq!(out.load(Ordering::SeqCst), 3);
     }
 
     #[test]

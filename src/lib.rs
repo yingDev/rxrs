@@ -18,8 +18,6 @@
 #![feature(conservative_impl_trait)]
 #![allow(non_snake_case)]
 
-extern crate proc_macro;
-
 #[macro_use] pub mod util;
 
 pub mod observable;

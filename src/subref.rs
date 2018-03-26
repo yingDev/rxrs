@@ -28,7 +28,7 @@ struct State
 {
     disposed: AtomicBool,
     cb: ArcCell<Box<FnBox()+Send+Sync>>,
-    extra: ArcCell<LinkedList<Arc<State>>>,
+    extra: ArcCell<Option<Vec<Arc<State>>>>,
 }
 
 impl State
@@ -52,7 +52,7 @@ impl State
         let mut old;
         loop{
             old = self.extra.get();
-            old.iter().for_each(|s| s.unsub());
+            Arc::as_ref(&old).as_ref().and_then(|v| Some(v.iter().for_each(|s| s.unsub())));
             if Arc::ptr_eq(&self.extra.compare_swap(old.clone(), empty_extra()), &old) {
                 break;
             }
@@ -107,17 +107,22 @@ impl SubRef
         if un.state.disposed.load(Ordering::Acquire) { return; }
 
         let state = self.state.clone();
-        let mut new = Arc::new(LinkedList::new());
+        let mut new: Arc<Option<Vec<Arc<State>>>> = Arc::new(None);
 
         loop{
             if un.state.disposed.load(Ordering::Acquire) { return; }
 
             let old = state.extra.get();
+            let len = Arc::as_ref(&old).as_ref().map(|v| v.len()).or(Some(0)).unwrap();
+
             {
-                let newlst = Arc::get_mut(&mut new).unwrap();
-                newlst.clear();
-                newlst.extend(old.iter().map(|s| s.clone()));
-                newlst.push_back(un.state.clone());
+                let mut newlst = Arc::get_mut(&mut new).unwrap();
+                let lst = newlst.get_or_insert_with(|| Vec::with_capacity(len+1));
+                lst.clear();
+                if let &Some(ref v) = Arc::as_ref(&old) {
+                    lst.extend(v.iter().map(|s| s.clone()));
+                }
+                lst.push(un.state.clone());
             }
 
             if Arc::ptr_eq(&state.extra.compare_swap(old.clone(), new.clone()), &old) {
@@ -179,14 +184,14 @@ impl IntoSubRef for SubRef
     fn into(self) -> SubRef{ self }
 }
 
-fn empty_extra() -> Arc<LinkedList<Arc<State>>>
+fn empty_extra() -> Arc<Option<Vec<Arc<State>>>>
 {
     unsafe {
-        static mut VALUE: Option<Arc<LinkedList<Arc<State>>>> = None;
+        static mut VALUE: Option<Arc<Option<Vec<Arc<State>>>>> = None;
         static INIT: Once = ONCE_INIT;
 
         INIT.call_once(||{
-            VALUE = Some(Arc::new(LinkedList::new()))
+            VALUE = Some(Arc::new(None))
         });
         VALUE.clone().unwrap()
     }

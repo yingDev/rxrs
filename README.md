@@ -48,13 +48,15 @@ complete on ThreadId(2)
 ```rust 
 let slider = Scale::new_with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
 
-event!(slider.connect_value_changed, it => it.get_value() )
-    .start_with(0.0)
-    .observe_on(NewThreadScheduler::get()) //do heavy work on the other thread
-    .map(|v| format!("*{}*", v*v))
-    .observe_on(GtkScheduler::get()) //schedule results back to main thread
-    .subf(
-        byclone!(btn => move |v:String| btn.set_label(&v) ),
+// create an `Observable` from the slider's `value_changed` event
+event!(slider.connect_value_changed, it => it.get_value())
+    .start_with(0.0) // events (signals) don't emit an initial value, so we give it one
+    .debounce(250, GtkScheduler::get()) // debounce with 250ms to limit input frequency
+    .observe_on(NewThreadScheduler::get()) // change to a worker thread
+    .map(|v| format!("*{}*", v*v)) // do hard (or blocking) jobs on that thread
+    .observe_on(GtkScheduler::get()) // schedule results back to main thread ...
+    .subf( // ... for displaying
+        byclone!(btn => move |v:String| btn.set_label(&v) )
     );
 ```
 

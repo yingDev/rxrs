@@ -1,54 +1,48 @@
-use std::rc::Rc;
-use std::any::Any;
 use observable::*;
 use subref::SubRef;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use util::AtomicOption;
-use util::ArcCell;
 use std::marker::PhantomData;
 use scheduler::Scheduler;
 use std::time::Duration;
-use std::sync::Mutex;
-use observable::RxNoti::*;
 use std::mem;
+use util::mss::*;
+use std::sync::Mutex;
 
-
-#[derive(Clone)]
-pub struct DebounceOp<V, Src, Sch>
+pub struct DebounceOp<V, Src, Sch, SSO:?Sized+'static>
 {
     source : Src,
     scheduler: Arc<Sch>,
     duration: Duration,
 
-    PhantomData: PhantomData<(V)>
+    PhantomData: PhantomData<(V, *const SSO)>
 }
 
-pub trait ObservableDebounce<'a, V, Src, Sch> where
+pub trait ObservableDebounce<'sa, V, Src, Sch, SSO: ?Sized+'static> where
     Sch: Scheduler+Send+Sync,
-    Src : Observable<'a, V>,
+    Src : Observable<'sa, V, SSO>,
 {
-    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>;
+    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch, SSO>;
 }
 
-impl<'a, V,Src, Sch> ObservableDebounce<'a, V, Src, Sch> for Src where
+impl<'sa, V,Src, Sch, SSO:?Sized+'static> ObservableDebounce<'sa, V, Src, Sch, SSO> for Src where
     Sch: Scheduler+Send+Sync+'static,
-    Src : Observable<'a, V>,
+    Src : Observable<'sa, V, SSO>,
 {
-    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch>
+    fn debounce(self, duration: u64, scheduler: Arc<Sch>) -> DebounceOp<V, Src, Sch, SSO>
     {
         DebounceOp{ source: self, scheduler, duration: Duration::from_millis(duration), PhantomData }
     }
 }
 
-impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V, Src, Sch> where
+impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V, Yes> for DebounceOp<V, Src, Sch, Yes> where
     Sch: Scheduler+Send+Sync+'static,
-    Src : Observable<'a, V>
+    Sch::SSA: Yes,
+    Src : Observable<'a, V, Yes>
 {
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'static) -> SubRef
+    fn sub(&self, dest: Mss<Yes, impl Observer<V> +'a>) -> SubRef
     {
+        use observable::RxNoti::*;
+
         let sch = self.scheduler.clone();
         let dur = self.duration;
         let val = Arc::new(Mutex::new(None));
@@ -101,16 +95,14 @@ impl<'a, V:'static+Send+Sync, Src, Sch> Observable<'static, V> for DebounceOp<V,
 
         sub
     }
-
 }
+
+
 
 #[cfg(test)]
 mod test
 {
     use super::*;
-    use subject::*;
-    use fac::*;
-    use op::*;
     use observable::*;
     use std::sync::atomic::AtomicIsize;
     use scheduler::NewThreadScheduler;
@@ -119,63 +111,13 @@ mod test
     #[test]
     fn basic()
     {
-        fn sleep(ms: u64){ ::std::thread::sleep(::std::time::Duration::from_millis(ms)) }
 
-        let r = Arc::new(Mutex::new(vec![]));
-        let (r2, r3) = (r.clone(), r.clone());
-
-        rxfac::create_static(|o|{
-            ::std::thread::spawn(move ||{
-                o.next(1);sleep(10);
-                o.next(2);sleep(110);
-                o.next(3);sleep(10);
-                o.next(4);sleep(10);
-                o.next(5);sleep(10);
-                o.next(6);sleep(200);
-                o.next(7);
-                o.complete();
-            });
-            SubRef::empty()
-        }).debounce(100, NewThreadScheduler::get())
-            .subf(( move |v| r2.lock().unwrap().push(v),
-                  (),
-                  move ||{ r3.lock().unwrap().push(100) }
-            ));
-
-        ::std::thread::sleep(Duration::from_secs(2));
-
-        assert_eq!(&*r.lock().unwrap(), &[2,6,7,100]);
     }
 
     #[test]
     fn error()
     {
-        fn sleep(ms: u64){ ::std::thread::sleep(::std::time::Duration::from_millis(ms)) }
 
-        let r = Arc::new(Mutex::new(vec![]));
-        let (r2, r3, r4) = (r.clone(), r.clone(), r.clone());
-
-        rxfac::create_static(|o|{
-            ::std::thread::spawn(move ||{
-                o.next(1);sleep(10);
-                o.next(2);o.err(Arc::new(123));
-                //o.next(3);sleep(10);
-                //o.next(4);sleep(10);
-                //o.next(5);sleep(10);
-                //o.next(6);sleep(200);
-                //o.next(7);
-                //o.complete();
-            });
-            SubRef::empty()
-        }).debounce(100, NewThreadScheduler::get())
-            .subf(( move |v| r2.lock().unwrap().push(v),
-                    move |e| { r4.lock().unwrap().push(1000)  },
-                    move | |{ r3.lock().unwrap().push(100) }
-            ));
-
-        ::std::thread::sleep(Duration::from_secs(2));
-
-        assert_eq!(&*r.lock().unwrap(), &[2,1000]);
     }
 
 }

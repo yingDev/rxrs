@@ -7,6 +7,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use util::mss::*;
 
+pub type ArcErr = Arc<Box<Any+Send+Sync>>;
+
 pub trait Observable<'a, V, SSO:?Sized>
 {
     fn sub(&self, o: Mss<SSO, impl Observer<V>+'a>)-> SubRef;
@@ -15,7 +17,7 @@ pub trait Observable<'a, V, SSO:?Sized>
 pub trait Observer<V>
 {
     fn next(&self, _:V){}
-    fn err(&self, _:Arc<Any+Send+Sync>){} //todo
+    fn err(&self, _:ArcErr){} //todo
     fn complete(&self){}
 
     fn _is_closed(&self) -> bool { false }
@@ -35,14 +37,14 @@ pub trait Observer<V>
 pub trait ObserverHelper<V>
 {
     fn next(&self, _: V){}
-    fn err(&self, _: Arc<Any+Send+Sync>){}
+    fn err(&self, _: ArcErr){}
     fn complete(&self){}
     fn _is_closed(&self) -> bool{ false }
 }
 
 pub enum RxNoti<V>
 {
-    Next(V), Err(Arc<Any+Send+Sync>), Comp
+    Next(V), Err(ArcErr), Comp
 }
 
 pub trait ObservableSubNotiHelper<V, F, SSO:?Sized+No>
@@ -121,7 +123,7 @@ impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sy
     }
 
     #[inline(always)]
-    fn err(&self, e:Arc<Any+Send+Sync>)
+    fn err(&self, e:ArcErr)
     {
         if ! self.closed.compare_and_swap(false, true, Ordering::Acquire) {
             if ((self.f)(RxNoti::Err(e))).is_closed() == IsClosed::False {
@@ -175,10 +177,10 @@ impl<'a:'b, 'b, V:'a, Src, S:?Sized> Observable<'a,V,S> for ByrefOp<'a, 'b, V,Sr
     }
 }
 
-impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>), FComp: Fn()> Observer<V> for (F, FErr, FComp, PhantomData<()>)
+impl<V, F: Fn(V), FErr: Fn(ArcErr), FComp: Fn()> Observer<V> for (F, FErr, FComp, PhantomData<()>)
 {
     #[inline] fn next(&self, v:V) { self.0(v) }
-    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn err(&self, e:ArcErr) { self.1(e) }
     #[inline] fn complete(&self) { self.2() }
 }
 
@@ -187,28 +189,28 @@ impl<V, F: Fn(V)> ObserverHelper<V> for F
 {
     #[inline] fn next(&self, v:V) { self(v) }
 }
-impl<V, FErr: Fn(Arc<Any+Send+Sync>)> ObserverHelper<V> for ((), FErr)
+impl<V, FErr: Fn(ArcErr)> ObserverHelper<V> for ((), FErr)
 {
-    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn err(&self, e:ArcErr) { self.1(e) }
 }
 impl<V,FComp: Fn()> ObserverHelper<V> for ((), (), FComp)
 {
     #[inline] fn complete(&self) { self.2() }
 }
-impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>),FComp: Fn()> ObserverHelper<V> for (F, FErr, FComp)
+impl<V, F: Fn(V), FErr: Fn(ArcErr),FComp: Fn()> ObserverHelper<V> for (F, FErr, FComp)
 {
     #[inline] fn next(&self, v:V) { self.0(v) }
-    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn err(&self, e:ArcErr) { self.1(e) }
     #[inline] fn complete(&self) { self.2() }
 }
-impl<V, F: Fn(V), FErr: Fn(Arc<Any+Send+Sync>)> ObserverHelper<V> for (F, FErr)
+impl<V, F: Fn(V), FErr: Fn(ArcErr)> ObserverHelper<V> for (F, FErr)
 {
     #[inline] fn next(&self, v:V) { self.0(v) }
-    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn err(&self, e:ArcErr) { self.1(e) }
 }
-impl<V, FErr: Fn(Arc<Any+Send+Sync>),FComp: Fn()> ObserverHelper<V> for ((), FErr, FComp)
+impl<V, FErr: Fn(ArcErr),FComp: Fn()> ObserverHelper<V> for ((), FErr, FComp)
 {
-    #[inline] fn err(&self, e:Arc<Any+Send+Sync>) { self.1(e) }
+    #[inline] fn err(&self, e:ArcErr) { self.1(e) }
     #[inline] fn complete(&self) { self.2() }
 }
 impl<V,F: Fn(V),FComp: Fn()> ObserverHelper<V> for (F, (), FComp)
@@ -232,7 +234,7 @@ impl<V> ObserverHelper<V> for Arc<Observer<V>>
     #[inline] fn next(&self, v: V){
         Arc::as_ref(self).next(v);
     }
-    #[inline] fn err(&self, e: Arc<Any+Send+Sync>) {
+    #[inline] fn err(&self, e: ArcErr) {
         Arc::as_ref(self).err(e);
     }
     #[inline] fn complete(&self) {
@@ -247,7 +249,7 @@ impl<V> ObserverHelper<V> for Arc<Observer<V>>
 impl<V, O> Observer<V> for Arc<O> where O : Observer<V>
 {
     fn next(&self, v:V){ Arc::as_ref(self).next(v); }
-    fn err(&self, e:Arc<Any+Send+Sync>){ Arc::as_ref(self).err(e); }
+    fn err(&self, e:ArcErr){ Arc::as_ref(self).err(e); }
     fn complete(&self){ Arc::as_ref(self).complete(); }
     fn _is_closed(&self) -> bool { Arc::as_ref(self)._is_closed() }
 }
@@ -282,7 +284,7 @@ impl<'a, Obs, V:'a, F, R> SubFHelper<V,F, No> for Obs
 }
 
 impl<'a, Obs, V:'a, FErr,RE> SubFHelper<V,((),FErr), No> for Obs
-    where Obs : Observable<'a, V, No>,  FErr: 'a+FnMut(Arc<Any+Send+Sync>) ->RE,
+    where Obs : Observable<'a, V, No>,  FErr: 'a+FnMut(ArcErr) ->RE,
 {
     #[inline(always)]
     fn subf(&self, f: ((),FErr))-> SubRef
@@ -295,7 +297,7 @@ impl<'a, Obs, V:'a, FErr,RE> SubFHelper<V,((),FErr), No> for Obs
 }
 
 impl<'a, Obs, V:'a, F,FErr, FComp, R, RE, RC> SubFHelper<V,(F,FErr,FComp), No> for Obs
-    where Obs : Observable<'a, V, No>, F: 'a+FnMut(V)->R, FErr: 'a+FnMut(Arc<Any+Send+Sync>)->RE, FComp: 'a+FnMut()->RC,
+    where Obs : Observable<'a, V, No>, F: 'a+FnMut(V)->R, FErr: 'a+FnMut(ArcErr)->RE, FComp: 'a+FnMut()->RC,
 {
     #[inline(always)]
     fn subf(&self, f: (F,FErr,FComp))-> SubRef
@@ -321,7 +323,7 @@ impl<'a, Obs, V:'a, FComp, RC> SubFHelper<V,((),(),FComp), No> for Obs
 }
 
 impl<'a, Obs, V:'a, F,FErr, R, RE> SubFHelper<V,(F,FErr), No> for Obs
-    where Obs : Observable<'a, V, No>, F:'a+FnMut(V)->R, FErr:'a+FnMut(Arc<Any+Send+Sync>)->RE,
+    where Obs : Observable<'a, V, No>, F:'a+FnMut(V)->R, FErr:'a+FnMut(ArcErr)->RE,
 {
     #[inline(always)]
     fn subf(&self, f: (F,FErr))-> SubRef
@@ -347,7 +349,7 @@ impl<'a, Obs, V:'a, F,FComp, R, RC> SubFHelper<V,(F,(), FComp), No> for Obs
 }
 
 impl<'a, Obs, V:'a, FErr,FComp, RE, RC> SubFHelper<V,((),FErr, FComp), No> for Obs
-    where Obs : Observable<'a, V, No>, FErr:'a+FnMut(Arc<Any+Send+Sync>)->RE, FComp:'a+FnMut()->RC,
+    where Obs : Observable<'a, V, No>, FErr:'a+FnMut(ArcErr)->RE, FComp:'a+FnMut()->RC,
 {
     #[inline(always)]
     fn subf(&self, f: ((),FErr,FComp))-> SubRef
@@ -372,7 +374,7 @@ impl<'a, Obs, V:'a, F, R> SubFHelper<V,F, Yes> for Obs
 }
 
 impl<'a, Obs, V:'a, FErr, RE> SubFHelper<V,((),FErr), Yes> for Obs
-    where Obs : Observable<'a, V, Yes>,  FErr:'a+Send+Sync+FnMut(Arc<Any+Send+Sync>)->RE,
+    where Obs : Observable<'a, V, Yes>,  FErr:'a+Send+Sync+FnMut(ArcErr)->RE,
 {
     #[inline(always)]
     fn subf(&self, f: ((),FErr))-> SubRef
@@ -385,7 +387,7 @@ impl<'a, Obs, V:'a, FErr, RE> SubFHelper<V,((),FErr), Yes> for Obs
 }
 
 impl<'a, Obs, V:'a, F, R,FErr,RE, FComp,RC> SubFHelper<V,(F,FErr,FComp), Yes> for Obs
-    where Obs : Observable<'a, V, Yes>, F: 'a+Send+Sync+FnMut(V)->R, FErr: 'a+Send+Sync+FnMut(Arc<Any+Send+Sync>)->RE, FComp: 'a+Send+Sync+FnMut()->RC,
+    where Obs : Observable<'a, V, Yes>, F: 'a+Send+Sync+FnMut(V)->R, FErr: 'a+Send+Sync+FnMut(ArcErr)->RE, FComp: 'a+Send+Sync+FnMut()->RC,
 {
     #[inline(always)]
     fn subf(&self, f: (F,FErr,FComp))-> SubRef
@@ -411,7 +413,7 @@ impl<'a, Obs, V:'a, FComp, RC> SubFHelper<V,((),(),FComp), Yes> for Obs
 }
 
 impl<'a, Obs, V:'a, F,FErr, R, RE> SubFHelper<V,(F,FErr), Yes> for Obs
-    where Obs : Observable<'a, V, Yes>, F:'a+Send+Sync+FnMut(V)->R, FErr:'a+Send+Sync+FnMut(Arc<Any+Send+Sync>) -> RE,
+    where Obs : Observable<'a, V, Yes>, F:'a+Send+Sync+FnMut(V)->R, FErr:'a+Send+Sync+FnMut(ArcErr) -> RE,
 {
     #[inline(always)]
     fn subf(&self, f: (F,FErr))-> SubRef
@@ -437,7 +439,7 @@ impl<'a, Obs, V:'a, F,FComp, R, RC> SubFHelper<V,(F,(), FComp), Yes> for Obs
 }
 
 impl<'a, Obs, V:'a, FErr,FComp, RE, RC> SubFHelper<V,((),FErr, FComp), Yes> for Obs
-    where Obs : Observable<'a, V, Yes>, FErr:'a+Send+Sync+FnMut(Arc<Any+Send+Sync>)->RE, FComp:'a+Send+Sync+FnMut()->RC,
+    where Obs : Observable<'a, V, Yes>, FErr:'a+Send+Sync+FnMut(ArcErr)->RE, FComp:'a+Send+Sync+FnMut()->RC,
 {
     #[inline(always)]
     fn subf(&self, f: ((),FErr,FComp))-> SubRef

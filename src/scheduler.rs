@@ -248,7 +248,7 @@ impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes> for ObserveOnNew
 }
 
 #[inline(never)]
-fn dispatch<V>(o: Mss<Yes, impl Observer<V>+'static>, queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<Arc<Any+Send+Sync>>)>, stopped: Arc<AtomicBool>)
+fn dispatch<V>(o: Mss<Yes, impl Observer<V>+'static>, queue: Arc<(Condvar, Mutex<VecDeque<V>>, AtomicOption<ArcErr>)>, stopped: Arc<AtomicBool>)
 {
     let mut buffer = VecDeque::new();
         let &(ref cond, ref lock, ref err) = &*queue;

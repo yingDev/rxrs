@@ -124,7 +124,7 @@ impl SubRef
                 break;
             }
         }
-        if state.disposed.load(Ordering::SeqCst) {
+        if state.disposed.load(Ordering::Acquire) {
             state._unsub_extra();
         }
     }

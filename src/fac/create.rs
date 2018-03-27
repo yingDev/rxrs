@@ -6,6 +6,19 @@ use subref::IntoSubRef;
 use util::mss::*;
 use std::cell::UnsafeCell;
 
+pub fn empty<'a>() -> impl Observable<'a, (), No+'static>
+{
+    create(|o|{
+        o.complete();
+    })
+}
+pub fn empty_of<'a,V:'a>() -> impl Observable<'a, V, No+'static>
+{
+    create(|o|{
+        o.complete();
+    })
+}
+
 pub fn create<'a:'b, 'b, V:'a, F, R>(sub: F) -> impl Observable<'a, V, No+'static>+'b where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef+'static
 {
     struct LocalObservable<'a, V, F, R>(F, PhantomData<(&'a(), *const R, *const V)>) where F: 'a+Fn(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef+'static;

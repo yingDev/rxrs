@@ -60,12 +60,12 @@ impl State
     }
 }
 
-impl Drop for State {
-    fn drop(&mut self)
-    {
-        println!("State Drop");
-    }
-}
+//impl Drop for State {
+//    fn drop(&mut self)
+//    {
+//        println!("State Drop");
+//    }
+//}
 
 impl SubRef
 {

@@ -147,19 +147,19 @@ impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sy
 }
 
 
-pub struct ByrefOp<'a:'b, 'b, V, Src, SSO:?Sized> where Src : Observable<'a, V, SSO>+'a
+pub struct ByrefOp<'a:'b, 'b, V, Src, SSO:?Sized> where Src : Observable<'a, V, SSO>+'b
 {
     source: &'b Src,
     PhantomData: PhantomData<(V, &'a(), SSO)>
 }
 
 
-pub trait ObservableByref<'a:'b, 'b, V, Src,SSO:?Sized> where Src : Observable<'a, V, SSO>+'a
+pub trait ObservableByref<'a:'b, 'b, V, Src,SSO:?Sized> where Src : Observable<'a, V, SSO>+'b
 {
     fn rx(&'b self) -> ByrefOp<'a, 'b, V, Src, SSO>;
 }
 
-impl<'a:'b,'b, V, Src,SSO:?Sized> ObservableByref<'a, 'b, V, Src,SSO> for Src where Src : Observable<'a, V, SSO>+'a
+impl<'a:'b,'b, V, Src,SSO:?Sized> ObservableByref<'a, 'b, V, Src,SSO> for Src where Src : Observable<'a, V, SSO>+'b
 {
     #[inline(always)]
     fn rx(&'b self) -> ByrefOp<'a, 'b,V, Src, SSO>
@@ -168,7 +168,7 @@ impl<'a:'b,'b, V, Src,SSO:?Sized> ObservableByref<'a, 'b, V, Src,SSO> for Src wh
     }
 }
 
-impl<'a:'b, 'b, V:'a, Src, S:?Sized> Observable<'a,V,S> for ByrefOp<'a, 'b, V,Src,S> where Src: Observable<'a, V, S>+'a
+impl<'a:'b, 'b, V:'a, Src, S:?Sized> Observable<'a,V,S> for ByrefOp<'a, 'b, V,Src,S> where Src: Observable<'a, V, S>+'b
 {
     #[inline(always)]
     fn sub(&self, o: Mss<S, impl Observer<V>+'a>) -> SubRef

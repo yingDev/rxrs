@@ -24,12 +24,13 @@ pub mod observable;
 //pub mod subject;
 //pub mod behaviour_subject;
 pub mod op;
-pub mod subref;
 pub mod scheduler;
 mod fac;
+mod subref;
 //pub mod connectable_observable;
 
 pub use fac::*;
+pub use subref::*;
 
 #[cfg(test)]
 mod test_fixture;

@@ -9,129 +9,184 @@ use std::marker::PhantomData;
 use observable::RxNoti::*;
 use observable::*;
 use op::*;
+use util::mss::*;
+use std::sync::Mutex;
 
-pub struct TakeUntilOp<VNoti, Src, Noti>
+pub struct TakeUntilOp<'b, VNoti, Src:'b, Noti:'b, NotiSSO:?Sized+'static, SSO:?Sized+'static>
 {
     source : Src,
     noti: Noti,
-    PhantomData: PhantomData<VNoti>
+    PhantomData: PhantomData<(&'b(), *const VNoti, *const NotiSSO, *const SSO)>
 }
 
-pub trait ObservableTakeUntil<'a, V, Src, VNoti, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync,
-    Src : Observable<'a, V>,
+pub trait ObservableTakeUntil<'a:'b, 'b, V, Src, VNoti, Noti, NotiSSO:?Sized+'static, SSO:?Sized+'static> where
+    Src : Observable<'a, V, SSO>+'b,
+    Noti:  Observable<'a, VNoti, NotiSSO>+'b
 {
-    fn take_until(self, noti:  Noti) -> TakeUntilOp<VNoti, Src, Noti>;
+    fn take_until(self, noti: Noti) -> TakeUntilOp<'b, VNoti, Src, Noti, NotiSSO, SSO>;
 }
 
-impl<'a, V, Src, VNoti, Noti> ObservableTakeUntil<'a, V, Src, VNoti, Noti> for Src where
-    Noti: Observable<'a, VNoti>+Send+Sync,
-    Src : Observable<'a, V>,
+impl<'a:'b,'b, V, Src, VNoti:'a, Noti, NotiSSO:?Sized+'static, SSO:?Sized+'static> ObservableTakeUntil<'a, 'b, V, Src, VNoti, Noti, NotiSSO, SSO>
+for Src where
+    Src : Observable<'a, V, SSO>+'b,
+    Noti: Observable<'a, VNoti, NotiSSO>+'b
 {
-    fn take_until(self, noti: Noti) -> TakeUntilOp<VNoti, Src, Noti>
+    fn take_until(self, noti: Noti) -> TakeUntilOp<'b, VNoti, Src, Noti, NotiSSO, SSO>
     {
-        TakeUntilOp{ source: self, noti: noti, PhantomData }
+        TakeUntilOp{ source: self, noti, PhantomData }
     }
 }
 
-impl<'a, V:'static+Send+Sync, Src, VNoti:'a, Noti> Observable<'a, V> for TakeUntilOp<VNoti, Src, Noti> where
-    Noti: Observable<'a, VNoti>+Send+Sync+'a,
-    Src : Observable<'a, V>,
+impl<'a:'b, 'b, V:'a+Send+Sync, Src, VNoti:'a, Noti> Observable<'a, V, Yes>
+for TakeUntilOp<'b, VNoti, Src, Noti, Yes, Yes> where
+    Src : Observable<'a, V, Yes>+'b,
+    Noti: Observable<'a, VNoti, Yes>+'b
 {
-    #[inline(never)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<V> +'a>) -> SubRef
     {
-        let dest = Arc::new(dest);
-        let dest2 = dest.clone();
+        use observable::RxNoti::*;
 
+        let o: Arc<Mss<Yes, _>> = Arc::new(o);
         let sub = SubRef::signal();
-        let (sub2 , sub3) = (sub.clone(), sub.clone());
+        let gate = Arc::new(Mutex::new(()));
 
-        let sub_noti = self.noti.rx().take(1).sub_noti(move |n|{
-            dest.complete();
-            sub.unsub();
+        sub.add(self.noti.rx().sub_noti(byclone!(o,sub,gate => move |n|{
+            let lock = gate.lock().unwrap();
+            if !sub.disposed(){
+                o.complete();
+                sub.unsub();
+            }
             IsClosed::True
-        });
+        })).added(sub.clone()));
 
-        if sub_noti.disposed() {
-            return SubRef::empty();
+        if sub.disposed() {
+            return sub;
         }
 
-        sub2.add(sub_noti);
+        sub.add(self.source.sub_noti(byclone!(o, sub, gate => move |n| {
+            let lock = gate.lock().unwrap();
+            match n {
+                Next(v) => {
+                    o.next(v);
+                    if o._is_closed() { sub.unsub(); return IsClosed::True; }
+                },
 
-        let sub = self.source.sub(dest2);
-        sub.add(sub2);
-        sub3.add(sub);
+                Err(e) => {
+                    sub.unsub();
+                    o.err(e);
+                },
 
-        sub3
+                Comp => {
+                    sub.unsub();
+                    o.complete();
+                }
+            }
+
+          return IsClosed::Default;
+        })).added(sub.clone()));
+
+        sub
     }
 }
 
+impl<'a:'b, 'b, V:'a, Src, VNoti:'a, Noti> Observable<'a, V, No>
+for TakeUntilOp<'b, VNoti, Src, Noti, No, No> where
+    Src : Observable<'a, V, No>+'b,
+    Noti: Observable<'a, VNoti, No>+'b
+{
+    fn sub(&self, o: Mss<No, impl Observer<V> +'a>) -> SubRef
+    {
+        use observable::RxNoti::*;
+
+        let sub = SubRef::signal();
+
+        let o = Rc::new(o);
+        let notisub = self.noti.rx().sub_noti(byclone!(o,sub => move |n|{
+           // if !sub.disposed(){
+                o.complete();
+                sub.unsub();
+           // }
+            IsClosed::True
+        }));
+        sub.add(notisub.added(sub.clone()));
+
+        if sub.disposed() {
+            return sub;
+        }
+
+        sub.add(self.source.sub_noti(byclone!(o, sub => move |n| {
+            if sub.disposed() || o._is_closed() { //todo: other operators too...
+                sub.unsub();
+                return IsClosed::True;
+            }
+            match n {
+                Next(v) => {
+                    o.next(v);
+                    if o._is_closed() {
+                        sub.unsub();
+                        return IsClosed::True;
+                    }
+                },
+
+                Err(e) => {
+                    sub.unsub();
+                    o.err(e);
+                },
+
+                Comp => {
+                    sub.unsub();
+                    o.complete();
+                }
+            }
+
+          return IsClosed::Default;
+        })).added(sub.clone()));
+
+        sub
+    }
+}
 
 #[cfg(test)]
 mod test
 {
     use super::*;
-    use subject::*;
-    use fac::*;
-    use std::sync::atomic::AtomicIsize;
-    use observable::*;
+    use fac;
     use scheduler::NewThreadScheduler;
+    use std::thread;
+    use std::time::Duration;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
-    fn basic()
+    fn basic_ss()
     {
-        let r = AtomicIsize::new(0);
-        let subj = Subject::<isize>::new();
+        let sig = fac::timer_ss(200, None, NewThreadScheduler::get());
 
-         let it = subj.rx().subf(|v| {r.fetch_add(v, Ordering::SeqCst);});
-         subj.next(1);
+        let seq = fac::create_sso(|o| {
+            let stop = SubRef::signal();
+            thread::spawn(byclone!(stop => move || {
+                for i in 0..10 {
+                    if stop.disposed() {
+                        return;
+                    }
+                    o.next(i);
+                    thread::sleep(Duration::from_millis(100));
+                }
+                if stop.disposed() {
+                    return;
+                }
 
-        assert_eq!(r.load(Ordering::SeqCst), 1);
+                o.complete();
+                stop.unsub();
+            }));
+            stop
+        });
+
+        let out = Arc::new(AtomicUsize::new(0));
+        seq.take_until(sig).subf(byclone!(out => move |v| { out.fetch_add(1, Ordering::SeqCst); } ));
+
+        thread::sleep(Duration::from_millis(1000));
+        assert_eq!(out.load(Ordering::SeqCst), 2);
     }
 
-    #[test]
-    fn threads()
-    {
-        let noti = Arc::new(Subject::<i32>::new());
-        let subj = Subject::<i32>::new();
 
-        let noti2 = noti.clone();
-
-        let r = Arc::new(AtomicIsize::new(0));
-        let r2 = r.clone();
-
-        {
-            let it = subj.rx().take_until(noti.clone()).subf(move |v| { r.fetch_add(1, Ordering::SeqCst);});
-            subj.next(1);
-
-            let hr = ::std::thread::spawn(move || noti2.next(1));
-            hr.join();
-
-            subj.next(1);
-        }
-
-        assert_eq!(r2.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn timer()
-    {
-        let result = Arc::new(AtomicIsize::new(0));
-        let (r1, r2) = (result.clone(), result.clone());
-
-        let subj = Subject::new();
-        subj.rx().take_until(rxfac::timer(100, None, NewThreadScheduler::get()))
-            .subf((move |v| {r1.store(v, Ordering::SeqCst);},
-                   (),
-                   move || {r2.store(100, Ordering::SeqCst);}
-            ));
-        subj.next(1);
-        assert_eq!(result.load(Ordering::SeqCst), 1);
-
-        ::std::thread::sleep(::std::time::Duration::from_secs(1));
-        subj.next(2);
-
-        assert_eq!(result.load(Ordering::SeqCst), 100);
-    }
 }

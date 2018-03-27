@@ -16,7 +16,7 @@ use std::any::Any;
 use std::mem;
 
 //todo: facade
-
+//todo: act -> SubRef seem useless
 pub trait Scheduler<SSA:?Sized+'static>
 {
     fn schedule(&self, act: Mss<SSA,impl 'static+FnOnce()->SubRef>) -> SubRef;

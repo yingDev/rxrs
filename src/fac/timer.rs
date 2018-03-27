@@ -23,7 +23,7 @@ macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident) =
     let scheduler2 = $sch.clone();
     let sig = SubRef::signal();
 
-    $sch.schedule_after($delay, Mss::<$s,_>::new(move ||
+    sig.add($sch.schedule_after($delay, Mss::<$s,_>::new(byclone!(sig => move ||
     {
         if $o._is_closed() || sig.disposed() { return sig.clone(); }
 
@@ -31,7 +31,7 @@ macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident) =
         $o.next(count.fetch_add(1, Ordering::SeqCst));
         if $period.is_none() { return sig.clone(); }
 
-        scheduler2.schedule_periodic($period.unwrap(), sig.clone(), Mss::<$s,_>::new(move ||
+        sig.add(scheduler2.schedule_periodic($period.unwrap(), sig.clone(), Mss::<$s,_>::new(byclone!(sig => move ||
         {
             if $o._is_closed() || sig.disposed()
             {
@@ -39,8 +39,12 @@ macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident) =
                 return;
             }
             $o.next(count.fetch_add(1, Ordering::SeqCst));
-        }))
-    }))
+        }))));
+
+        sig
+    }))));
+
+    sig
 }});
 
 pub fn timer_dur(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>

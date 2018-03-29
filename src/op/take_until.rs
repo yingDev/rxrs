@@ -1,16 +1,10 @@
 use std::rc::Rc;
-use std::any::Any;
 use observable::*;
 use subref::SubRef;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use std::marker::PhantomData;
-use observable::RxNoti::*;
-use observable::*;
-use op::*;
 use util::mss::*;
 use std::sync::Mutex;
+use std::sync::Arc;
 
 pub struct TakeUntilOp<'b, VNoti, Src:'b, Noti:'b, NotiSSO:?Sized+'static, SSO:?Sized+'static>
 {

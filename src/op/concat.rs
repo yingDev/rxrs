@@ -11,130 +11,232 @@ use std::marker::PhantomData;
 use observable::*;
 use observable::RxNoti::*;
 use std::mem;
+use util::mss::*;
+use std::cell::RefCell;
 
-pub struct ConcatOp<'a, V, Src, Next>
+pub struct ConcatOp<'a, V, Src, Next, SrcSSO:?Sized+'static, NextSSO:?Sized+'static, SSO:?Sized+'static>
 {
     source : Src,
     next: Next,
-    PhantomData: PhantomData<(V,&'a())>
+    PhantomData: PhantomData<(V,&'a(), *const SSO, *const SrcSSO, *const NextSSO)>
 }
 
-pub trait ObservableConcat<'a, V, Next, Src> where
-    Next: Observable<'a, V>+Send+Sync+Clone,
-    Src : Observable<'a, V>,
+pub trait ObservableConcat<'a, V, Next, Src, SrcSSO:?Sized+'static, NextSSO:?Sized+'static, SSO:?Sized+'static>
 {
-    fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next>;
+    fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next, SrcSSO, NextSSO, SSO>;
 }
 
-impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src> for Src where
-    Next: Observable<'a, V>+Send+Sync+Clone,
-    Src : Observable<'a, V>
-{
-    #[inline(always)]
-    fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next>
-    {
-        ConcatOp{ source: self, next: next, PhantomData }
-    }
+macro_rules! fn_concat {
+    ($src:ty, $next:ty, $out:ty) => {
+        fn concat(self, next: Next) -> ConcatOp<'a, V, Src, Next, $src, $next, $out>
+        {
+            ConcatOp{ source: self, next, PhantomData }
+        }
+    };
 }
 
-impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V> for ConcatOp<'a, V, Src, Next> where
-    Next: Observable<'a,V>+Send+Sync+Clone+'a,
-    Src : Observable<'a, V>
+impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src, No, No, No> for Src where
+    Src : Observable<'a, V, No>,
+    Next: Observable<'a, V, No>+Clone,
 {
-    #[inline(always)]
-    fn sub(&self, dest: impl Observer<V> + Send + Sync+'a) -> SubRef
+    fn_concat!(No, No, No);
+}
+
+impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src, Yes, Yes, Yes> for Src where
+    Src : Observable<'a, V, Yes>,
+    Next: Observable<'a, V, Yes>+Send+Sync+Clone,
+{
+    fn_concat!(Yes, Yes, Yes);
+}
+
+impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src, Yes, No, Yes> for Src where
+    Src : Observable<'a, V, Yes>,
+    Next: Observable<'a, V, No>+Send+Sync+Clone,
+{
+    fn_concat!(Yes, No, Yes);
+}
+
+impl<'a, V,Next,Src> ObservableConcat<'a, V, Next, Src, No, Yes, Yes> for Src where
+    Src : Observable<'a, V, No>,
+    Next: Observable<'a, V, Yes>+Clone,
+{
+    fn_concat!(No, Yes, Yes);
+}
+
+macro_rules! fn_sub {
+    ($s:ty) => {
+        fn sub(&self, o: Mss<$s, impl Observer<V> +'a>) -> SubRef
     {
         let next = self.next.clone();
-
         let sub = SubRef::signal();
-        let sub2 = sub.clone();
 
-        let mut dest = Some(dest);
+        let mut o:Option<Mss<$s,_>> = Some(o);
 
-        sub.add(self.source.sub_noti(move |n| {
+        sub.add(self.source.sub_noti(byclone!(sub => move |n| {
             match n {
                 Next(v) =>  {
-                    dest.as_ref().unwrap().next(v);
-                    if dest.as_ref().unwrap()._is_closed() { return IsClosed::True; }
+                    let o = o.as_ref().unwrap();
+                    if o._is_closed() { sub.unsub(); return IsClosed::True; }
+                    else { o.next(v); }
                 },
                 Err(e) =>  {
-                    dest.as_ref().unwrap().err(e);
-                    sub2.unsub();
+                    sub.unsub();
+                    o.as_ref().unwrap().err(e);
                 },
                 Comp => {
-                    if sub2.disposed() {
-                        dest.as_ref().unwrap().complete();
-                    }else {
-                        let dest = mem::replace(&mut dest, None).unwrap();
-                        let sub3 = sub2.clone();
-                        sub2.add(next.sub_noti(move |n| {
-                            match n {
-                                Next(v) => {
-                                    dest.next(v);
-                                    if dest._is_closed() { return IsClosed::True; }
-                                },
-                                Err(e) => {
-                                    dest.err(e);
-                                    sub3.unsub();
-                                },
-                                Comp => {
-                                    dest.complete();
-                                    sub3.unsub();
-                                }
+                    let o:Mss<$s,_> = o.take().unwrap();
+                    sub.add(next.sub_noti(byclone!(sub => move |n| {
+                        match n {
+                            Next(v) => {
+                                o.next(v);
+                                if o._is_closed() { sub.unsub(); return IsClosed::True; }
+                            },
+                            Err(e) => {
+                                sub.unsub();
+                                o.err(e);
+                            },
+                            Comp => {
+                                sub.unsub();
+                                o.complete();
                             }
-                            IsClosed::Default
-                        }));
-                    }
+                        }
+                        IsClosed::Default
+                    })).added(sub.clone()));
+
+                    return IsClosed::False;
                 }
             }
             IsClosed::Default
-        }));
+        })));
 
         sub
     }
+    };
 }
 
+impl<'a, V:'a, Src, Next> Observable<'a, V, No> for ConcatOp<'a, V, Src, Next,No, No, No> where
+    Src : Observable<'a, V, No>,
+    Next: Observable<'a,V, No>+'a+Clone,
+{
+    fn_sub!(No);
+}
+
+impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes> for ConcatOp<'a, V, Src, Next,Yes, Yes, Yes> where
+    Src : Observable<'a, V, Yes>,
+    Next: Observable<'a,V, Yes>+Send+Sync+'a+Clone,
+{
+    fn_sub!(Yes);
+}
+
+impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes> for ConcatOp<'a, V, Src, Next,No, Yes, Yes> where
+    Src : Observable<'a, V, No>,
+    Next: Observable<'a,V, Yes>+'a+Clone,
+{
+    fn_sub!(Yes);
+}
+
+impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes> for ConcatOp<'a, V, Src, Next,Yes, No, Yes> where
+    Src : Observable<'a, V, Yes>,
+    Next: Observable<'a,V, No>+Send+Sync+'static+Clone,
+{
+    fn_sub!(Yes);
+}
 
 #[cfg(test)]
 mod test
 {
     use super::*;
-    use subject::*;
-    use fac::*;
+    use fac;
     use op::*;
     use observable::*;
     use std::sync::atomic::AtomicIsize;
     use scheduler::NewThreadScheduler;
+    use test_fixture::*;
+    use std::thread;
+    use std::time::Duration;
 
     #[test]
     fn basic()
     {
-        let src = rxfac::range(0..10);
-        let even = src.clone().filter(|i:&i32| i % 2 == 0);
-        let odd = src.clone().filter(|i:&i32| i %2 == 1);
+        let a = fac::range(0, 3);
+        let b = fac::range(3, 3);
 
-        even.concat(odd).concat(rxfac::range(100..105).take(3)).take(100).filter(|v|true).subf((
-            |v| println!("{}",v),
-            (),
-            || println!("comp")));
+        let c = a.concat(b);
 
-        //rxfac::timer(100, Some(100), NewThreadScheduler::get()).take(3).concat(rxfac::of(100)).subf(|v| println!("{}",v), (), || println!("comp"));
+        let mut out = 0;
+        c.subf(|v| out += v);
 
-        //rxfac::range(0..3).concat(Arc::new(rxfac::range(3..6))).subf(|v| println!("{}",v), (), || println!("comp"));
-        ::std::thread::sleep(::std::time::Duration::from_secs(2));
+        assert_eq!(out, 15)
     }
 
     #[test]
-    fn unsub()
+    fn threaded()
     {
-        let mut x = 0;
-        {
-            let s = Subject::new();
-            s.subf(|v| x += v).unsub();
-            s.next(1);
-        }
-        assert_eq!(0, x);
+        let a = ThreadedObservable;
+        let b = ThreadedObservable;
 
+        let c = a.concat(b);
+
+        let out = Arc::new(AtomicIsize::new(0));
+        c.subf(byclone!(out =>move |v| println!("{}", out.fetch_add(v as isize, Ordering::SeqCst))));
+
+        thread::sleep(Duration::from_millis(100));
+
+        assert_eq!(out.load(Ordering::SeqCst), 12);
     }
 
+    #[test]
+    fn no_yes()
+    {
+        let a = SimpleObservable;
+        let b = ThreadedObservable;
+
+        let c = a.concat(b);
+
+        let out = Arc::new(AtomicIsize::new(0));
+        c.subf(byclone!(out =>move |v| println!("{}", out.fetch_add(v as isize, Ordering::SeqCst))));
+
+        thread::sleep(Duration::from_millis(100));
+
+        assert_eq!(out.load(Ordering::SeqCst), 12);
+    }
+
+    #[test]
+    fn yes_no()
+    {
+        let a = ThreadedObservable;
+        let b = SimpleObservable;
+
+        let c = a.concat(b);
+
+        let out = Arc::new(AtomicIsize::new(0));
+        c.subf(byclone!(out =>move |v| println!("{}", out.fetch_add(v as isize, Ordering::SeqCst))));
+
+        thread::sleep(Duration::from_millis(100));
+
+        assert_eq!(out.load(Ordering::SeqCst), 12);
+    }
+
+    #[test]
+    fn fac_()
+    {
+        fac::create(|o|{
+            o.next(1);
+            o.next(2);
+            o.complete();
+        }).concat(fac::range(3,2)).subf(|v| println!("{}",v));
+
+        fac::range(0,1).concat(fac::create(|o| {
+            o.next(1);
+            o.complete();
+        })).subf(|v| println!("{}", v));
+
+        fac::range(0,1).concat(fac::just(222)).subf(|v| println!("{}",v));
+
+        fac::empty::<i32>().concat(fac::empty()).subf((
+            (),
+            (),
+            || println!("comp")
+        ));
+    }
 }

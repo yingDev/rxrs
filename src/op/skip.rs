@@ -83,7 +83,7 @@ mod test
     {
         let src = SimpleObservable;
         let mut out = 0;
-        src.rx().skip(1).subf(|v| out += v);
+        src.skip(1).subf(|v| out += v);
 
         assert_eq!(5, out);
     }

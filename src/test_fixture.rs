@@ -5,6 +5,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use util::mss::*;
 
+#[derive(Clone)]
 pub struct SimpleObservable;
 impl<'a> Observable<'a, i32, No> for SimpleObservable
 {
@@ -44,7 +45,7 @@ impl<'a> Observable<'a, i32, No> for StoreObserverObservable<'a>
     }
 }
 
-
+#[derive(Clone)]
 pub struct ThreadedObservable;
 impl Observable<'static, i32, Yes> for ThreadedObservable
 {

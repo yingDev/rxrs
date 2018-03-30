@@ -8,7 +8,7 @@ use std::cell::UnsafeCell;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
+//todo: refactor
 
 pub struct EmptyObservable<'a,V>(PhantomData<(&'a(), *const V)>);
 impl<'a,V> Clone for EmptyObservable<'a,V>
@@ -18,6 +18,7 @@ impl<'a,V> Clone for EmptyObservable<'a,V>
         EmptyObservable(PhantomData)
     }
 }
+
 impl<'a, V> Observable<'a, V, No> for EmptyObservable<'a,V>
 {
     fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef
@@ -76,24 +77,19 @@ pub fn create_boxed<'a:'b, 'b, V:'a, F, R>(sub: F) -> LocalBoxedObservable<'a,V,
     LocalBoxedObservable(RefCell::new(sub), PhantomData)
 }
 
-pub fn create_sso<'a, V, F, R>(sub: F) -> impl Observable<'static, V, Yes> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef
+#[derive(Clone)]
+pub struct SendSyncObserverObservable<V, F, R>(F, PhantomData<(R, V)>) where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef;
+impl<V, F, R> Observable<'static, V, Yes> for SendSyncObserverObservable<V, F, R> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef
 {
-    #[derive(Copy,Clone)]
-    struct SendSyncObserverObservable<V, F, R>(F, PhantomData<(R, V)>) where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef;
-    impl<V, F, R> Observable<'static, V, Yes> for SendSyncObserverObservable<V, F, R> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<V>+'static>) -> SubRef
     {
-        fn sub(&self, o: Mss<Yes, impl Observer<V>+'static>) -> SubRef
-        {
-            let sub = (self.0)(o.into_boxed());
-            IntoSubRef::into(sub)
-        }
+        let sub = (self.0)(o.into_boxed());
+        IntoSubRef::into(sub)
     }
-    SendSyncObserverObservable(sub, PhantomData)
 }
-
-pub fn range<'a>(start:i32, len: usize) -> RangeObservable
+pub fn create_sso<'a, V, F, R>(sub: F) -> SendSyncObserverObservable<V,F,R> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef
 {
-    RangeObservable{ start, end: start + (len as i32) }
+    SendSyncObserverObservable(sub, PhantomData)
 }
 
 #[derive(Copy,Clone)]
@@ -120,6 +116,12 @@ impl<'a> Observable<'a, i32, No> for RangeObservable
         SubRef::empty()
     }
 }
+pub fn range<'a>(start:i32, len: usize) -> RangeObservable
+{
+    RangeObservable{ start, end: start + (len as i32) }
+}
+
+
 
 #[cfg(test)]
 mod test

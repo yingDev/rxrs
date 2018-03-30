@@ -146,12 +146,14 @@ impl<'a, V,F,Ret:AsIsClosed> Observer<V> for MatchObserver<V,F> where F: Send+Sy
     fn _is_closed(&self) -> bool { self.closed.load(Ordering::SeqCst) }
 }
 
-
-pub struct ByrefOp<'a:'b, 'b, V, Src, SSO:?Sized> where Src : Observable<'a, V, SSO>+'b
+#[derive(Clone)]
+pub struct ByrefOp<'a:'b, 'b, V, Src:'b, SSO:?Sized> //where Src : Observable<'a, V, SSO>+'b
 {
     source: &'b Src,
-    PhantomData: PhantomData<(V, &'a(), SSO)>
+    PhantomData: PhantomData<(*const V, &'a(), SSO)>
 }
+unsafe impl<'a,'b,V,Src,SSO:?Sized> Send for ByrefOp<'a,'b,V,Src,SSO> where Src:Send{}
+unsafe impl<'a,'b,V,Src,SSO:?Sized> Sync for ByrefOp<'a,'b,V,Src,SSO> where Src:Sync{}
 
 
 pub trait ObservableByref<'a:'b, 'b, V, Src,SSO:?Sized> where Src : Observable<'a, V, SSO>+'b

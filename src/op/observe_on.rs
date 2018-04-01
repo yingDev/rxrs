@@ -2,20 +2,21 @@ use std::sync::Arc;
 use scheduler::Scheduler;
 use observable::*;
 use scheduler::SchedulerObserveOn;
+use util::mss::*;
 
 
-pub trait ObservableObserveOn<'sa, Src, V:'static+Send+Sync, SSA:?Sized+'static, SrcSSO:?Sized, Sch, ObserveOn: Observable<'static, V, SSA>>
-    where Src: Observable<'sa, V, SrcSSO>,
-          Sch: SchedulerObserveOn<'sa, V, Src, SSA, SrcSSO, ObserveOn>
+pub trait ObservableObserveOn<'sa, Src, V:'static+Send+Sync, Sch, SrcSSO:?Sized, SrcSSS:?Sized, SSA:?Sized, SSS:?Sized>
 {
-    fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn;
+    type ObserveOn;
+    fn observe_on(self, scheduler: Arc<Sch>) -> Self::ObserveOn;
 }
 
-impl<'sa, Src, V:'static+Send+Sync, SSA:?Sized+'static, SrcSSO:?Sized, Sch, ObserveOn: Observable<'static, V, SSA>> ObservableObserveOn<'sa, Src, V, SSA, SrcSSO, Sch, ObserveOn> for Src
-    where Src: Observable<'sa, V, SrcSSO>,
-          Sch: SchedulerObserveOn<'sa, V, Src, SSA, SrcSSO, ObserveOn>
+impl<'sa, Src, V:'static+Send+Sync, Sch, SrcSSO:?Sized, SrcSSS:?Sized, SSA:?Sized, SSS:?Sized> ObservableObserveOn<'sa, Src, V, Sch, SrcSSO, SrcSSS, SSA, SSS> for Src where
+    Src: Observable<'sa, V, SrcSSO, SrcSSS>,
+    Sch: SchedulerObserveOn<'sa, V, Src, SrcSSO, SrcSSS, SSA, SSS>
 {
-    fn observe_on(self, scheduler: Arc<Sch>) -> ObserveOn
+    type ObserveOn = Sch::ObserveOn;
+    fn observe_on(self, scheduler: Arc<Sch>) -> Self::ObserveOn
     {
         scheduler.observe_on(self)
     }

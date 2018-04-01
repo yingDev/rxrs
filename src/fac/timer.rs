@@ -9,19 +9,19 @@ use fac::*;
 use util::mss::*;
 use scheduler::SchedulerPeriodic;
 
-pub fn timer(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>
+pub fn timer<SSS:?Sized>(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<No, SSS>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static, SSS>
 {
     timer_dur(Duration::from_millis(delay), period.into().map(|v| Duration::from_millis(v)), scheduler)
 }
 
-pub fn timer_ss(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
+pub fn timer_ss(delay: u64, period: impl Into<Option<u64>>, scheduler: Arc<impl SchedulerPeriodic<Yes, Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes, Yes>
 {
     timer_dur_ss(Duration::from_millis(delay), period.into().map(|v| Duration::from_millis(v)), scheduler)
 }
 
-macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident) => {{
+macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident, $sss:ty) => {{
     let scheduler2 = $sch.clone();
-    let sig = SubRef::signal();
+    let sig = SubRef::<$sss>::signal();
 
     sig.add($sch.schedule_after($delay, Mss::<$s,_>::new(byclone!(sig => move ||
     {
@@ -47,19 +47,20 @@ macro_rules! fnbody(($s:ty, $delay:ident, $sch:ident, $period:ident, $o:ident) =
     sig
 }});
 
-pub fn timer_dur(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<No>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static>
+pub fn timer_dur<SSS:?Sized>(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<No, SSS>+Send+Sync+'static>) -> impl Observable<'static, usize, No+'static, SSS>
 {
     let period = period.into();
     create_boxed(move |o: Mss<No, Box<Observer<usize>+'static>>| {
-        fnbody!(No, delay, scheduler, period, o)
+        fnbody!(No, delay, scheduler, period, o, SSS)
     })
 }
 
-pub fn timer_dur_ss(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes>
+
+pub fn timer_dur_ss(delay: Duration, period: impl Into<Option<Duration>>, scheduler: Arc<impl SchedulerPeriodic<Yes, Yes>+Send+Sync+'static>) -> impl Observable<'static, usize, Yes, Yes>
 {
     let period = period.into();
     create_sso(move |o: Mss<Yes, Box<Observer<usize>+'static>>| {
-        fnbody!(Yes, delay, scheduler, period, o)
+        fnbody!(Yes, delay, scheduler, period, o, Yes)
     })
 }
 

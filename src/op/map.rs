@@ -5,34 +5,34 @@ use observable::RxNoti::*;
 use util::mss::*;
 
 #[derive(Clone)]
-pub struct MapOp<FProj, V, Src, SSO:?Sized>
+pub struct MapOp<FProj, V, Src, SSO:?Sized, SSS:?Sized>
 {
     proj: FProj,
     source: Src,
-    PhantomData: PhantomData<(V, SSO)>
+    PhantomData: PhantomData<(V, *const SSO, *const SSS)>
 }
 
-pub trait ObservableOpMap<'a, V, Src, SSO:?Sized>
+pub trait ObservableOpMap<'a, V, Src, SSO:?Sized, SSS:?Sized>
 {
-    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO> where FProj : 'a + Fn(V)->VOut;
+    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO, SSS> where FProj : 'a + Fn(V)->VOut;
 }
 
-impl<'a, V, Src, SSO:?Sized> ObservableOpMap<'a, V, Src, SSO> for Src where Src : Observable<'a, V, SSO>
+impl<'a, V, Src, SSO:?Sized, SSS:?Sized> ObservableOpMap<'a, V, Src, SSO, SSS> for Src where Src : Observable<'a, V, SSO, SSS>
 {
     #[inline(always)]
-    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO> where FProj : 'a +Fn(V)->VOut
+    fn map<FProj,VOut>(self, proj: FProj) -> MapOp< FProj, V, Src, SSO, SSS> where FProj : 'a +Fn(V)->VOut
     {
         MapOp{ proj: proj, source: self, PhantomData }
     }
 }
 
 macro_rules! fn_sub(
-($s:ty) => {
+($s:ty, $sss: ty) => {
     #[inline(always)]
-    fn sub(&self, o: Mss<$s, impl Observer<VOut> +'a>) -> SubRef
+    fn sub(&self, o: Mss<$s, impl Observer<VOut> +'a>) -> SubRef<$sss>
     {
         let f = self.proj.clone();
-        let sub = SubRef::signal();
+        let sub = SubRef::<$sss>::signal();
 
         sub.clone().added(self.source.sub_noti(byclone!(sub => move |n| {
         match n {
@@ -57,39 +57,57 @@ macro_rules! fn_sub(
     }
 });
 
-impl<'a, V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable<'a, VOut, Yes> for MapOp<FProj, V, Src, Yes> where
+impl<'a, V:'static+Send+Sync, Src, VOut:'static+Send+Sync, FProj> Observable<'a, VOut, Yes, Yes> for MapOp<FProj, V, Src, Yes, Yes> where
     FProj : 'a + Clone+Send+Sync+Fn(V)->VOut,
-    Src: Observable<'a, V, Yes>,
+    Src: Observable<'a, V, Yes, Yes>,
 {
-    fn_sub!(Yes);
+    fn_sub!(Yes, Yes);
 }
 
-impl<'a, V:'a, Src, VOut:'static, FProj> Observable<'a, VOut, No> for MapOp<FProj, V, Src, No> where
+impl<'a, V:'a, Src, VOut:'static, FProj> Observable<'a, VOut, No, No> for MapOp<FProj, V, Src, No, No> where
     FProj : 'a + Clone + Fn(V)->VOut,
-    Src: Observable<'a, V, No>
+    Src: Observable<'a, V, No, No>
 {
-    fn_sub!(No);
+    fn_sub!(No, No);
+}
+
+impl<'a, V:'a, Src, VOut:'static, FProj> Observable<'a, VOut, No, Yes> for MapOp<FProj, V, Src, No, Yes> where
+    FProj : 'a + Clone + Fn(V)->VOut,
+    Src: Observable<'a, V, No, Yes>
+{
+    fn_sub!(No, Yes);
 }
 
 
 #[cfg(test)]
 mod test
 {
-//    use super::*;
-//    use ::std::sync::atomic::*;
-//    use fac::rxfac;
-//
-//    #[test]
-//    fn basic()
-//    {
-//        let mut r = 0;
-//
-//        {
-//            let x = 2018;
-//            let src = rxfac::range(1..2);
-//            src.map(|v| v*x ).subf(|v| r += v );
-//        }
-//
-//        assert_eq!(r, 2018);
-//    }
+    use super::*;
+    use ::std::sync::atomic::*;
+    use test_fixture::*;
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn basic()
+    {
+        let mut out = 0;
+        let src = SimpleObservable;
+
+        src.map(|v| v*2).subf(|v| out += v);
+        assert_eq!(out, 12);
+    }
+
+    #[test]
+    fn threaded()
+    {
+        let  out = Arc::new(AtomicUsize::new(0));
+        let src = ThreadedObservable;
+
+        src.map(|v| v*2).subf(byclone!(out => move |v| out.fetch_add(v as usize, Ordering::SeqCst)));
+
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(out.load(Ordering::SeqCst), 12);
+    }
 }

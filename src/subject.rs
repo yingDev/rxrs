@@ -22,11 +22,12 @@ use std::sync::Once;
 use std::sync::Weak;
 use std::cell::UnsafeCell;
 use std::mem;
+use util::mss::*;
 
 struct SubRecord<'a,V>
 {
     o: Arc<Observer<V>+Send+Sync+'a>,
-    sub: SubRef
+    sub: SubRef<Yes>
 }
 
 impl<'a,V> Clone for SubRecord<'a, V>
@@ -50,7 +51,7 @@ unsafe impl<'a,V> Sync for Subject<'a, V>{}
 struct State<'a, V>
 {
     completed: AtomicBool,
-    err: ArcCell<Option<Arc<Any+Send+Sync>>>,
+    err: ArcCell<Option<ArcErr>>,
     obs: ArcCell<Option<Vec<SubRecord<'a, V>>>>,
 }
 
@@ -75,7 +76,7 @@ impl<'a, V> Drop for Subject<'a, V>
 impl<'a,V> State<'a,V>
 {
     #[inline(always)]
-    fn unsub(&self, subref: Option<&SubRef>)
+    fn unsub(&self, subref: Option<&SubRef<Yes>>)
     {
         let mut new_obs = None;
         let mut vec = None;
@@ -122,13 +123,13 @@ impl<'a,V> State<'a,V>
     }
 }
 
-impl<'a, V> Observable<'a,V, Yes> for Subject<'a,V>
+impl<'a, V> Observable<'a,V, Yes, Yes> for Subject<'a,V>
 {
-    fn sub(&self, o: Mss<Yes, impl Observer<V>+'a>) -> SubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<V>+'a>) -> SubRef<Yes>
     {
         let state = &self.state;
 
-        let mut some_o = Some(o);
+        let mut some_o: Option<Mss<Yes,_>> = Some(o);
         let mut obs_vec= None;
         let mut observer: Option<Arc<Observer<V>+Send+Sync>> = None;
         let mut sub = None;
@@ -153,15 +154,18 @@ impl<'a, V> Observable<'a,V, Yes> for Subject<'a,V>
 
             if obs_vec.is_none() {
                 let weak_state: Weak<State<PhantomData<()>>> = unsafe { mem::transmute(Arc::downgrade(state)) };
-                let _sub = SubRef::signal();
-                let _sub2 = _sub.clone();
-                _sub.add(SubRef::from_fn(box move || {
+                let _sub = SubRef::<Yes>::signal();
+                _sub.add(SubRef::<Yes>::new(byclone!(_sub=>move || {
                     if let Some(s) = weak_state.upgrade() {
-                        s.unsub(Some(&_sub2));
+                        s.unsub(Some(&_sub));
                     }
-                }));
+                })));
                 sub = Some(_sub);
-                observer = Some(Arc::new( some_o.take().unwrap()) );
+                
+                let p : *mut Observer<V> = Box::into_raw(box some_o.take().unwrap().into_inner());
+                let p : *mut (Observer<V>+Send+Sync) = unsafe { mem::transmute(p) };
+
+                observer = Some(Arc::from( unsafe{ Box::from_raw(p) } ));
                 new_obs = Some(Arc::new(None));
                 obs_vec = Some(Vec::with_capacity(Arc::as_ref(&old_obs).as_ref().unwrap().len()+1));
             }
@@ -199,7 +203,7 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
     }
 
     #[inline(always)]
-    fn err(&self, e: Arc<Any+Send+Sync>)
+    fn err(&self, e: ArcErr)
     {
         let state = &self.state;
         if state.completed.load(Ordering::SeqCst) { return; }
@@ -256,6 +260,23 @@ impl<'a, V:Clone> Observer<V> for Subject<'a, V>
 }
 
 #[cfg(test)]
-mod test {
+mod test
+{
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
 
+    #[test]
+    fn basic()
+    {
+        let out = Arc::new(AtomicUsize::new(0));
+        let s = Subject::new();
+
+        s.subf(byclone!(out => move |v| out.fetch_add(v, Ordering::SeqCst)));
+
+        s.next(1);
+        s.next(2);
+        s.complete();
+
+        assert_eq!(3, out.load(Ordering::SeqCst));
+    }
 }

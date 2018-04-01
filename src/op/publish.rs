@@ -6,18 +6,30 @@ use subref::SubRef;
 use std::sync::Arc;
 use connectable_observable::*;
 use subject::Subject;
+use subject_nss::Subject as SubjectNss;
+use util::mss::*;
 
-pub trait ObservablePublish<'a, V, Src>  where  Src : Observable<'a, V>, V:Clone
+pub trait ObservablePublish<'a, V, Src, Subj, SSO:?Sized, SSS:?Sized>
 {
-    fn publish(self) -> ConnectableObservable<'a, V, Src, Subject<'a, V>>;
+    fn publish(self) -> ConnectableObservable<'a, V, Src, Subj, SSO, SSS>;
 }
 
-impl<'a, V, Src> ObservablePublish<'a, V, Src> for Src where  Src : Observable<'a, V>, V:Clone
+impl<'a, V, Src> ObservablePublish<'a, V, Src, Subject<'a,V>, Yes, Yes> for Src where  Src : Observable<'a, V, Yes, Yes>, V:Clone
 {
     #[inline(always)]
-    fn publish(self) -> ConnectableObservable<'a, V, Src, Subject<'a, V>>
+    fn publish(self) -> ConnectableObservable<'a, V, Src, Subject<'a, V>, Yes, Yes>
     {
-        ConnectableObservable::new(self, Subject::new())
+        ConnectableObservable::<'a, V, Src, Subject<'a, V>, Yes, Yes>::new(self, Subject::new())
+    }
+}
+
+
+impl<'a, V, Src> ObservablePublish<'a, V, Src, SubjectNss<'a,V>, No, No> for Src where  Src : Observable<'a, V, No, No>, V:Clone
+{
+    #[inline(always)]
+    fn publish(self) -> ConnectableObservable<'a, V, Src, SubjectNss<'a, V>, No, No>
+    {
+        ConnectableObservable::<'a, V, Src, SubjectNss<'a, V>, No, No>::new(self, SubjectNss::new())
     }
 }
 
@@ -25,20 +37,21 @@ impl<'a, V, Src> ObservablePublish<'a, V, Src> for Src where  Src : Observable<'
 mod test
 {
     use super::*;
-    use fac::*;
+    use test_fixture::*;
     use ::std::sync::atomic::*;
 
     #[test]
     fn basic()
     {
-        let result = AtomicIsize::new(0);
+        let mut out = 0;
+        let src = SimpleObservable;
+        {
+            let con = src.publish();
+            con.subf(|v| out += v);
+            con.connect();
+        }
 
-        let src = rxfac::range(0..10).publish();
-        let sub = src.rx().subf(|v| { result.fetch_add(1, Ordering::SeqCst); } );
-
-        assert_eq!(result.load(Ordering::SeqCst), 0);
-        src.connect();
-        assert_eq!(result.load(Ordering::SeqCst), 10);
+        assert_eq!(out, 6);
     }
 
 }

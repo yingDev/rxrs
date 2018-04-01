@@ -17,25 +17,25 @@ use std::mem;
 
 //todo: facade
 //todo: act -> SubRef seem useless
-pub trait Scheduler<SSA:?Sized+'static>
+pub trait Scheduler<SSA:?Sized, SSS:?Sized>
 {
-    fn schedule(&self, act: Mss<SSA,impl 'static+FnOnce()->SubRef>) -> SubRef;
-    fn schedule_after(&self, due: Duration, act: Mss<SSA, impl 'static+FnOnce()->SubRef>) -> SubRef;
+    fn schedule(&self, act: Mss<SSA,impl 'static+FnOnce()->SubRef<SSS>>) -> SubRef<SSS>;
+    fn schedule_after(&self, due: Duration, act: Mss<SSA, impl 'static+FnOnce()->SubRef<SSS>>) -> SubRef<SSS>;
 }
 
-pub trait SchedulerObserveOn<'sa, V:'static+Send+Sync, Src, SSA:?Sized+'static, SrcSSO:?Sized, ObserveOn: Observable<'static, V, SSA>> : Scheduler<SSA> where Src: Observable<'sa, V, SrcSSO>
+pub trait SchedulerObserveOn<'sa, V:'static+Send+Sync, Src, SSA:?Sized, SrcSSO:?Sized, ObserveOn: Observable<'static, V, SSA, SSS>, SSS:?Sized> : Scheduler<SSA, SSS> where Src: Observable<'sa, V, SrcSSO, SSS>
 {
     fn observe_on(&self, source: Src) -> ObserveOn;
 }
 
-pub trait SchedulerPeriodic<SSA:?Sized+'static> : Scheduler<SSA>
+pub trait SchedulerPeriodic<SSA:?Sized+'static, SSS:?Sized> : Scheduler<SSA, SSS>
 {
-    fn schedule_periodic(&self, period: Duration,sigStop: SubRef, act: Mss<SSA, impl 'static+Fn()>) -> SubRef;
+    fn schedule_periodic(&self, period: Duration,sigStop: SubRef<SSS>, act: Mss<SSA, impl 'static+Fn()>) -> SubRef<SSS>;
 }
 
-pub trait SchedulerLongRunning<SSA:?Sized+'static> : Scheduler<SSA>
+pub trait SchedulerLongRunning<SSA:?Sized+'static, SSS:?Sized> : Scheduler<SSA, SSS>
 {
-    fn schedule_long_running(&self, sigStop: SubRef, act: Mss<SSA, impl 'static+FnOnce()>) -> SubRef;
+    fn schedule_long_running(&self, sigStop: SubRef<SSS>, act: Mss<SSA, impl 'static+FnOnce()>) -> SubRef<SSS>;
 }
 
 pub struct ImmediateScheduler;
@@ -53,23 +53,23 @@ impl ImmediateScheduler
     }
 }
 
-impl Scheduler<No> for ImmediateScheduler
+impl Scheduler<No, No> for ImmediateScheduler
 {
-    fn schedule(&self, act: Mss<No,impl 'static+FnOnce()->SubRef>) -> SubRef
+    fn schedule(&self, act: Mss<No,impl 'static+FnOnce()->SubRef<No>>) -> SubRef<No>
     {
         (act.into_inner())()
     }
 
-    fn schedule_after(&self, due: Duration, act: Mss<No,impl 'static+FnOnce()->SubRef>) -> SubRef
+    fn schedule_after(&self, due: Duration, act: Mss<No,impl 'static+FnOnce()->SubRef<No>>) -> SubRef<No>
     {
         ::std::thread::sleep(due);
         (act.into_inner())()
     }
 }
 
-impl SchedulerPeriodic<No> for ImmediateScheduler
+impl SchedulerPeriodic<No, No> for ImmediateScheduler
 {
-    fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: Mss<No,impl 'static+Fn()>) -> SubRef
+    fn schedule_periodic(&self, period: Duration, sigStop: SubRef<No>, act: Mss<No,impl 'static+Fn()>) -> SubRef<No>
     {
         while ! sigStop.disposed()
             {
@@ -84,9 +84,9 @@ impl SchedulerPeriodic<No> for ImmediateScheduler
     }
 }
 
-impl SchedulerLongRunning<No> for ImmediateScheduler
+impl SchedulerLongRunning<No, No> for ImmediateScheduler
 {
-    fn schedule_long_running(&self, sigStop: SubRef, act: Mss<No, impl 'static+FnOnce()>) -> SubRef
+    fn schedule_long_running(&self, sigStop: SubRef<No>, act: Mss<No, impl 'static+FnOnce()>) -> SubRef<No>
     {
         if sigStop.disposed() { return sigStop; }
         let act = act.into_inner();
@@ -115,11 +115,11 @@ impl NewThreadScheduler
     }
 }
 
-impl Scheduler<Yes> for NewThreadScheduler
+impl Scheduler<Yes, Yes> for NewThreadScheduler
 {
-    fn schedule(&self, act: Mss<Yes,impl 'static+FnOnce()->SubRef>) -> SubRef
+    fn schedule(&self, act: Mss<Yes,impl 'static+FnOnce()->SubRef<Yes>>) -> SubRef<Yes>
     {
-        let unsub = SubRef::signal();
+        let unsub = SubRef::<Yes>::signal();
         let unsub2 = unsub.clone();
 
        ::std::thread::spawn(move ||{
@@ -129,9 +129,9 @@ impl Scheduler<Yes> for NewThreadScheduler
        unsub
     }
 
-    fn schedule_after(&self, due: Duration, act: Mss<Yes,impl 'static+FnOnce()->SubRef>) -> SubRef
+    fn schedule_after(&self, due: Duration, act: Mss<Yes,impl 'static+FnOnce()->SubRef<Yes>>) -> SubRef<Yes>
     {
-        let unsub = SubRef::signal();
+        let unsub = SubRef::<Yes>::signal();
         let unsub2 = unsub.clone();
 
         ::std::thread::spawn(move ||{
@@ -143,9 +143,9 @@ impl Scheduler<Yes> for NewThreadScheduler
     }
 }
 
-impl SchedulerLongRunning<Yes> for NewThreadScheduler
+impl SchedulerLongRunning<Yes, Yes> for NewThreadScheduler
 {
-    fn schedule_long_running(&self, sigStop: SubRef, act: Mss<Yes, impl 'static+FnOnce()>) -> SubRef
+    fn schedule_long_running(&self, sigStop: SubRef<Yes>, act: Mss<Yes, impl 'static+FnOnce()>) -> SubRef<Yes>
     {
         ::std::thread::spawn(move || {
             (act.into_inner())();
@@ -154,9 +154,9 @@ impl SchedulerLongRunning<Yes> for NewThreadScheduler
     }
 }
 
-impl SchedulerPeriodic<Yes> for NewThreadScheduler
+impl SchedulerPeriodic<Yes, Yes> for NewThreadScheduler
 {
-    fn schedule_periodic(&self, period: Duration, sigStop: SubRef, act: Mss<Yes,impl 'static+Fn()>) -> SubRef
+    fn schedule_periodic(&self, period: Duration, sigStop: SubRef<Yes>, act: Mss<Yes,impl 'static+Fn()>) -> SubRef<Yes>
     {
         let stop = sigStop.clone();
         ::std::thread::spawn(move || {
@@ -170,7 +170,7 @@ impl SchedulerPeriodic<Yes> for NewThreadScheduler
     }
 }
 
-impl<'sa, V:'static+Send+Sync, Src> SchedulerObserveOn<'sa, V, Src, Yes, Yes, ObserveOnNewThread<'sa, V, Src, Yes>> for NewThreadScheduler  where Src: Observable<'sa, V, Yes>
+impl<'sa, V:'static+Send+Sync, Src> SchedulerObserveOn<'sa, V, Src, Yes, Yes, ObserveOnNewThread<'sa, V, Src, Yes>, Yes> for NewThreadScheduler  where Src: Observable<'sa, V, Yes, Yes>
 {
     fn observe_on(&self, source: Src) -> ObserveOnNewThread<'sa, V, Src, Yes>
     {
@@ -179,7 +179,7 @@ impl<'sa, V:'static+Send+Sync, Src> SchedulerObserveOn<'sa, V, Src, Yes, Yes, Ob
 }
 
 
-impl<'sa, V:'static+Send+Sync, Src> SchedulerObserveOn<'sa, V, Src, Yes, No, ObserveOnNewThread<'sa, V, Src, No>> for NewThreadScheduler  where Src: Observable<'sa, V, No>
+impl<'sa, V:'static+Send+Sync, Src> SchedulerObserveOn<'sa, V, Src, Yes, No, ObserveOnNewThread<'sa, V, Src, No>, Yes> for NewThreadScheduler  where Src: Observable<'sa, V, No, Yes>
 {
     fn observe_on(&self, source: Src) -> ObserveOnNewThread<'sa, V, Src, No>
     {
@@ -188,7 +188,7 @@ impl<'sa, V:'static+Send+Sync, Src> SchedulerObserveOn<'sa, V, Src, Yes, No, Obs
 }
 
 
-pub struct ObserveOnNewThread<'sa, V:'static, Src, SrcSSO:?Sized> where Src: Observable<'sa, V, SrcSSO>
+pub struct ObserveOnNewThread<'sa, V:'static, Src, SrcSSO:?Sized> where Src: Observable<'sa, V, SrcSSO, Yes>
 {
     source: Src,
     scheduler: Arc<NewThreadScheduler>,
@@ -197,13 +197,13 @@ pub struct ObserveOnNewThread<'sa, V:'static, Src, SrcSSO:?Sized> where Src: Obs
 
 macro_rules! fn_sub(
 ($s: ty)=>{
-    fn sub(&self, o: Mss<Yes, impl Observer<V> +'static>) -> SubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<V> +'static>) -> SubRef<Yes>
     {
         let queue =  Arc::new((Condvar::new(), Mutex::new(VecDeque::new()), AtomicOption::new()));
         let stopped = Arc::new(AtomicBool::new(false));
 
         let q = queue.clone();
-        let sub = SubRef::signal();
+        let sub = SubRef::<Yes>::signal();
 
         sub.add(self.scheduler.schedule_long_running(sub.clone(), Mss::new(byclone!(q, stopped => move || {
             dispatch(o, q, stopped);
@@ -240,11 +240,11 @@ macro_rules! fn_sub(
     }
 });
 
-impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes> for ObserveOnNewThread<'sa, V, Src, Yes> where Src: Observable<'sa, V, Yes>
+impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes, Yes> for ObserveOnNewThread<'sa, V, Src, Yes> where Src: Observable<'sa, V, Yes, Yes>
 {
     fn_sub!(Yes);
 }
-impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes> for ObserveOnNewThread<'sa, V, Src, No> where Src: Observable<'sa, V, No>
+impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes, Yes> for ObserveOnNewThread<'sa, V, Src, No> where Src: Observable<'sa, V, No, Yes>
 {
     fn_sub!(No);
 }
@@ -292,7 +292,7 @@ mod test
     #[test]
     fn requirements()
     {
-        fn a<'sa, Src, OO:Observable<'static, i32, Yes>>(src:Src, sch: Arc<impl SchedulerLongRunning<Yes>+SchedulerPeriodic<Yes>+SchedulerObserveOn<'sa, i32, Src, Yes, Yes, OO>>) where Src: Observable<'sa, i32, Yes>
+        fn a<'sa, Src, OO:Observable<'static, i32, Yes, Yes>>(src:Src, sch: Arc<impl SchedulerLongRunning<Yes, Yes>+SchedulerPeriodic<Yes, Yes>+SchedulerObserveOn<'sa, i32, Src, Yes, Yes, OO, Yes>>) where Src: Observable<'sa, i32, Yes, Yes>
         {
             println!("ok");
         }

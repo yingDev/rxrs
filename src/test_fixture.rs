@@ -7,9 +7,9 @@ use util::mss::*;
 
 #[derive(Clone)]
 pub struct SimpleObservable;
-impl<'a> Observable<'a, i32, No> for SimpleObservable
+impl<'a> Observable<'a, i32, No, No> for SimpleObservable
 {
-    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef
+    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef<No>
     {
        o.next(1);
        o.next(2);
@@ -36,9 +36,9 @@ impl<'a> StoreObserverObservable<'a>
         self.o.borrow().as_ref().unwrap().next(v);
     }
 }
-impl<'a> Observable<'a, i32, No> for StoreObserverObservable<'a>
+impl<'a> Observable<'a, i32, No, Yes> for StoreObserverObservable<'a>
 {
-    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef
+    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef<Yes>
     {
         *self.o.borrow_mut() = Some(Box::new(o.into_inner()));
         SubRef::empty()
@@ -47,18 +47,22 @@ impl<'a> Observable<'a, i32, No> for StoreObserverObservable<'a>
 
 #[derive(Clone)]
 pub struct ThreadedObservable;
-impl Observable<'static, i32, Yes> for ThreadedObservable
+impl Observable<'static, i32, Yes, Yes> for ThreadedObservable
 {
-    fn sub(&self, o: Mss<Yes, impl Observer<i32>+'static>) -> SubRef
+    fn sub(&self, o: Mss<Yes, impl Observer<i32>+'static>) -> SubRef<Yes>
     {
-        ::std::thread::spawn(move ||{
+        let sub = SubRef::signal();
+
+        ::std::thread::spawn( byclone!(sub =>move ||{
             o.next(1);
             o.next(2);
             o.next(3);
             o.complete();
-        });
 
-        SubRef::empty()
+            sub.unsub();
+        }));
+
+        sub
     }
 }
 

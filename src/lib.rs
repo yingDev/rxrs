@@ -17,17 +17,20 @@
 #![feature(unsize)]
 #![feature(conservative_impl_trait)]
 #![allow(non_snake_case)]
+#![feature(optin_builtin_traits)]
+#![feature(core_intrinsics)]
 
 #[macro_use] pub mod util;
 
 pub mod observable;
-//pub mod subject;
+pub mod subject;
+pub mod subject_nss;
 //pub mod behaviour_subject;
 pub mod op;
 pub mod scheduler;
 mod fac;
 mod subref;
-//pub mod connectable_observable;
+pub mod connectable_observable;
 
 pub use fac::*;
 pub use subref::*;

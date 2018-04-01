@@ -12,36 +12,36 @@ use observable::RxNoti::*;
 use util::mss::*;
 
 #[derive(Clone)]
-pub struct SkipOp<'a, Src, V, SSO:?Sized+'static>
+pub struct SkipOp<'a, Src, V, SSO:?Sized, SSS:?Sized>
 {
     source: Src,
     total: usize,
-    PhantomData: PhantomData<(*const V, *const SSO, &'a ())>
+    PhantomData: PhantomData<(*const V, *const SSO, &'a (), *const SSS)>
 }
 
-pub trait ObservableSkip<'a, Src, V, SSO:?Sized+'static> where Src : Observable<'a,V,SSO>
+pub trait ObservableSkip<'a, Src, V, SSO:?Sized, SSS:?Sized> where Src : Observable<'a,V,SSO, SSS>
 {
-    fn skip(self, total: usize) -> SkipOp<'a, Src, V, SSO>;
+    fn skip(self, total: usize) -> SkipOp<'a, Src, V, SSO, SSS>;
 }
 
-impl<'a,Src, V, SSO:?Sized+'static> ObservableSkip<'a, Src, V, SSO> for Src where Src : Observable<'a, V, SSO>,
+impl<'a,Src, V, SSO:?Sized, SSS:?Sized> ObservableSkip<'a, Src, V, SSO, SSS> for Src where Src : Observable<'a, V, SSO, SSS>,
 {
     #[inline(always)]
-    fn skip(self, total: usize) -> SkipOp<'a, Src, V, SSO>
+    fn skip(self, total: usize) -> SkipOp<'a, Src, V, SSO, SSS>
     {
         SkipOp{ total, PhantomData, source: self  }
     }
 }
 
-macro_rules! fn_sub(($s: ty) => {
-     fn sub(&self, o: Mss<$s, impl Observer<V> +'a>) -> SubRef
+macro_rules! fn_sub(($s: ty, $sss:ty) => {
+     fn sub(&self, o: Mss<$s, impl Observer<V> +'a>) -> SubRef<$sss>
     {
         let mut count = self.total;
         if count == 0 {
             return self.source.sub(o);
         }
 
-        let sub = SubRef::signal();
+        let sub = SubRef::<$sss>::signal();
 
         sub.add(self.source.sub_noti(byclone!(sub => move |n|{
             match n {
@@ -63,13 +63,18 @@ macro_rules! fn_sub(($s: ty) => {
     }
 });
 
-impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, Yes> for SkipOp<'a, Src, V, Yes> where Src: Observable<'a, V, Yes>
+impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, Yes, Yes> for SkipOp<'a, Src, V, Yes, Yes> where Src: Observable<'a, V, Yes, Yes>
 {
-    fn_sub!(Yes);
+    fn_sub!(Yes, Yes);
 }
-impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, No> for SkipOp<'a, Src, V, No> where Src: Observable<'a, V, No>
+impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, No, Yes> for SkipOp<'a, Src, V, No, Yes> where Src: Observable<'a, V, No, Yes>
 {
-    fn_sub!(No);
+    fn_sub!(No, Yes);
+}
+
+impl<'a, Src, V:'a+Send+Sync> Observable<'a,V, No, No> for SkipOp<'a, Src, V, No, No> where Src: Observable<'a, V, No, No>
+{
+    fn_sub!(No, No);
 }
 
 #[cfg(test)]

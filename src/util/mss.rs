@@ -1,8 +1,12 @@
 use std::ops::CoerceUnsized;
 use std::ops::Deref;
 use std::marker::Unsize;
+use std::mem;
+use std::sync::Arc;
+use std::any::Any;
 
 pub trait No {}
+#[derive(Clone)]
 pub struct Yes;
 impl Yes{}
 impl No for Yes{}

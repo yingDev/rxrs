@@ -1,5 +1,5 @@
 use std::time::Duration;
-use subref::SubRef;
+use subref::*;
 use std::sync::Arc;
 use std::sync::Once;
 use std::sync::ONCE_INIT;
@@ -14,6 +14,9 @@ use observable::RxNoti::*;
 use util::AtomicOption;
 use std::any::Any;
 use std::mem;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::boxed::FnBox;
 
 //todo: facade
 //todo: act -> SubRef seem useless
@@ -21,6 +24,23 @@ pub trait Scheduler<SSA:?Sized, SSS:?Sized>
 {
     fn schedule(&self, act: Mss<SSA,impl 'static+FnOnce()->SubRef<SSS>>) -> SubRef<SSS>;
     fn schedule_after(&self, due: Duration, act: Mss<SSA, impl 'static+FnOnce()->SubRef<SSS>>) -> SubRef<SSS>;
+}
+
+thread_local!{
+    static SYNCTXT: RefCell<Option<Arc<SychronizationContext>>> = RefCell::new(None);
+}
+pub fn get_sync_context() -> Option<Arc<SychronizationContext>>
+{
+    SYNCTXT.with(|it| it.borrow().clone())
+}
+pub fn set_sync_context(val: Option<Arc<SychronizationContext>>) -> Option<Arc<SychronizationContext>>
+{
+    SYNCTXT.with(move |it| it.replace(val))
+}
+
+pub trait SychronizationContext
+{
+    fn create_send(&self, act: Box<'static+FnBox()>)->SubRef<Yes>;
 }
 
 pub trait SchedulerObserveOn<'sa, V, Src, SrcSSO:?Sized, SrcSSS:?Sized, SSA:?Sized, SSS:?Sized> : Scheduler<SSA, SSS>
@@ -32,12 +52,12 @@ pub trait SchedulerObserveOn<'sa, V, Src, SrcSSO:?Sized, SrcSSS:?Sized, SSA:?Siz
 
 pub trait SchedulerPeriodic<SSA:?Sized+'static, SSS:?Sized> : Scheduler<SSA, SSS>
 {
-    fn schedule_periodic(&self, period: Duration,sigStop: SubRef<SSS>, act: Mss<SSA, impl 'static+Fn()>) -> SubRef<SSS>;
+    fn schedule_periodic(&self, period: Duration,sigStop: InnerSubRef<SSS>, act: Mss<SSA, impl 'static+Fn()>) -> SubRef<SSS>;
 }
 
 pub trait SchedulerLongRunning<SSA:?Sized+'static, SSS:?Sized> : Scheduler<SSA, SSS>
 {
-    fn schedule_long_running(&self, sigStop: SubRef<SSS>, act: Mss<SSA, impl 'static+FnOnce()>) -> SubRef<SSS>;
+    fn schedule_long_running(&self, sigStop: InnerSubRef<SSS>, act: Mss<SSA, impl 'static+FnOnce()>) -> SubRef<SSS>;
 }
 
 pub struct ImmediateScheduler;
@@ -71,7 +91,7 @@ impl Scheduler<No, No> for ImmediateScheduler
 
 impl SchedulerPeriodic<No, No> for ImmediateScheduler
 {
-    fn schedule_periodic(&self, period: Duration, sigStop: SubRef<No>, act: Mss<No,impl 'static+Fn()>) -> SubRef<No>
+    fn schedule_periodic(&self, period: Duration, sigStop: InnerSubRef<No>, act: Mss<No,impl 'static+Fn()>) -> SubRef<No>
     {
         while ! sigStop.disposed()
             {
@@ -82,20 +102,20 @@ impl SchedulerPeriodic<No, No> for ImmediateScheduler
                 act();
             }
 
-        sigStop
+        sigStop.into()
     }
 }
 
 impl SchedulerLongRunning<No, No> for ImmediateScheduler
 {
-    fn schedule_long_running(&self, sigStop: SubRef<No>, act: Mss<No, impl 'static+FnOnce()>) -> SubRef<No>
+    fn schedule_long_running(&self, sigStop: InnerSubRef<No>, act: Mss<No, impl 'static+FnOnce()>) -> SubRef<No>
     {
-        if sigStop.disposed() { return sigStop; }
+        if sigStop.disposed() { return sigStop.into(); }
         let act = act.into_inner();
         self.schedule(Mss::no(||{
-            if sigStop.disposed() { return sigStop; }
+            if sigStop.disposed() { return sigStop.into(); }
             act();
-            sigStop
+            sigStop.into()
         }))
     }
 }
@@ -121,19 +141,19 @@ impl Scheduler<Yes, Yes> for NewThreadScheduler
 {
     fn schedule(&self, act: Mss<Yes,impl 'static+FnOnce()->SubRef<Yes>>) -> SubRef<Yes>
     {
-        let unsub = SubRef::<Yes>::signal();
+        let unsub = InnerSubRef::<Yes>::signal();
         let unsub2 = unsub.clone();
 
        ::std::thread::spawn(move ||{
            unsub2.add((act.into_inner())());
        });
 
-       unsub
+       unsub.into()
     }
 
     fn schedule_after(&self, due: Duration, act: Mss<Yes,impl 'static+FnOnce()->SubRef<Yes>>) -> SubRef<Yes>
     {
-        let unsub = SubRef::<Yes>::signal();
+        let unsub = InnerSubRef::<Yes>::signal();
         let unsub2 = unsub.clone();
 
         ::std::thread::spawn(move ||{
@@ -141,7 +161,7 @@ impl Scheduler<Yes, Yes> for NewThreadScheduler
             if ! unsub2.disposed() { unsub2.add((act.into_inner())()); }
         });
 
-        unsub
+        unsub.into()
     }
 }
 
@@ -150,9 +170,9 @@ impl Scheduler<Yes, No> for NewThreadScheduler
 {
     fn schedule(&self, act: Mss<Yes,impl 'static+FnOnce()->SubRef<No>>) -> SubRef<No>
     {
-        let unsub = SubRef::<No>::signal();
-        let sig = SubRef::<Yes>::signal();
-        unsub.addss(sig.clone());
+        let unsub = InnerSubRef::<No>::signal();
+        let sig = InnerSubRef::<Yes>::signal();
+        unsub.addss(sig.clone().into());
 
         ::std::thread::spawn(move ||{
             if ! sig.disposed() {
@@ -160,15 +180,15 @@ impl Scheduler<Yes, No> for NewThreadScheduler
             }
         });
 
-        unsub
+        unsub.into()
     }
 
     fn schedule_after(&self, due: Duration, act: Mss<Yes,impl 'static+FnOnce()->SubRef<No>>) -> SubRef<No>
     {
-        let unsub = SubRef::<No>::signal();
-        let sig = SubRef::<Yes>::signal();
+        let unsub = InnerSubRef::<No>::signal();
+        let sig = InnerSubRef::<Yes>::signal();
 
-        unsub.addss(sig.clone());
+        unsub.addss(sig.clone().into());
 
         ::std::thread::spawn(move ||{
             ::std::thread::sleep(due);
@@ -177,24 +197,24 @@ impl Scheduler<Yes, No> for NewThreadScheduler
             }
         });
 
-        unsub
+        unsub.into()
     }
 }
 
 impl SchedulerLongRunning<Yes, Yes> for NewThreadScheduler
 {
-    fn schedule_long_running(&self, sigStop: SubRef<Yes>, act: Mss<Yes, impl 'static+FnOnce()>) -> SubRef<Yes>
+    fn schedule_long_running(&self, sigStop: InnerSubRef<Yes>, act: Mss<Yes, impl 'static+FnOnce()>) -> SubRef<Yes>
     {
         ::std::thread::spawn(move || {
             (act.into_inner())();
         });
-        sigStop
+        sigStop.into()
     }
 }
 
 impl SchedulerPeriodic<Yes, Yes> for NewThreadScheduler
 {
-    fn schedule_periodic(&self, period: Duration, sigStop: SubRef<Yes>, act: Mss<Yes,impl 'static+Fn()>) -> SubRef<Yes>
+    fn schedule_periodic(&self, period: Duration, sigStop: InnerSubRef<Yes>, act: Mss<Yes,impl 'static+Fn()>) -> SubRef<Yes>
     {
         let stop = sigStop.clone();
         ::std::thread::spawn(move || {
@@ -204,7 +224,7 @@ impl SchedulerPeriodic<Yes, Yes> for NewThreadScheduler
                     act();
                 }
             });
-        sigStop
+        sigStop.into()
     }
 }
 
@@ -245,7 +265,7 @@ macro_rules! fn_sub(
         let stopped = Arc::new(AtomicBool::new(false));
 
         let q = queue.clone();
-        let sub = SubRef::<Yes>::signal();
+        let sub = InnerSubRef::<Yes>::signal();
 
         sub.add(self.scheduler.schedule_long_running(sub.clone(), Mss::new(byclone!(q, stopped => move || {
             dispatch(o, q, stopped);
@@ -276,9 +296,9 @@ macro_rules! fn_sub(
                 return IsClosed::True;
             }
             return IsClosed::Default;
-        })).added(sub.clone()));
+        })));
 
-        sub
+        sub.into()
     }
 });
 
@@ -294,10 +314,10 @@ impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes, No> for ObserveO
         let stopped = Arc::new(AtomicBool::new(false));
 
         let q = queue.clone();
-        let sub = SubRef::<No>::signal();
-        let cancel = SubRef::<Yes>::signal();
+        let sub = InnerSubRef::<No>::signal();
+        let cancel = InnerSubRef::<Yes>::signal();
 
-        sub.addss(cancel.clone());
+        sub.addss(cancel.clone().into());
 
         sub.addss(self.scheduler.schedule_long_running(cancel, Mss::new(byclone!(q, stopped => move || {
             dispatch(o, q, stopped);
@@ -328,9 +348,9 @@ impl<'sa, V:'static+Send+Sync, Src> Observable<'static, V, Yes, No> for ObserveO
                 return IsClosed::True;
             }
             return IsClosed::Default;
-        })).added(sub.clone()));
+        })));
 
-        sub
+        sub.into()
     }
 }
 

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::any::Any;
 use observable::*;
-use subref::SubRef;
+use subref::*;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -48,7 +48,7 @@ macro_rules! fn_sub {
         fn sub(&self, o: Mss<$s, impl Observer<V> +'a>) -> SubRef<$sss>
     {
         let next = self.next.clone();
-        let sub = SubRef::<$sss>::signal();
+        let sub = InnerSubRef::<$sss>::signal();
 
         let mut o:Option<Mss<$s,_>> = Some(o);
 
@@ -69,7 +69,7 @@ macro_rules! fn_sub {
                         match n {
                             Next(v) => {
                                 o.next(v);
-                                if o._is_closed() { sub.unsub(); return IsClosed::True; }
+                                if o._is_closed() { sub.unsub();return IsClosed::True; }
                             },
                             Err(e) => {
                                 sub.unsub();
@@ -81,7 +81,7 @@ macro_rules! fn_sub {
                             }
                         }
                         IsClosed::Default
-                    })).added(sub.clone()));
+                    })));
 
                     return IsClosed::False;
                 }
@@ -89,7 +89,7 @@ macro_rules! fn_sub {
             IsClosed::Default
         })));
 
-        sub
+        sub.into()
     }
     };
 }

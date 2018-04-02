@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 use observable::*;
-use subref::SubRef;
+use subref::*;
 use observable::RxNoti::*;
 use util::mss::*;
-
+use scheduler::*;
 
 #[derive(Clone)]
 pub struct FilterOp<'a:'b, 'b, Src:'b, V, F, SSO:?Sized, SSS:?Sized>
@@ -49,7 +49,7 @@ macro_rules! fn_sub(($s: ty, $sss: ty) => {
         }
 
         let f = self.pred.clone();
-        let sub = SubRef::<$sss>::signal();
+        let sub = InnerSubRef::<$sss>::signal();
 
         sub.add(self.source.sub_noti(byclone!(sub => move |n| {
             match n {
@@ -70,9 +70,9 @@ macro_rules! fn_sub(($s: ty, $sss: ty) => {
                 }
             }
             IsClosed::Default
-        })).added(sub.clone()));
+        })));
 
-        sub
+        sub.into()
     }
 });
 

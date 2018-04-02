@@ -1,5 +1,5 @@
 use observable::*;
-use subref::SubRef;
+use subref::*;
 use std::rc::Rc;
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -51,7 +51,7 @@ impl Observable<'static, i32, Yes, Yes> for ThreadedObservable
 {
     fn sub(&self, o: Mss<Yes, impl Observer<i32>+'static>) -> SubRef<Yes>
     {
-        let sub = SubRef::signal();
+        let sub = InnerSubRef::signal();
 
         ::std::thread::spawn( byclone!(sub =>move ||{
             o.next(1);
@@ -62,7 +62,7 @@ impl Observable<'static, i32, Yes, Yes> for ThreadedObservable
             sub.unsub();
         }));
 
-        sub
+        sub.into()
     }
 }
 

@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 use observable::*;
-use subref::SubRef;
+use subref::*;
 use observable::RxNoti::*;
 use util::mss::*;
+use scheduler::*;
 
 #[derive(Clone)]
 pub struct TakeOp<Src, V, SSO: ? Sized, SSS: ? Sized>
@@ -27,7 +28,9 @@ impl<'a, Src, V, SSO: ? Sized, SSS: ? Sized> ObservableTake<'a, Src, V, SSO, SSS
 }
 
 macro_rules! fn_sub (
-($s: ty, $sss: ty)=>{
+($s:ty, $sss:ty) => (fn_sub!($s, $sss, $sss););
+
+($s: ty, $sss: ty, $inner_sss: ty)=>{
     #[inline(always)]
     fn sub(&self, o: Mss<$s, impl Observer<V> +'a>) -> SubRef<$sss>
     {
@@ -36,7 +39,7 @@ macro_rules! fn_sub (
             return SubRef::<$sss>::empty();
         }
 
-        let sub = SubRef::<$sss>::signal();
+        let sub = InnerSubRef::<$inner_sss>::signal();
         let mut count = self.total;
 
         sub.add(self.source.sub_noti(byclone!(sub => move |n| {
@@ -66,9 +69,9 @@ macro_rules! fn_sub (
                 }
             }
             IsClosed::Default
-        })).added(sub.clone()));
+        })));
 
-        sub
+        sub.into()
     }
 });
 
@@ -87,10 +90,57 @@ impl<'a, Src, V: 'a> Observable<'a, V, No, Yes> for TakeOp<Src, V, No, Yes> wher
     fn_sub!(No, Yes);
 }
 
-//impl<'a, Src, V: 'a> Observable<'a, V, Yes, No> for TakeOp<Src, V, Yes, No> where Src: Observable<'a, V, Yes, No>
-//{
-//    fn_sub!(Yes, No);
-//}
+impl<'a, Src, V: 'a> Observable<'a, V, Yes, No> for TakeOp<Src, V, Yes, No> where Src: Observable<'a, V, Yes, No>
+{
+    //fn_sub!(Yes, No, Yes);
+    fn sub(&self, o: Mss<Yes, impl Observer<V> +'a>) -> SubRef<No>
+    {
+        if self.total <= 0 {
+            o.complete();
+            return SubRef::<No>::empty();
+        }
+
+        let sub = InnerSubRef::<No>::signal();
+        let inner = get_sync_context().unwrap().create_send(box byclone!(sub => move ||{
+            sub.unsub();
+        }));
+        sub.addss(inner.clone());
+
+        let mut count = self.total;
+
+        sub.add(self.source.sub_noti(byclone!(inner => move |n| {
+            match n {
+                Next(v) => {
+                    count -= 1;
+                    if count > 0 {
+                    o.next(v);
+                    if o._is_closed() {
+                        inner.unsub();
+                        return IsClosed::True;
+                    }
+                }else {
+                    o.next(v);
+                    inner.unsub();
+                    o.complete();
+                    return IsClosed::True;
+                }
+                },
+                Err(e) => {
+                    inner.unsub();
+                    o.err(e);
+                },
+                Comp => {
+                    inner.unsub();
+                    o.complete()
+                }
+            }
+
+            IsClosed::Default
+        })));
+
+        sub.into()
+    }
+}
 
 #[cfg(test)]
 mod test

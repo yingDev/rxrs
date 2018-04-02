@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 use observable::*;
-use subref::SubRef;
+use subref::*;
 use observable::RxNoti::*;
 use util::mss::*;
+use scheduler::get_sync_context;
 
 #[derive(Clone)]
 pub struct MapOp<FProj, V, Src, SSO:?Sized, SSS:?Sized>
@@ -32,7 +33,7 @@ macro_rules! fn_sub(
     fn sub(&self, o: Mss<$s, impl Observer<VOut> +'a>) -> SubRef<$sss>
     {
         let f = self.proj.clone();
-        let sub = SubRef::<$sss>::signal();
+        let sub = InnerSubRef::<$sss>::signal();
 
         sub.clone().added(self.source.sub_noti(byclone!(sub => move |n| {
         match n {
@@ -53,7 +54,7 @@ macro_rules! fn_sub(
             }
         }
         IsClosed::Default
-        })).added(sub))
+        }))).into()
     }
 });
 
@@ -76,6 +77,43 @@ impl<'a, V:'a, Src, VOut:'static, FProj> Observable<'a, VOut, No, Yes> for MapOp
     Src: Observable<'a, V, No, Yes>
 {
     fn_sub!(No, Yes);
+}
+
+impl<'a, V:'a, Src, VOut:'static, FProj> Observable<'a, VOut, Yes, No> for MapOp<FProj, V, Src, Yes, No> where
+    FProj : 'a + Clone +Send+Sync+ Fn(V)->VOut,
+    Src: Observable<'a, V, Yes, No>
+{
+    #[inline(always)]
+    fn sub(&self, o: Mss<Yes, impl Observer<VOut> +'a>) -> SubRef<No>
+    {
+        let f = self.proj.clone();
+        let sub = InnerSubRef::<No>::signal();
+        let inner = get_sync_context().unwrap().create_send(box byclone!(sub => move ||{
+            sub.unsub();
+        }));
+        sub.addss(inner.clone());
+
+        sub.added(self.source.sub_noti(byclone!(inner => move |n| {
+            match n {
+                Next(v) => {
+                    o.next( f(v) );
+                    if o._is_closed() {
+                        inner.unsub();
+                        return IsClosed::True;
+                    }
+                },
+                Err(e) => {
+                    inner.unsub();
+                    o.err(e);
+                },
+                Comp => {
+                    inner.unsub();
+                    o.complete();
+                }
+            }
+                IsClosed::Default
+         }))).into()
+    }
 }
 
 

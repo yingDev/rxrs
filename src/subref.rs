@@ -10,12 +10,31 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 use util::mss::*;
 
-//todo: object pool ?
-
 pub struct SubRef<SS:?Sized>
 {
     state: Arc<State>,
     PhantomData: PhantomData<*const SS>
+}
+
+pub struct InnerSubRef<SS:?Sized>
+{
+    state: Arc<State>,
+    PhantomData: PhantomData<*const SS>
+}
+
+impl<SS:?Sized> Into<SubRef<SS>> for InnerSubRef<SS>
+{
+    fn into(self) -> SubRef<SS>
+    {
+        SubRef{ state: self.state, PhantomData }
+    }
+}
+impl Into<SubRef<No>> for InnerSubRef<Yes>
+{
+    fn into(self) -> SubRef<No>
+    {
+        SubRef{ state: self.state, PhantomData }
+    }
 }
 
 impl<SS:?Sized> Clone for SubRef<SS>
@@ -25,7 +44,15 @@ impl<SS:?Sized> Clone for SubRef<SS>
         SubRef{ state: self.state.clone(), PhantomData}
     }
 }
-
+impl<SS:?Sized> Clone for InnerSubRef<SS>
+{
+    fn clone(&self) -> InnerSubRef<SS>
+    {
+        InnerSubRef{ state: self.state.clone(), PhantomData}
+    }
+}
+unsafe impl Send for InnerSubRef<Yes> {}
+unsafe impl Sync for InnerSubRef<Yes> {}
 
 unsafe impl Send for SubRef<Yes> {}
 unsafe impl Sync for SubRef<Yes> {}
@@ -67,8 +94,14 @@ impl State
 
 impl<SS:?Sized> SubRef<SS>
 {
+    pub fn empty() -> SubRef<SS> { InnerSubRef::empty().into() }
+    pub fn unsub(&self) { self.state.unsub() }
+}
+
+impl<SS:?Sized> InnerSubRef<SS>
+{
     #[inline(always)]
-    pub fn ptr_eq(&self, other: &SubRef<SS>) -> bool
+    pub fn ptr_eq(&self, other: &InnerSubRef<SS>) -> bool
     {
         Arc::ptr_eq(&self.state, &other.state)
     }
@@ -82,9 +115,9 @@ impl<SS:?Sized> SubRef<SS>
     #[inline(always)]
     pub fn disposed(&self) -> bool { self.state.disposed.load(Ordering::SeqCst)}
 
-    pub fn signal() -> SubRef<SS>
+    pub fn signal() -> InnerSubRef<SS>
     {
-        SubRef { state: Arc::new(
+        InnerSubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: ArcCell::new(empty_cb()),
@@ -94,7 +127,7 @@ impl<SS:?Sized> SubRef<SS>
     }
 
     #[inline(never)]
-    pub fn empty() -> SubRef<SS>
+    pub fn empty() -> InnerSubRef<SS>
     {
         static mut EMPTY: Option<Arc<State>> = None;
         static EMPTY_INIT: Once = ONCE_INIT;
@@ -105,7 +138,7 @@ impl<SS:?Sized> SubRef<SS>
                     State{cb: ArcCell::new(empty_cb()), extra: ArcCell::new(empty_extra()), disposed: AtomicBool::new(true) },
                 ));
             });
-            SubRef{ state: EMPTY.as_ref().unwrap().clone(), PhantomData }
+            InnerSubRef{ state: EMPTY.as_ref().unwrap().clone(), PhantomData }
         }
     }
 
@@ -141,11 +174,11 @@ impl<SS:?Sized> SubRef<SS>
     }
 }
 
-impl SubRef<Yes>
+impl InnerSubRef<Yes>
 {
-    pub fn new<F>(f: F) -> SubRef<Yes> where F: 'static+FnBox()+Send+Sync
+    pub fn new<F>(f: F) -> InnerSubRef<Yes> where F: 'static+FnBox()+Send+Sync
     {
-        SubRef { state: Arc::new(
+        InnerSubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: ArcCell::new(Arc::new(box f)),
@@ -153,37 +186,6 @@ impl SubRef<Yes>
             }), PhantomData
         }
     }
-
-//    pub fn add(&self, un: SubRef<Yes>)
-//    {
-//        if Arc::ptr_eq(&un.state, &self.state) {return;}
-//        if un.state.disposed.load(Ordering::Acquire) { return; }
-//
-//        let state = self.state.clone();
-//        let mut new = None;
-//
-//        loop{
-//            let old = state.extra.get();
-//            let len = old.len() + 1;
-//            let new = new.get_or_insert_with(|| Arc::new(Vec::with_capacity(len)));
-//
-//            {
-//                let new = Arc::get_mut(new).unwrap();
-//                new.clear();
-//                new.reserve(len);
-//                for s in old.iter() { new.push(s.clone()); }
-//                new.push(un.state.clone());
-//            }
-//
-//            if un.state.disposed.load(Ordering::Acquire) { return; }
-//            if Arc::ptr_eq(&state.extra.compare_swap(old.clone(), new.clone()), &old) {
-//                break;
-//            }
-//        }
-//        if state.disposed.load(Ordering::Acquire) {
-//            state._unsub_extra();
-//        }
-//    }
 
     pub fn added(self, un: SubRef<Yes>) -> Self
     {
@@ -199,15 +201,15 @@ impl SubRef<Yes>
 
     pub fn addf<F>(&self, f: F) where F: 'static+FnBox()+Send+Sync
     {
-        self.add(SubRef::<Yes>::new(f));
+        self.add(InnerSubRef::<Yes>::new(f).into());
     }
 }
 
-impl SubRef<No>
+impl InnerSubRef<No>
 {
-    pub fn new<F>(f: F) -> SubRef<No> where F: 'static+FnBox()
+    pub fn new<F>(f: F) -> InnerSubRef<No> where F: 'static+FnBox()
     {
-        SubRef { state: Arc::new(
+        InnerSubRef { state: Arc::new(
             State{
                 disposed: AtomicBool::new(false),
                 cb: ArcCell::new(Arc::new(box f)),
@@ -233,22 +235,6 @@ impl SubRef<No>
         self.state.extra.set(new);
     }
 
-//    pub fn add(&self, un: SubRef<No>)
-//    {
-//        if un.state.disposed.load(Ordering::Acquire) { return; }
-//
-//        let mut old = self.state.extra.set(empty_extra());
-//        let mut new : Arc<Vec<Arc<State>>> = if Arc::ptr_eq(&old, &empty_extra()) {
-//            Arc::new(Vec::with_capacity(old.len() + 1))
-//        } else { old };
-//
-//        if let Some(mut new) = Arc::get_mut(&mut new) {
-//            new.push(un.state);
-//        }
-//
-//        self.state.extra.set(new);
-//    }
-
     pub fn added(self, un: SubRef<No>) -> Self
     {
         self.add(un);
@@ -269,7 +255,7 @@ impl SubRef<No>
 
     pub fn addf<F>(&self, f: F) where F: 'static+FnBox()
     {
-        self.add(SubRef::<No>::new(f));
+        self.add(InnerSubRef::<No>::new(f).into());
     }
 }
 
@@ -289,6 +275,8 @@ impl<SS:?Sized> IntoSubRef<SS> for SubRef<SS>
     #[inline(always)]
     fn into(self) -> SubRef<SS>{ self }
 }
+
+
 
 fn empty_extra() -> Arc<Vec<Arc<State>>>
 {
@@ -327,14 +315,14 @@ mod tests
     #[test]
     fn basic()
     {
-        let a = SubRef::<No>::new(||{});
-        a.add(SubRef::<No>::new(||{}));
+        let a = InnerSubRef::<No>::new(||{});
+        a.add(InnerSubRef::<No>::new(||{}).into());
     }
 
     #[test]
     fn disposed()
     {
-        let u = SubRef::<No>::new(||{});
+        let u = InnerSubRef::<No>::new(||{});
         u.unsub();
         assert!(u.disposed());
     }
@@ -342,12 +330,12 @@ mod tests
     #[test]
     fn add_after_unsub()
     {
-        let u = SubRef::<Yes>::new(||{});
+        let u = InnerSubRef::<Yes>::new(||{});
         u.unsub();
 
         let v = Arc::new(AtomicBool::new(false));
         let v2 = v.clone();
-        u.add(SubRef::<Yes>::new(move || v2.store(true, Ordering::SeqCst)));
+        u.add(InnerSubRef::<Yes>::new(move || v2.store(true, Ordering::SeqCst)).into());
 
         assert!(v.load(Ordering::SeqCst));
     }
@@ -358,13 +346,13 @@ mod tests
         let out = Arc::new(Mutex::new("".to_owned()));
         let (out2,out3) = (out.clone(), out.clone());
 
-        let u = SubRef::<Yes>::new(||{});
+        let u = InnerSubRef::<Yes>::new(||{});
         let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {
-            u2.add(SubRef::<Yes>::new(move || {  out.lock().unwrap().push_str("A");  }));
+            u2.add(InnerSubRef::<Yes>::new(move || {  out.lock().unwrap().push_str("A");  }).into());
         });
-        u3.add(SubRef::<Yes>::new(move || { out2.lock().unwrap().push_str("A"); }));
+        u3.add(InnerSubRef::<Yes>::new(move || { out2.lock().unwrap().push_str("A"); }).into());
 
 
         j.join();
@@ -380,7 +368,7 @@ mod tests
         let out = Arc::new(Mutex::new(String::new()));
         let (o2,o3,o4) = (out.clone(), out.clone(), out.clone());
 
-        let s = SubRef::<Yes>::new(move || o2.lock().unwrap().push('A'));
+        let s = InnerSubRef::<Yes>::new(move || o2.lock().unwrap().push('A'));
         let s2 = s.clone();
 
         s.addf(move || s2.addf(move || o3.lock().unwrap().push('C')));

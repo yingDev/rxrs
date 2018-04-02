@@ -23,15 +23,15 @@
 #[macro_use] pub mod util;
 
 pub mod observable;
-pub mod subject;
-pub mod subject_nss;
+//pub mod subject;
+//pub mod subject_nss;
 //pub mod behaviour_subject;
 pub mod op;
 pub mod scheduler;
 mod fac;
 mod subref;
-pub mod connectable_observable;
-
+//pub mod connectable_observable;
+//
 pub use fac::*;
 pub use subref::*;
 

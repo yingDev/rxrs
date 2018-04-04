@@ -15,7 +15,7 @@ use std::sync::ONCE_INIT;
 struct SubRecord<'a,V>
 {
     o: Rc<Observer<V>+'a>,
-    sub: SubRef<No>
+    sub: InnerSubRef<No>
 }
 
 impl<'a,V> Clone for SubRecord<'a, V>
@@ -106,10 +106,10 @@ impl<'a, V> Drop for Subject<'a, V>
 impl<'a,V> State<'a,V>
 {
     #[inline(always)]
-    fn unsub(&self, subref: Option<&SubRef<No>>)
+    fn unsub(&self, subref: Option<&InnerSubRef<No>>)
     {
         if let Some(sub) = subref {
-            let obs = self.obs.borrow().iter().filter(|rec| !SubRef::ptr_eq(&rec.sub, &sub)).map(|r| r.clone()).collect();
+            let obs = self.obs.borrow().iter().filter(|rec| !InnerSubRef::ptr_eq(&rec.sub, &sub)).map(|r| r.clone()).collect();
             self.obs.replace(Rc::new(obs));
             sub.unsub();
         } else {
@@ -139,14 +139,12 @@ impl<'a, V> Observable<'a,V, No, No> for Subject<'a,V>
             return SubRef::empty();
         }
 
-        let old = state.obs.borrow().clone();
-
         let mut obs = if Rc::ptr_eq(&state.obs.borrow(), &default_obs()) {
-            Rc::new(Vec::with_capacity(old.len()))
-        } else { old };
+            Rc::new(Vec::with_capacity(state.obs.borrow().len()))
+        } else { state.obs.replace(none_obs()) };
 
         let o = Rc::new(o.into_inner());
-        let sub = SubRef::<No>::signal();
+        let sub = InnerSubRef::<No>::signal();
         let rec = SubRecord{ o, sub: sub.clone()};
         Rc::get_mut(&mut obs).unwrap().push(rec);
 
@@ -159,7 +157,7 @@ impl<'a, V> Observable<'a,V, No, No> for Subject<'a,V>
             }
         }));
 
-        sub
+        sub.into()
     }
 }
 
@@ -229,7 +227,7 @@ mod test
 
             s.rx().subf(
                 |v| out += v
-            ).addf(|| println!("unsub"));
+            );
 
             s.next(1);
             s.next(2);

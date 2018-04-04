@@ -27,7 +27,7 @@ use util::mss::*;
 struct SubRecord<'a,V>
 {
     o: Arc<Observer<V>+Send+Sync+'a>,
-    sub: SubRef<Yes>
+    sub: InnerSubRef<Yes>
 }
 
 impl<'a,V> Clone for SubRecord<'a, V>
@@ -76,7 +76,7 @@ impl<'a, V> Drop for Subject<'a, V>
 impl<'a,V> State<'a,V>
 {
     #[inline(always)]
-    fn unsub(&self, subref: Option<&SubRef<Yes>>)
+    fn unsub(&self, subref: Option<&InnerSubRef<Yes>>)
     {
         let mut new_obs = None;
         let mut vec = None;
@@ -98,7 +98,7 @@ impl<'a,V> State<'a,V>
                     let rvec = vec.as_mut().unwrap();
                     rvec.clear();
                     for rec in obs.iter() {
-                        if SubRef::ptr_eq(&rec.sub, subref.as_ref().unwrap()) {
+                        if InnerSubRef::ptr_eq(&rec.sub, subref.as_ref().unwrap()) {
                             rvec.push(rec.clone());
                         }
                     }
@@ -154,12 +154,12 @@ impl<'a, V> Observable<'a,V, Yes, Yes> for Subject<'a,V>
 
             if obs_vec.is_none() {
                 let weak_state: Weak<State<PhantomData<()>>> = unsafe { mem::transmute(Arc::downgrade(state)) };
-                let _sub = SubRef::<Yes>::signal();
-                _sub.add(SubRef::<Yes>::new(byclone!(_sub=>move || {
+                let _sub = InnerSubRef::<Yes>::signal();
+                _sub.add(InnerSubRef::<Yes>::new(byclone!(_sub=>move || {
                     if let Some(s) = weak_state.upgrade() {
                         s.unsub(Some(&_sub));
                     }
-                })));
+                })).into());
                 sub = Some(_sub);
                 
                 let p : *mut Observer<V> = Box::into_raw(box some_o.take().unwrap().into_inner());
@@ -180,7 +180,7 @@ impl<'a, V> Observable<'a,V, Yes, Yes> for Subject<'a,V>
             mem::swap(Arc::get_mut(new_obs.as_mut().unwrap()).unwrap(), &mut obs_vec);
 
             if Arc::ptr_eq(&state.obs.compare_swap(old_obs.clone(), new_obs.clone().unwrap()), &old_obs) {
-                return sub.unwrap();
+                return sub.unwrap().into();
             }
 
             mem::swap(Arc::get_mut(new_obs.as_mut().unwrap()).unwrap(), &mut obs_vec);

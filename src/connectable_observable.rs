@@ -5,11 +5,12 @@ use observable::Observer;
 use std::marker::PhantomData;
 use std::any::Any;
 use util::mss::*;
+use std::sync::Mutex;
 
 pub struct ConnectableObservable<'a, V, Src, Subj, SSO:?Sized, SSS:?Sized>
 {
     source: Src,
-    subject: Subj,
+    subject: Arc<Subj>,
 
     PhantomData: PhantomData<(V,&'a (), *const SSO, *const SSS)>
 }
@@ -18,28 +19,28 @@ unsafe impl<'a, V, Src, Subj, SSO:?Sized, SSS:?Sized> Sync for ConnectableObserv
 
 impl<'a, V, Src, Subj, SSS:?Sized> ConnectableObservable<'a, V, Src, Subj, Yes, SSS>  where Src: Observable<'a, V, Yes, SSS>, Subj : Observer<V>+Observable<'a, V, Yes, SSS>+Send+Sync+'a
 {
-    pub fn connect(self) -> SubRef<SSS>
+    pub fn connect(&self) -> SubRef<SSS>
     {
-        self.source.sub(Mss::new(self.subject))
+        self.source.sub(Mss::new(self.subject.clone()))
     }
 
     #[inline(always)]
     pub fn new(source: Src, subject: Subj) -> ConnectableObservable<'a, V, Src, Subj, Yes, SSS>
     {
-        ConnectableObservable{ source, subject, PhantomData }
+        ConnectableObservable{ source, subject: Arc::new(subject), PhantomData }
     }
 }
 impl<'a, V, Src, Subj, SSS:?Sized> ConnectableObservable<'a, V, Src, Subj, No, SSS>  where Src: Observable<'a, V, No, SSS>, Subj : Observer<V>+Observable<'a, V, No, SSS>+'a
 {
-    pub fn connect(self) -> SubRef<SSS>
+    pub fn connect(&self) -> SubRef<SSS>
     {
-        self.source.sub(Mss::new(self.subject))
+        self.source.sub(Mss::new(self.subject.clone()))
     }
 
     #[inline(always)]
     pub fn new(source: Src, subject: Subj) -> ConnectableObservable<'a, V, Src, Subj, No, SSS>
     {
-        ConnectableObservable{ source, subject, PhantomData }
+        ConnectableObservable{ source, subject: Arc::new(subject), PhantomData }
     }
 }
 

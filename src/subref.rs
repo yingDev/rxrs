@@ -11,7 +11,6 @@ use std::marker::PhantomData;
 use util::mss::*;
 
 
-//todo: 似乎根本不必区分 yes No，大幅简化设计。
 pub struct SubRef<SS:?Sized>
 {
     state: Arc<State>,

@@ -108,7 +108,7 @@ impl<'a, Src, V: 'a> Observable<'a, V, Yes, No> for TakeOp<Src, V, Yes, No> wher
 
         let mut count = self.total;
 
-        sub.add(self.source.sub_noti(byclone!(inner => move |n| {
+        sub.added(self.source.sub_noti(byclone!(inner => move |n| {
             match n {
                 Next(v) => {
                     count -= 1;
@@ -136,9 +136,7 @@ impl<'a, Src, V: 'a> Observable<'a, V, Yes, No> for TakeOp<Src, V, Yes, No> wher
             }
 
             IsClosed::Default
-        })));
-
-        sub.into()
+        }))).into()
     }
 }
 

@@ -10,6 +10,8 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 use util::mss::*;
 
+
+//todo: 似乎根本不必区分 yes No，大幅简化设计。
 pub struct SubRef<SS:?Sized>
 {
     state: Arc<State>,
@@ -269,7 +271,11 @@ impl IntoSubRef<Yes> for ()
     #[inline(always)]
     fn into(self) -> SubRef<Yes> { SubRef::empty() }
 }
-
+impl IntoSubRef<No> for ()
+{
+    #[inline(always)]
+    fn into(self) -> SubRef<No> { SubRef::empty() }
+}
 impl<SS:?Sized> IntoSubRef<SS> for SubRef<SS>
 {
     #[inline(always)]

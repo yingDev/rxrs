@@ -18,6 +18,8 @@ impl<'a,V, SSS:?Sized> Clone for EmptyObservable<'a,V,SSS>
         EmptyObservable(PhantomData)
     }
 }
+unsafe impl<'a,V,SSS:?Sized> Send for EmptyObservable<'a,V,SSS>{}
+unsafe impl<'a,V,SSS:?Sized> Sync for EmptyObservable<'a,V,SSS>{}
 
 impl<'a, V, SSS:Sized> Observable<'a, V, No, SSS> for EmptyObservable<'a,V, SSS>
 {
@@ -28,25 +30,41 @@ impl<'a, V, SSS:Sized> Observable<'a, V, No, SSS> for EmptyObservable<'a,V, SSS>
     }
 }
 
-pub fn empty<'a, V, SSS:?Sized>() -> EmptyObservable<'a,V, SSS>
+pub fn empty<'a, V>() -> EmptyObservable<'a,V, Yes>
 {
     EmptyObservable(PhantomData)
 }
 
 
-pub fn just<'a, V:'a+Clone, SSS:?Sized>(v:V) -> impl Observable<'a, V, No+'static, SSS>+Clone
+pub struct JustObservable<V:Clone>(V);
+impl<'a,V:Clone> Observable<'a,V, No, Yes> for JustObservable<V>
 {
-    create(move |o|{
-        o.next(v.clone());
+    fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef<Yes>
+    {
+        o.next(self.0.clone());
         o.complete();
-        SubRef::<SSS>::empty()
-    })
+        SubRef::empty()
+    }
+}
+unsafe impl<V:Clone> Send for JustObservable<V> where V:Send{}
+unsafe impl<V:Clone> Sync for JustObservable<V> {}
+impl<V:Clone> Clone for JustObservable<V>
+{
+    fn clone(&self) -> JustObservable<V>
+    {
+        JustObservable(self.0.clone())
+    }
 }
 
-pub struct LocalObservable<'a, V, F, R, SSS:?Sized>(RefCell<F>, PhantomData<(&'a(), *const R, *const V, *const SSS)>) where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<SSS>+'static;
-impl<'a:'b,'b,V, F, R, SSS:?Sized> Observable<'a, V, No, SSS> for LocalObservable<'a, V, F, R, SSS> where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<SSS>+'static
+pub fn just<V:Clone>(v:V) -> JustObservable<V>
 {
-    fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef<SSS>
+    JustObservable(v)
+}
+
+pub struct LocalObservable<'a, V, F, R>(RefCell<F>, PhantomData<(&'a(), *const R, *const V)>) where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'static;
+impl<'a:'b,'b,V, F, R> Observable<'a, V, No, No> for LocalObservable<'a, V, F, R> where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'static
+{
+    fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef<No>
     {
         let mut f = self.0.borrow_mut();
         let sub = f.call_mut((Mss::no(&o.into_inner()),));
@@ -54,7 +72,7 @@ impl<'a:'b,'b,V, F, R, SSS:?Sized> Observable<'a, V, No, SSS> for LocalObservabl
         IntoSubRef::into(sub)
     }
 }
-impl<'a,V,F,R,SSS:?Sized> Clone for LocalObservable<'a,V,F,R,SSS> where F: Clone+'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<SSS>+'static
+impl<'a,V,F,R> Clone for LocalObservable<'a,V,F,R> where F: Clone+'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'static
 {
     fn clone(&self) -> Self
     {
@@ -62,7 +80,7 @@ impl<'a,V,F,R,SSS:?Sized> Clone for LocalObservable<'a,V,F,R,SSS> where F: Clone
     }
 }
 
-pub fn create<'a:'b, 'b, V:'a, F, R, SSS:?Sized>(sub: F) -> LocalObservable<'a,V,F,R, SSS> where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<SSS>+'static
+pub fn create<'a:'b, 'b, V:'a, F, R>(sub: F) -> LocalObservable<'a,V,F,R> where F: FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'static
 {
     LocalObservable(RefCell::new(sub), PhantomData)
 }
@@ -158,6 +176,12 @@ mod test
         }
 
         assert_eq!(i, 101);
+    }
+
+    #[test]
+    fn just_()
+    {
+        just(123).subf(|v| println!("{}", v));
     }
 
     #[test]

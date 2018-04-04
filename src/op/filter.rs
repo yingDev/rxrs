@@ -93,6 +93,46 @@ impl<'a:'b, 'b, Src, V:'a, F> Observable<'a, V, No, No> for FilterOp<'a, 'b,  Sr
     fn_sub!(No, No);
 }
 
+impl<'a:'b, 'b, Src, V:'a, F> Observable<'a, V, Yes, No> for FilterOp<'a, 'b,  Src, V, F, Yes, No>  where
+    Src : Observable<'a, V, Yes, No>+'b, F: 'a+Clone+Send+Sync+Fn(&V)->bool
+{
+    //fn_sub!(Yes, No);
+    fn sub(&self, o: Mss<Yes, impl Observer<V> +'a>) -> SubRef<No>
+    {
+        if o._is_closed() {
+            return SubRef::empty();
+        }
+
+        let f = self.pred.clone();
+        let sub = InnerSubRef::<No>::signal();
+        let inner = get_sync_context().unwrap().create_send(box byclone!(sub => move ||{
+            sub.unsub();
+        }));
+        sub.addss(inner.clone());
+
+        sub.added(self.source.sub_noti(byclone!(inner => move |n| {
+            match n {
+                Next(v) => {
+                    if f(&v) { o.next(v) };
+                    if o._is_closed() {
+                        inner.unsub();
+                        return IsClosed::True;
+                    }
+                },
+                Err(e) => {
+                    inner.unsub();
+                    o.err(e);
+                },
+                Comp => {
+                    inner.unsub();
+                    o.complete();
+                }
+            }
+            IsClosed::Default
+        }))).into()
+
+    }
+}
 
 
 #[cfg(test)]

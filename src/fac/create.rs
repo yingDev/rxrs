@@ -7,6 +7,7 @@ use util::mss::*;
 use std::cell::UnsafeCell;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::borrow::Borrow;
 
 //todo: refactor
 
@@ -41,14 +42,14 @@ impl<'a,V:Clone> Observable<'a,V, No, Yes> for JustObservable<V>
 {
     fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef<Yes>
     {
-        o.next(self.0.clone());
+        o.next(self.0.to_owned());
         o.complete();
         SubRef::empty()
     }
 }
-unsafe impl<V:Clone> Send for JustObservable<V> where V:Send{}
+unsafe impl<V:Clone> Send for JustObservable<V> where V : Send{}
 unsafe impl<V:Clone> Sync for JustObservable<V> {}
-impl<V:Clone> Clone for JustObservable<V>
+impl<V> Clone for JustObservable<V> where V:Clone
 {
     fn clone(&self) -> JustObservable<V>
     {
@@ -56,9 +57,9 @@ impl<V:Clone> Clone for JustObservable<V>
     }
 }
 
-pub fn just<V:Clone>(v:V) -> JustObservable<V>
+pub fn just<B:?Sized+ToOwned>(b:&B) -> JustObservable<B::Owned> where B::Owned : Clone
 {
-    JustObservable(v)
+    JustObservable(b.to_owned())
 }
 
 pub struct LocalObservable<'a, V, F, R>(RefCell<F>, PhantomData<(&'a(), *const R, *const V)>) where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'static;
@@ -181,7 +182,7 @@ mod test
     #[test]
     fn just_()
     {
-        just(123).subf(|v| println!("{}", v));
+        just(&123).subf(|v| println!("{}", v));
     }
 
     #[test]

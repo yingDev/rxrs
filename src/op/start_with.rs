@@ -2,6 +2,7 @@ use util::mss::*;
 use std::marker::PhantomData;
 use observable::*;
 use subref::*;
+use std::borrow::Borrow;
 
 pub struct StartWithOp<Src, V, SSO: ? Sized, SSS:?Sized>
 {
@@ -10,19 +11,31 @@ pub struct StartWithOp<Src, V, SSO: ? Sized, SSS:?Sized>
     PhantomData: PhantomData<(*const SSO, *const SSS)>
 }
 
-pub trait ObservableStartWith<'a, Src, V, SSO:?Sized, SSS:?Sized> where Src : Observable<'a, V, SSO, SSS>
+//pub trait ObservableStartWith<'a, Src, V, SSO:?Sized, SSS:?Sized> where Src : Observable<'a, V, SSO, SSS>
+//{
+//    fn start_with(self, v: V) -> StartWithOp<Src, V, SSO, SSS>;
+//}
+//
+//impl<'a, Src, V, SSO:?Sized, SSS:?Sized> ObservableStartWith<'a, Src, V, SSO, SSS> for Src where Src : Observable<'a, V, SSO, SSS>,
+//{
+//    fn start_with(self, v: V) -> StartWithOp<Self, V,SSO, SSS>
+//    {
+//        StartWithOp{ v, source: self, PhantomData  }
+//    }
+//}
+
+pub trait ObservableStartWithBorrow<'a, Src, B:?Sized, V, SSO:?Sized, SSS:?Sized> where Src : Observable<'a, V, SSO, SSS>
 {
-    fn start_with(self, v: V) -> StartWithOp<Src, V, SSO, SSS>;
+    fn start_with(self, v: &B) -> StartWithOp<Src, V, SSO, SSS>;
 }
 
-impl<'a, Src, V, SSO:?Sized, SSS:?Sized> ObservableStartWith<'a, Src, V, SSO, SSS> for Src where Src : Observable<'a, V, SSO, SSS>,
+impl<'a, Src, B:ToOwned<Owned=V>+?Sized, V:Borrow<B>, SSO:?Sized, SSS:?Sized> ObservableStartWithBorrow<'a, Src, B, V, SSO, SSS> for Src where Src : Observable<'a, V, SSO, SSS>
 {
-    fn start_with(self, v: V) -> StartWithOp<Self, V,SSO, SSS>
+    fn start_with(self, v: &B) -> StartWithOp<Src, V, SSO, SSS>
     {
-        StartWithOp{ v, source: self, PhantomData  }
+        StartWithOp{ v: v.to_owned(), source: self, PhantomData  }
     }
 }
-
 impl<'a, Src, V:'a+Clone, SSO:?Sized, SSS:?Sized> Observable<'a, V,SSO,SSS> for StartWithOp<Src, V,SSO,SSS> where Src: Observable<'a, V,SSO,SSS>
 {
     #[inline]
@@ -48,7 +61,7 @@ mod test
         let mut out = 0;
 
         let src = SimpleObservable;
-        src.start_with(100).subf(|v| out += v);
+        src.start_with(&100).subf(|v| out += v);
 
         assert_eq!(out, 106);
     }

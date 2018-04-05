@@ -159,7 +159,7 @@ impl<'a, V> Observable<'a,V, Yes, Yes> for Subject<'a,V>
                     if let Some(s) = weak_state.upgrade() {
                         s.unsub(Some(&_sub));
                     }
-                })).into());
+                })));
                 sub = Some(_sub);
                 
                 let p : *mut Observer<V> = Box::into_raw(box some_o.take().unwrap().into_inner());
@@ -180,7 +180,7 @@ impl<'a, V> Observable<'a,V, Yes, Yes> for Subject<'a,V>
             mem::swap(Arc::get_mut(new_obs.as_mut().unwrap()).unwrap(), &mut obs_vec);
 
             if Arc::ptr_eq(&state.obs.compare_swap(old_obs.clone(), new_obs.clone().unwrap()), &old_obs) {
-                return sub.unwrap().into();
+                return sub.unwrap().into_subref();
             }
 
             mem::swap(Arc::get_mut(new_obs.as_mut().unwrap()).unwrap(), &mut obs_vec);

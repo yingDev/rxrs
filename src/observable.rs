@@ -211,14 +211,14 @@ impl<V,F: Fn(V),FComp: Fn()> ObserverHelper<V> for (F, (), FComp)
 }
 
 
-//impl<'a, V, Src> Observable<'a,V, No> for Arc<Src> where Src : Observable<'a,V, No>
-//{
-//    #[inline(always)]
-//    fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef
-//    {
-//        Arc::as_ref(self).sub(o)
-//    }
-//}
+impl<'a, V, Src, SSO:?Sized, SSS:?Sized> Observable<'a,V, SSO, SSS> for Arc<Src> where Src : Observable<'a,V, SSO, SSS>
+{
+    #[inline(always)]
+    fn sub(&self, o: Mss<SSO, impl Observer<V>+'a>) -> SubRef<SSS>
+    {
+        Arc::as_ref(self).sub(o)
+    }
+}
 
 impl<V> ObserverHelper<V> for Arc<Observer<V>>
 {

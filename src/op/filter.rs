@@ -72,7 +72,7 @@ macro_rules! fn_sub(($s: ty, $sss: ty) => {
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 });
 
@@ -129,7 +129,7 @@ impl<'a:'b, 'b, Src, V:'a, F> Observable<'a, V, Yes, No> for FilterOp<'a, 'b,  S
                 }
             }
             IsClosed::Default
-        }))).into()
+        }))).into_subref()
 
     }
 }

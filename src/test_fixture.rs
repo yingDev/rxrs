@@ -4,6 +4,8 @@ use std::rc::Rc;
 use std::cell::Cell;
 use std::cell::RefCell;
 use util::mss::*;
+use std::thread;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct SimpleObservable;
@@ -55,14 +57,17 @@ impl Observable<'static, i32, Yes, Yes> for ThreadedObservable
 
         ::std::thread::spawn( byclone!(sub =>move ||{
             o.next(1);
+            thread::sleep(Duration::from_millis(10));
             o.next(2);
+            thread::sleep(Duration::from_millis(10));
             o.next(3);
+            thread::sleep(Duration::from_millis(10));
             o.complete();
 
             sub.unsub();
         }));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 

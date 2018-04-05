@@ -71,7 +71,7 @@ macro_rules! fn_sub (
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 });
 
@@ -136,7 +136,7 @@ impl<'a, Src, V: 'a> Observable<'a, V, Yes, No> for TakeOp<Src, V, Yes, No> wher
             }
 
             IsClosed::Default
-        }))).into()
+        }))).into_subref()
     }
 }
 

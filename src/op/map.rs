@@ -54,7 +54,7 @@ macro_rules! fn_sub(
             }
         }
         IsClosed::Default
-        }))).into()
+        }))).into_subref()
     }
 });
 
@@ -112,7 +112,7 @@ impl<'a, V:'a, Src, VOut:'static, FProj> Observable<'a, VOut, Yes, No> for MapOp
                 }
             }
                 IsClosed::Default
-         }))).into()
+         }))).into_subref()
     }
 }
 

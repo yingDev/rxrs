@@ -157,7 +157,7 @@ impl<'a, V> Observable<'a,V, No, No> for Subject<'a,V>
             }
         }));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 

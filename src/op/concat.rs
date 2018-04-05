@@ -15,6 +15,8 @@ use util::mss::*;
 use std::cell::RefCell;
 use scheduler::get_sync_context;
 
+//todo: simplify
+
 pub struct ConcatOp<'a, V, Src, Next, SSFlags:?Sized>
 {
     source : Src,
@@ -81,7 +83,7 @@ macro_rules! fn_sub {
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
     };
 }
@@ -120,8 +122,8 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
         let first = InnerSubRef::<No>::signal();
         let second = InnerSubRef::<Yes>::signal();
 
-        sub.add(first.clone().into());
-        sub.addss(second.clone().into());
+        sub.add(first.clone());
+        sub.addss(second.clone().into_subref());
 
         let mut o:Option<Mss<Yes,_>> = Some(o);
 
@@ -165,7 +167,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 
@@ -181,8 +183,8 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, No, No> for ConcatOp<
         let first = InnerSubRef::<No>::signal();
         let second = InnerSubRef::<No>::signal();
 
-        sub.add(first.clone().into());
-        sub.add(second.clone().into());
+        sub.add(first.clone());
+        sub.add(second.clone());
 
         let mut o:Option<Mss<No,_>> = Some(o);
 
@@ -226,7 +228,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, No, No> for ConcatOp<
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 
@@ -242,8 +244,8 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, No, No> for ConcatOp<
         let first = InnerSubRef::<No>::signal();
         let second = InnerSubRef::<Yes>::signal();
 
-        sub.add(first.clone().into());
-        sub.addss(second.clone().into());
+        sub.add(first.clone());
+        sub.addss(second.clone());
 
         let mut o:Option<Mss<No,_>> = Some(o);
 
@@ -287,7 +289,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, No, No> for ConcatOp<
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 
@@ -302,7 +304,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
 
         let first = InnerSubRef::<Yes>::signal();
 
-        sub.add(first.clone().into());
+        sub.add(first.clone().into_subref());
 
         let mut o:Option<Mss<Yes,_>> = Some(o);
 
@@ -347,7 +349,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
             IsClosed::Default
         })));
 
-    sub.into()
+    sub.into_subref()
 }
 }
 
@@ -362,7 +364,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
         let inner = InnerSubRef::<Yes>::signal().added(get_sync_context().unwrap().create_send(box byclone!(sub => move ||{
             sub.unsub();
         })));
-        sub.addss(inner.clone().into());
+        sub.add(inner.clone());
 
         let mut o:Option<Mss<Yes,_>> = Some(o);
 
@@ -403,7 +405,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 
@@ -419,7 +421,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
             sub.unsub();
         })));
 
-        sub.addss(first.clone().into());
+        sub.add(first.clone());
 
         let mut o:Option<Mss<Yes,_>> = Some(o);
 
@@ -443,7 +445,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
                         first.add(get_sync_context().unwrap().create_send(box byclone!(second => move ||{
                             second.unsub();
                         })));
-                        second.addss(first.clone().into());
+                        second.add(first.clone());
 
                         second.add(next.sub_noti(byclone!(second => move |n| {
                         match n {
@@ -469,7 +471,7 @@ impl<'a, V:'static+Send+Sync, Src, Next> Observable<'a, V, Yes, No> for ConcatOp
             IsClosed::Default
         })));
 
-        sub.into()
+        sub.into_subref()
     }
 }
 

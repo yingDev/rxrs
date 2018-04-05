@@ -70,7 +70,7 @@ impl<'a:'b,'b,V, F, R> Observable<'a, V, No, No> for LocalObservable<'a, V, F, R
         let mut f = self.0.borrow_mut();
         let sub = f.call_mut((Mss::no(&o.into_inner()),));
 
-        IntoSubRef::into(sub)
+        sub.into_subref()
     }
 }
 impl<'a,V,F,R> Clone for LocalObservable<'a,V,F,R> where F: Clone+'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'static
@@ -94,7 +94,7 @@ impl<'a:'b, 'b, V:'a, F, R, SSS:?Sized> Observable<'a, V, No, SSS> for LocalBoxe
     {
         let mut f = self.0.borrow_mut();
         let sub = f.call_mut((o.into_boxed(),));
-        IntoSubRef::into(sub)
+        sub.into_subref()
     }
 }
 
@@ -110,7 +110,7 @@ impl<V, F, R> Observable<'static, V, Yes, Yes> for SendSyncObserverObservable<V,
     fn sub(&self, o: Mss<Yes, impl Observer<V>+'static>) -> SubRef<Yes>
     {
         let sub = (self.0)(o.into_boxed());
-        IntoSubRef::into(sub)
+        sub.into_subref()
     }
 }
 pub fn create_sso<'a, V, F, R>(sub: F) -> SendSyncObserverObservable<V,F,R> where F: Send+Sync+Fn(Mss<Yes, Box<Observer<V>+'static>>) -> R, R: IntoSubRef<Yes>

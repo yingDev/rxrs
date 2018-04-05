@@ -23,20 +23,20 @@ pub struct InnerSubRef<SS:?Sized>
     PhantomData: PhantomData<*const SS>
 }
 
-impl<SS:?Sized> Into<SubRef<SS>> for InnerSubRef<SS>
-{
-    fn into(self) -> SubRef<SS>
-    {
-        SubRef{ state: self.state, PhantomData }
-    }
-}
-impl Into<SubRef<No>> for InnerSubRef<Yes>
-{
-    fn into(self) -> SubRef<No>
-    {
-        SubRef{ state: self.state, PhantomData }
-    }
-}
+//impl<SS:?Sized> Into<SubRef<SS>> for InnerSubRef<SS>
+//{
+//    fn into(self) -> SubRef<SS>
+//    {
+//        SubRef{ state: self.state, PhantomData }
+//    }
+//}
+//impl Into<SubRef<No>> for InnerSubRef<Yes>
+//{
+//    fn into(self) -> SubRef<No>
+//    {
+//        SubRef{ state: self.state, PhantomData }
+//    }
+//}
 
 impl<SS:?Sized> Clone for SubRef<SS>
 {
@@ -95,7 +95,7 @@ impl State
 
 impl<SS:?Sized> SubRef<SS>
 {
-    pub fn empty() -> SubRef<SS> { InnerSubRef::empty().into() }
+    pub fn empty() -> SubRef<SS> { InnerSubRef::empty().into_subref() }
     pub fn unsub(&self) { self.state.unsub() }
 }
 
@@ -143,8 +143,10 @@ impl<SS:?Sized> InnerSubRef<SS>
         }
     }
 
-    pub fn add(&self, un: SubRef<SS>)
+    pub fn add(&self, un: impl IntoSubRef<SS>)
     {
+        let un = un.into_subref();
+
         if Arc::ptr_eq(&un.state, &self.state) {return;}
         if un.state.disposed.load(Ordering::Acquire) { return; }
 
@@ -202,7 +204,7 @@ impl InnerSubRef<Yes>
 
     pub fn addf<F>(&self, f: F) where F: 'static+FnBox()+Send+Sync
     {
-        self.add(InnerSubRef::<Yes>::new(f).into());
+        self.add(InnerSubRef::<Yes>::new(f).into_subref());
     }
 }
 
@@ -220,8 +222,9 @@ impl InnerSubRef<No>
     }
 
 
-    pub fn addss(&self, un: SubRef<Yes>)
+    pub fn addss(&self, un: impl IntoSubRef<Yes>)
     {
+        let un = un.into_subref();
         if un.state.disposed.load(Ordering::Acquire) { return; }
 
         let mut old = self.state.extra.set(empty_extra());
@@ -256,32 +259,44 @@ impl InnerSubRef<No>
 
     pub fn addf<F>(&self, f: F) where F: 'static+FnBox()
     {
-        self.add(InnerSubRef::<No>::new(f).into());
+        self.add(InnerSubRef::<No>::new(f).into_subref());
     }
 }
 
 
 pub trait IntoSubRef<SS:?Sized>
 {
-    fn into(self) -> SubRef<SS>;
+    fn into_subref(self) -> SubRef<SS>;
 }
-impl IntoSubRef<Yes> for ()
+impl<SS:?Sized> IntoSubRef<SS> for ()
 {
     #[inline(always)]
-    fn into(self) -> SubRef<Yes> { SubRef::empty() }
+    fn into_subref(self) -> SubRef<SS> { SubRef::empty() }
 }
-impl IntoSubRef<No> for ()
-{
-    #[inline(always)]
-    fn into(self) -> SubRef<No> { SubRef::empty() }
-}
+
 impl<SS:?Sized> IntoSubRef<SS> for SubRef<SS>
 {
     #[inline(always)]
-    fn into(self) -> SubRef<SS>{ self }
+    fn into_subref(self) -> SubRef<SS>{ self }
 }
 
+impl IntoSubRef<No> for SubRef<Yes>
+{
+    #[inline(always)]
+    fn into_subref(self) -> SubRef<No>{ SubRef{ state: self.state, PhantomData } }
+}
 
+impl<SS:?Sized> IntoSubRef<SS> for InnerSubRef<SS>
+{
+    #[inline(always)]
+    fn into_subref(self) -> SubRef<SS>{ SubRef{ state: self.state, PhantomData }}
+}
+
+impl IntoSubRef<No> for InnerSubRef<Yes>
+{
+    #[inline(always)]
+    fn into_subref(self) -> SubRef<No>{ SubRef{ state: self.state, PhantomData }}
+}
 
 fn empty_extra() -> Arc<Vec<Arc<State>>>
 {
@@ -321,7 +336,7 @@ mod tests
     fn basic()
     {
         let a = InnerSubRef::<No>::new(||{});
-        a.add(InnerSubRef::<No>::new(||{}).into());
+        a.add(InnerSubRef::<No>::new(||{}).into_subref());
     }
 
     #[test]
@@ -340,7 +355,7 @@ mod tests
 
         let v = Arc::new(AtomicBool::new(false));
         let v2 = v.clone();
-        u.add(InnerSubRef::<Yes>::new(move || v2.store(true, Ordering::SeqCst)).into());
+        u.add(InnerSubRef::<Yes>::new(move || v2.store(true, Ordering::SeqCst)).into_subref());
 
         assert!(v.load(Ordering::SeqCst));
     }
@@ -355,9 +370,9 @@ mod tests
         let (u2,u3) = (u.clone(), u.clone());
 
         let j = thread::spawn(move || {
-            u2.add(InnerSubRef::<Yes>::new(move || {  out.lock().unwrap().push_str("A");  }).into());
+            u2.add(InnerSubRef::<Yes>::new(move || {  out.lock().unwrap().push_str("A");  }).into_subref());
         });
-        u3.add(InnerSubRef::<Yes>::new(move || { out2.lock().unwrap().push_str("A"); }).into());
+        u3.add(InnerSubRef::<Yes>::new(move || { out2.lock().unwrap().push_str("A"); }).into_subref());
 
 
         j.join();

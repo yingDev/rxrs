@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::atomic::AtomicIsize;
 
 use observable::*;
-use subref::SubRef;
+use subref::*;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use observable::*;
@@ -41,7 +41,7 @@ macro_rules! fn_sub(($s: ty, $sss:ty) => {
             return self.source.sub(o);
         }
 
-        let sub = SubRef::<$sss>::signal();
+        let sub = InnerSubRef::<$sss>::signal();
 
         sub.add(self.source.sub_noti(byclone!(sub => move |n|{
             match n {
@@ -58,8 +58,9 @@ macro_rules! fn_sub(($s: ty, $sss:ty) => {
                 Comp => { sub.unsub();o.complete();}
             }
             IsClosed::Default
-        })).added(sub.clone()));
-        sub
+        })));
+
+        sub.into_subref()
     }
 });
 

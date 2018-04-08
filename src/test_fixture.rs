@@ -9,9 +9,9 @@ use std::time::Duration;
 
 #[derive(Clone)]
 pub struct SimpleObservable;
-impl<'a> Observable<'a, i32, No, No> for SimpleObservable
+impl<'o> Observable<'o, i32, No, No> for SimpleObservable
 {
-    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef<No>
+    fn sub(&self, o: Mss<No, impl Observer<i32>+'o>) -> SubRef<No>
     {
        o.next(1);
        o.next(2);
@@ -38,9 +38,9 @@ impl<'a> StoreObserverObservable<'a>
         self.o.borrow().as_ref().unwrap().next(v);
     }
 }
-impl<'a> Observable<'a, i32, No, Yes> for StoreObserverObservable<'a>
+impl<'o> Observable<'o, i32, No, Yes> for StoreObserverObservable<'o>
 {
-    fn sub(&self, o: Mss<No, impl Observer<i32>+'a>) -> SubRef<Yes>
+    fn sub(&self, o: Mss<No, impl Observer<i32>+'o>) -> SubRef<Yes>
     {
         *self.o.borrow_mut() = Some(Box::new(o.into_inner()));
         SubRef::empty()

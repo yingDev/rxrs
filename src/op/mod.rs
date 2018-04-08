@@ -1,7 +1,7 @@
 mod take;
 mod filter;
 mod map;
-//mod skip;
+mod skip;
 //mod tap;
 mod start_with;
 mod concat;
@@ -15,7 +15,7 @@ mod publish;
 pub use self::take::*;
 pub use self::filter::*;
 pub use self::map::*;
-//pub use self::skip::*;
+pub use self::skip::*;
 //pub use self::tap::*;
 pub use self::start_with::*;
 pub use self::concat::*;

@@ -565,9 +565,9 @@ mod test
             o.complete();
         })).subf(|v| println!("{}", v));
 
-        fac::range(0,1).concat(fac::just(&222)).subf(|v| println!("{}",v));
+        fac::range(0,1).concat(fac::just(222)).subf(|v| println!("{}",v));
 
-        fac::empty::<i32>().concat(fac::empty::<i32>()).concat(fac::just(&222)).subf((
+        fac::empty::<i32>().concat(fac::empty::<i32>()).concat(fac::just(222)).subf((
             (),
             (),
             || println!("comp")

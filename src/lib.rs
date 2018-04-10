@@ -23,7 +23,8 @@
 pub mod observable;
 pub mod subject;
 pub mod subject_nss;
-//pub mod behaviour_subject;
+pub mod behaviour_subject;
+pub mod behaviour_subject_nss;
 pub mod op;
 pub mod scheduler;
 mod fac;
@@ -32,6 +33,7 @@ pub mod connectable_observable;
 //
 pub use fac::*;
 pub use subref::*;
+
 
 #[cfg(test)]
 mod test_fixture;

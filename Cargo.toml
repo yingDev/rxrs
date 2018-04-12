@@ -4,6 +4,6 @@ description="Reactive Extensions for Rust"
 license="MIT"
 name = "rx"
 repository="https://github.com/yingDev/rxrs"
-authors = ["YingDev <me@yingDev.com>"]
+authors = ["应元东 <me@yingDev.com>"]
 
 [dependencies]

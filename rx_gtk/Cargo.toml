@@ -1,10 +1,10 @@
 [package]
 name = "rx_gtk"
 version = "0.1.0"
-authors = ["yingDev <me@yingDev.com>"]
+authors = ["应元东 <ying@yingDev.com>"]
 
 [dependencies]
-rxrs = {path = "../rx"}
+rxrs = {path = "../rx", version="0.1.0-alpha2"}
 glib = "^0"
 gdk="^0"
 owning_ref = "0.3.3"

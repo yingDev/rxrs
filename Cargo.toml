@@ -1,9 +1,9 @@
 [package]
-version = "0.1.0-alpha1"
+version = "0.1.0-alpha2"
 description="Reactive Extensions for Rust"
 license="MIT"
 name = "rx"
 repository="https://github.com/yingDev/rxrs"
-authors = ["YingDev <ying@yingDev.com>"]
+authors = ["YingDev <me@yingDev.com>"]
 
 [dependencies]

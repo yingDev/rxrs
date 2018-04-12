@@ -43,9 +43,9 @@ complete on ThreadId(2)
 ```
 
 ### Play with [gtk-rs](https://github.com/gtk-rs/gtk)
-There's a crate [./rx-gtk](https://github.com/yingDev/rxrs/tree/master/rx-gtk) aiming to provide utilities for woking with rx-gtk.Take a look at the [example_gui](https://github.com/yingDev/rxrs/tree/master/example_gui).
+There's a crate [./rx-gtk](https://github.com/yingDev/rxrs/tree/master/rx-gtk) aiming to provide utilities for working with rx-gtk.Take a look at the [example_gui](https://github.com/yingDev/rxrs/tree/master/example_gui).
 
- <img width="256" src="https://github.com/yingDev/rxrs/blob/master/assets/eg.png?raw=true">
+ <img width="300" src="https://github.com/yingDev/rxrs/blob/master/assets/eg.png?raw=true">
 
  ```rust
 fn main()

@@ -1,7 +1,9 @@
 [package]
 name = "rx_gtk"
+description="rx utils for gtk-rs"
 version = "0.1.0"
 authors = ["应元东 <ying@yingDev.com>"]
+
 
 [dependencies]
 rxrs = {path = "../rx", version="0.1.0-alpha2"}

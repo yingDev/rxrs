@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.20.2 -->
+<interface>
+  <requires lib="gtk+" version="3.20"/>
+  <object class="GtkImage" id="image1">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="stock">gtk-refresh</property>
+    <property name="icon_size">3</property>
+  </object>
+  <object class="GtkApplicationWindow" id="win">
+    <property name="width_request">360</property>
+    <property name="height_request">300</property>
+    <property name="can_focus">False</property>
+    <property name="title" translatable="yes">TodoMVC</property>
+    <property name="resizable">False</property>
+    <property name="window_position">center</property>
+    <property name="destroy_with_parent">True</property>
+    <property name="type_hint">popup-menu</property>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="is_focus">True</property>
+        <property name="orientation">vertical</property>
+        <property name="baseline_position">top</property>
+        <child>
+          <object class="GtkEntry" id="input">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="valign">start</property>
+            <property name="margin_left">6</property>
+            <property name="margin_right">6</property>
+            <property name="margin_top">8</property>
+            <property name="margin_bottom">4</property>
+            <property name="caps_lock_warning">False</property>
+            <property name="secondary_icon_stock">gtk-ok</property>
+            <property name="placeholder_text" translatable="yes">What needs to be done? </property>
+            <style>
+              <class name="input"/>
+            </style>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="valign">start</property>
+            <property name="margin_left">8</property>
+            <property name="margin_right">8</property>
+            <property name="margin_top">4</property>
+            <property name="margin_bottom">4</property>
+            <property name="spacing">16</property>
+            <child>
+              <object class="GtkLabel" id="lb_items_left">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="tooltip_text" translatable="yes">Todo items left</property>
+                <property name="valign">center</property>
+                <property name="margin_left">4</property>
+                <property name="label" translatable="yes">99</property>
+                <style>
+                  <class name="badge"/>
+                </style>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButtonBox" id="filter_btns">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="halign">center</property>
+                <property name="layout_style">center</property>
+                <child>
+                  <object class="GtkRadioButton" id="btn_done">
+                    <property name="label" translatable="yes">Done</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">False</property>
+                    <property name="image_position">top</property>
+                    <property name="always_show_image">True</property>
+                    <property name="draw_indicator">False</property>
+                    <property name="group">btn_todo</property>
+                    <style>
+                      <class name="button"/>
+                    </style>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkRadioButton" id="btn_todo">
+                    <property name="label" translatable="yes">Todo</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">False</property>
+                    <property name="image_position">top</property>
+                    <property name="always_show_image">True</property>
+                    <property name="draw_indicator">False</property>
+                    <property name="group">btn_done</property>
+                    <style>
+                      <class name="button"/>
+                    </style>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkRadioButton" id="btn_all">
+                    <property name="label" translatable="yes">All</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">False</property>
+                    <property name="image_position">top</property>
+                    <property name="always_show_image">True</property>
+                    <property name="draw_indicator">False</property>
+                    <property name="group">btn_done</property>
+                    <style>
+                      <class name="button"/>
+                    </style>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">3</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn_clear_completed">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Remove completed items</property>
+                <property name="image">image1</property>
+                <property name="always_show_image">True</property>
+                <style>
+                  <class name="button"/>
+                  <class name="clear"/>
+                </style>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="pack_type">end</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkOverlay">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="margin_top">2</property>
+            <child>
+              <object class="GtkScrolledWindow">
+                <property name="height_request">300</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <child>
+                  <object class="GtkViewport">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <child>
+                      <object class="GtkListBox" id="list">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <style>
+                  <class name="list"/>
+                </style>
+              </object>
+              <packing>
+                <property name="index">-1</property>
+              </packing>
+            </child>
+            <child type="overlay">
+              <object class="GtkLabel" id="lb_empty">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="no_show_all">True</property>
+                <property name="label" translatable="yes">EMPTY</property>
+                <attributes>
+                  <attribute name="font-desc" value="Times New Roman, Italic 20"/>
+                  <attribute name="foreground" value="#d3d3d7d7cfcf"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="pass_through">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">True</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <child type="titlebar">
+      <placeholder/>
+    </child>
+  </object>
+</interface>

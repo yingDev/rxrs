@@ -1,0 +1,16 @@
+[package]
+name = "example_gui"
+version = "0.1.0"
+authors = ["应元东 <ying@yingDev.com>"]
+
+[dependencies]
+rxrs = { path = "../rx" }
+rx_gtk = { path = "../rx_gtk" }
+glib = "^0"
+gdk="^0"
+log = "^0"
+owning_ref = "0.3.3"
+
+[dependencies.gtk]
+version="^0"
+features = ["v3_10"]

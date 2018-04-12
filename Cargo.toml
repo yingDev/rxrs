@@ -1,9 +1,14 @@
 [package]
-version = "0.1.0-alpha2"
-description="Reactive Extensions for Rust"
-license="MIT"
-name = "rxrs"
-repository="https://github.com/yingDev/rxrs"
+name = "rsrs_workspace"
+version = "0.1.0"
 authors = ["应元东 <ying@yingDev.com>"]
 
+[workspace]
+members = ["rx", "example_gui", "rx_gtk"]
+
 [dependencies]
+rxrs = {path = "rx" }
+
+[profile.release]
+opt-level ='z'
+lto = true

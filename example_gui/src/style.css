@@ -1,0 +1,11 @@
+.button { border-radius: 0; }
+.radio:checked { background: linear-gradient(#58d, #69f); color: white; border:solid 1px #69f; }
+.input { font-size:18px; padding:4px 10px; color:#333; }
+.todo_item{ padding:8px; font-size: 16px; color:#333; border-bottom:solid 1px #ddd; }
+.todo_item:checked{ color:#999; }
+.list{ border-top: solid 1px #aaa; }
+.badge{ color: white; border-radius:4px; font-weight:bold; background:darkcyan; padding:6px 8px; box-shadow:1px 1px 0 white; }
+.clear { background:none; border:none; box-shadow:none;}
+.clear:active { background:none; border:none; opacity: 0.5; }
+checkbutton>check { margin:4px 10px 4px 4px; padding:2px; }
+checkbutton { color:#666; font-size: 18px; }

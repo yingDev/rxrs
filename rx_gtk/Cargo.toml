@@ -1,0 +1,14 @@
+[package]
+name = "rx_gtk"
+version = "0.1.0"
+authors = ["yingDev <me@yingDev.com>"]
+
+[dependencies]
+rxrs = {path = "../rx"}
+glib = "^0"
+gdk="^0"
+owning_ref = "0.3.3"
+
+[dependencies.gtk]
+version="^0"
+features = ["v3_10"]

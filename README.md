@@ -43,30 +43,38 @@ complete on ThreadId(2)
 ```
 
 ### Play with [gtk-rs](https://github.com/gtk-rs/gtk)
+There's a crate [./rx-gtk](https://github.com/yingDev/rxrs/tree/master/rx-gtk) aiming to provide utilities for woking with rx-gtk.Take a look at the [example_gui](https://github.com/yingDev/rxrs/tree/master/example_gui).
 
- <img width="200" src="https://github.com/yingDev/rxrs/blob/master/assets/gtk.gif?raw=true">
+ <img width="256" src="https://github.com/yingDev/rxrs/blob/master/assets/eg.png?raw=true">
 
-```rust 
-//(lib for this demo is also a WIP)
+ ```rust
+fn main()
+{
+    if let Err(e) = gtk::init(){ panic!("{}", e); }
+    rx::scheduler::set_sync_context(Some(GtkScheduler::<rx::util::mss::No>::get()));
+    load_style();
 
-let slider = Scale::new_with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
+    let builder = gtk::Builder::new_from_string(include_str!("win.glade"));
+    let window: gtk::Window = builder.get_object("win").unwrap();
 
-// create an `Observable` from the slider's `value_changed` event
-event!(slider.connect_value_changed, it => it.get_value())
-    .start_with(0.0) // events (signals) don't emit an initial value, so we give it one
-    .debounce(250, GtkScheduler::get()) // debounce with 250ms to limit input frequency
-    .observe_on(NewThreadScheduler::get()) // change to a worker thread
-    .map(|v| format!("*{}*", v*v)) // do hard (or blocking) jobs on that thread
-    .observe_on(GtkScheduler::get()) // schedule results back to main thread ...
-    .subf( // ... for displaying
-        byclone!(btn => move |v:String| btn.set_label(&v) )
-    );
-```
+    event_once!(window, connect_delete_event, true).subf(|_| gtk::main_quit());
+
+    let vm = Rc::new(TodoViewModel::new());
+    vm.add_item("hello world".to_owned());
+
+    let view = TodoView::new(&builder);
+    view.bind(vm.clone());
+
+    window.show_all();
+    gtk::main();
+}
+ ```
 
 # File Structure
 ```
 src
 ├── behaviour_subject.rs
+├── behaviour_subject_nss.rs
 ├── connectable_observable.rs
 ├── fac
 │   ├── create.rs
@@ -84,18 +92,22 @@ src
 │   ├── observe_on.rs
 │   ├── publish.rs
 │   ├── skip.rs
+│   ├── start_with.rs
 │   ├── sub_on.rs
 │   ├── take.rs
 │   ├── take_until.rs
 │   └── tap.rs
 ├── scheduler.rs
 ├── subject.rs
-├── subscriber.rs
-├── unsub_ref.rs
+├── subject_nss.rs
+├── subref.rs
+├── test_fixture.rs
 └── util
     ├── arc_cell.rs
     ├── atomic_option.rs
-    └── mod.rs
+    ├── capture_by_clone.rs
+    ├── mod.rs
+    └── mss.rs
 
 ```
 

@@ -32,9 +32,9 @@ pub struct TodoViewModel
 {
     cur_id: Cell<i32>,
     items: Rc<RefCell<Vec<TodoItem>>>,
-    filter: Rc<BehaviorSubject<'static, Filter>>,
+    filter: BehaviorSubject<'static, Filter>,
 
-    changes: Rc<Subject<'static, ()>>,
+    changes: Subject<'static, ()>,
 }
 
 impl TodoViewModel
@@ -44,8 +44,8 @@ impl TodoViewModel
         TodoViewModel{
             cur_id: Cell::new(0),
             items: Rc::new(RefCell::new(vec![])),
-            filter: Rc::new(BehaviorSubject::new(Filter::Todo)),
-            changes: Rc::new(Subject::new())
+            filter: BehaviorSubject::new(Filter::Todo),
+            changes: Subject::new()
         }
     }
 
@@ -95,20 +95,20 @@ impl TodoViewModel
         self.changes.next(());
     }
 
-    pub fn filter(&self) -> impl Observable<'static, Filter>
+    pub fn filter<'a>(&'a self) -> impl Observable<'static, Filter>+'a
     {
-        self.filter.clone()
+        self.filter.rx()
     }
 
-    pub fn items_left(&self) -> impl Observable<'static, usize>
+    pub fn items_left<'a>(&'a self) -> impl Observable<'static, usize>+'a
     {
         let items = self.items.clone();
         self.changes().map(move |_| items.borrow().iter().filter(|i| !i.completed).count())
     }
 
-    pub fn changes(&self) -> impl Observable<'static, ()>
+    pub fn changes<'a>(&'a self) -> impl Observable<'static, ()>+'a
     {
-        self.changes.clone().start_with(&())
+        self.changes.rx().start_with(&())
     }
 
     pub fn items<'i>(&'i self) -> impl Observable<ItemRef<'i>>

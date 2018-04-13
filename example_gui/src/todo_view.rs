@@ -7,7 +7,10 @@ use gtk::prelude::*;
 use rx::observable::*;
 use rx::op::*;
 
-const FILTER_BTNS: &'static [(Filter, &'static str)] = &[(Filter::Done, "btn_done"), (Filter::Todo, "btn_todo"), (Filter::All, "btn_all")];
+const FILTER_BTNS: &'static [(Filter, &'static str)] = {
+    use Filter::*;
+    &[(Done, "btn_done"), (Todo, "btn_todo"), (All, "btn_all")]
+};
 
 pub struct TodoView
 {

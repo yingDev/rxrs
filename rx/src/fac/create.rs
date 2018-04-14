@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use subref::SubRef;
 use observable::Observable;
 use observable::Observer;
-use subref::IntoSubRef;
+use subref::*;
 use util::mss::*;
 use std::cell::UnsafeCell;
 use std::cell::RefCell;
@@ -62,10 +62,10 @@ pub fn just<'s, V:Clone+'s>(v:V) -> JustObservable<'s, V>
     JustObservable(v, PhantomData)
 }
 
-pub struct LocalObservable<'a, V: 'a, F, R>(RefCell<F>, PhantomData<(&'a(), *const R, *const V)>) where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'a;
-impl<'a:'b,'b,V:'a, F, R> Observable<'a, V, No, No> for LocalObservable<'a, V, F, R> where F: 'a+FnMut(Mss<No, &(Observer<V>+'a)>) -> R, R: IntoSubRef<No>+'a
+pub struct LocalObservable<'o, V: 'o, F, R>(RefCell<F>, PhantomData<(&'o(), *const R, *const V)>) where F: 'o+FnMut(Mss<No, &(Observer<V>+'o)>) -> R, R: IntoSubRef<No>+'o;
+impl<'o:'b,'b,V:'o, F, R> Observable<'o, V, No, No> for LocalObservable<'o, V, F, R> where F: 'o+FnMut(Mss<No, &(Observer<V>+'o)>) -> R, R: IntoSubRef<No>+'o
 {
-    fn sub(&self, o: Mss<No, impl Observer<V>+'a>) -> SubRef<No>
+    fn sub(&self, o: Mss<No, impl Observer<V>+'o>) -> SubRef<No>
     {
         let mut f = self.0.borrow_mut();
         let sub = f.call_mut((Mss::no(&o.into_inner()),));
@@ -148,6 +148,28 @@ pub fn range<'a>(start:i32, len: usize) -> RangeObservable
 }
 
 
+pub struct IterObservable<I:Iterator+Clone>(I);
+impl<'o, I:Iterator+Clone> Observable<'o, I::Item> for IterObservable<I>
+{
+    fn sub(&self, o: Mss<No, impl Observer<I::Item>+'o>) -> SubRef<No>
+    {
+        if o._is_closed() { return SubRef::empty(); }
+
+        for i in self.0.clone(){
+            if o._is_closed() { break; }
+            o.next(i);
+            if o._is_closed() { break; }
+        }
+        if !o._is_closed() {
+            o.complete();
+        }
+        return SubRef::empty();
+    }
+}
+pub fn from_iter<I:Iterator+Clone>(it: I) -> IterObservable<I>
+{
+    IterObservable(it)
+}
 
 #[cfg(test)]
 mod test
@@ -214,5 +236,12 @@ mod test
 
 
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn iter()
+    {
+        let vec: Vec<i32> = vec![1,2,3,4];
+        from_iter(vec.iter()).subf(|v:&i32| println!("{}", v));
     }
 }

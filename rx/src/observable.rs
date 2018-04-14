@@ -272,7 +272,7 @@ impl<F> FnCell<F>
 fn _empty<V>(_:V){}
 fn _comp(){}
 
-impl<'o, Obs, V:'o, F, R, SSS:?Sized> SubFHelper<V,F, No, SSS> for Obs
+impl<'o, Obs, V, F, R, SSS:?Sized> SubFHelper<V,F, No, SSS> for Obs
     where Obs : Observable<'o, V, No, SSS>, F: 'o+FnMut(V) ->R
 {
     #[inline(always)]

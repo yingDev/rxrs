@@ -33,7 +33,6 @@ pub struct TodoViewModel
     cur_id: Cell<i32>,
     items: Rc<RefCell<Vec<TodoItem>>>,
     filter: BehaviorSubject<'static, Filter>,
-
     changes: Subject<'static, ()>,
 }
 
@@ -84,7 +83,7 @@ impl TodoViewModel
 
     pub fn clear_completed(&self)
     {
-        let new = self.items.borrow().iter().filter(|i| ! i.completed).map(|i| i.clone()).collect();
+        let new = self.items.borrow().iter().filter(|i| ! i.completed).cloned().collect();
         self.items.replace(new);
 
         //if we are viewing 'done' items, jump to 'todo' tab

@@ -1,5 +1,5 @@
 [package]
-version = "0.1.0-alpha2"
+version = "0.1.0-alpha3"
 description="Reactive Extensions for Rust"
 license="MIT"
 name = "rxrs"

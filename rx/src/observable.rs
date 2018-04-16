@@ -7,8 +7,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use util::mss::*;
 use std::rc::Rc;
+use std::error::Error;
 
-pub type ArcErr = Arc<Box<Any+Send+Sync>>;
+pub type ArcErr = Arc<Box<Error+Send+Sync>>;
 
 pub trait Observable<'o, V, SSO:?Sized=No, SSS:?Sized=No>
 {

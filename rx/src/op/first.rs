@@ -4,11 +4,31 @@ use subref::*;
 use observable::RxNoti::*;
 use util::mss::*;
 use std::sync::Arc;
+use std::error::Error;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt;
 //use scheduler::*;
 
+#[derive(Debug)]
 pub struct FirstOpError
 {
 
+}
+
+impl Display for FirstOpError
+{
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
+impl Error for FirstOpError
+{
+    fn description(&self) -> &str
+    {
+        "Source completed with no item"
+    }
 }
 
 #[derive(Clone)]
@@ -160,7 +180,12 @@ mod test
         //let s = SimpleObservable;
         fac::empty::<i32>().first().subf((
             |v| println!("v={}", v),
-            |e| print!("error!"),
+            |e: ArcErr| {
+                print!("error!");
+                if let Some(ref e) = e.downcast_ref::<FirstOpError>() {
+                    println!("{}", e);
+                }
+            },
             || println!("complete")
         ));
     }

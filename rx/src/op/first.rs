@@ -177,16 +177,19 @@ mod test
     #[test]
     fn lifetime()
     {
+        let mut r = Cell::new(0);
         //let s = SimpleObservable;
         fac::empty::<i32>().first().subf((
-            |v| println!("v={}", v),
+            |v| r.replace(r.get()+1),
             |e: ArcErr| {
-                print!("error!");
                 if let Some(ref e) = e.downcast_ref::<FirstOpError>() {
                     println!("{}", e);
+                    r.replace(r.get() + 2);
                 }
             },
-            || println!("complete")
+            || r.replace(r.get()+3)
         ));
+
+        assert_eq!(2, r.get());
     }
 }

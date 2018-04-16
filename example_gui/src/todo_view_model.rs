@@ -11,20 +11,7 @@ use std::cell::RefCell;
 use std::cell::Cell;
 use std::sync::Arc;
 use std::rc::Rc;
-
-#[derive(Clone)]
-pub struct TodoItem
-{
-    pub id: i32,
-    pub completed: bool,
-    pub title: String
-}
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub enum Filter
-{
-    Done, Todo, All
-}
+use todo_models::*;
 
 pub type ItemRef<'i> = RefRef<'i, Vec<TodoItem>, TodoItem>;
 

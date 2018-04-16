@@ -1,4 +1,5 @@
 mod take;
+mod first;
 mod filter;
 mod map;
 mod skip;
@@ -13,6 +14,7 @@ mod multicast;
 mod publish;
 //
 pub use self::take::*;
+pub use self::first::*;
 pub use self::filter::*;
 pub use self::map::*;
 pub use self::skip::*;

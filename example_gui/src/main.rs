@@ -19,6 +19,7 @@ extern crate owning_ref;
 #[macro_use]
 extern crate rx_gtk;
 
+mod todo_models;
 mod todo_view_model;
 mod todo_view;
 

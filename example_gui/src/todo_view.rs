@@ -6,9 +6,11 @@ use rx;
 use gtk::prelude::*;
 use rx::observable::*;
 use rx::op::*;
+use todo_models::*;
+use rx::behaviour_subject_nss::*;
 
 const FILTER_BTNS: &'static [(Filter, &'static str)] = {
-    use Filter::*;
+    use ::todo_models::Filter::*;
     &[(Done, "btn_done"), (Todo, "btn_todo"), (All, "btn_all")]
 };
 
@@ -26,6 +28,7 @@ struct State
     lb_empty: gtk::Label,
 
     filter_btns: Rc<HashMap<Filter, gtk::RadioButton>>,
+    sig_reset: Rc<Subject<()>>
 }
 
 
@@ -43,12 +46,15 @@ impl TodoView
             .map(|(f,s)| (*f, builder.get_object::<gtk::RadioButton>(s).unwrap()))
             .collect::<HashMap<_,_>>());
 
-        TodoView{ state: Rc::new(State{ input, list, filter_btns, lb_items_left, btn_clear_completed, lb_empty }) }
+        TodoView{ state: Rc::new(State{ input, list, filter_btns, lb_items_left, btn_clear_completed, lb_empty, sig_reset: Rc::new(Subject::new()) }) }
     }
 
     pub fn bind(&self, vm: Rc<TodoViewModel>)
     {
         let state = self.state.clone();
+        let sig_reset = state.sig_reset();
+
+        sig_reset.next(());
 
         state.filter_btns.iter().for_each(|(f, btn)| {
             signal!(btn,connect_toggled).subf(byclone!(vm, f, btn => move |_| {

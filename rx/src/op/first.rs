@@ -43,14 +43,26 @@ pub trait ObservableFirst<'o, Src, V, SSO: ? Sized, SSS: ?Sized> where Src: Obse
 {
     fn first(self) -> FirstOp<'o, Src, V, fn(&V)->bool, SSO, SSS>;
 }
+pub trait ObservableFirstIf<'o, Src, V, F, SSO: ? Sized, SSS: ?Sized> where Src: Observable<'o, V, SSO, SSS>, F:'o+Clone+Fn(&V)->bool
+{
+    fn first_if(self, pred: F) -> FirstOp<'o, Src, V, F, SSO, SSS>;
+}
 
-impl<'o, Src, V, SSO: ? Sized, SSS: ? Sized> ObservableFirst<'o, Src, V, SSO, SSS> for Src where Src: Observable<'o, V, SSO, SSS>,
+impl<'o, Src, V,  SSO: ? Sized, SSS: ? Sized> ObservableFirst<'o, Src, V, SSO, SSS> for Src where Src: Observable<'o, V, SSO, SSS>
 {
     #[inline(always)]
     fn first(self) -> FirstOp<'o, Self, V, fn(&V)->bool, SSO, SSS>
     {
         fn _true<V>(_:&V)->bool{ true }
         FirstOp { pred:_true, PhantomData, source: self }
+    }
+}
+impl<'o, Src, V, F, SSO: ? Sized, SSS: ? Sized> ObservableFirstIf<'o, Src, V, F, SSO, SSS> for Src where Src: Observable<'o, V, SSO, SSS>,F:'o+Clone+Fn(&V)->bool
+{
+    #[inline(always)]
+    fn first_if(self, f:F) -> FirstOp<'o, Self, V, F, SSO, SSS>
+    {
+        FirstOp { pred:f, PhantomData, source: self }
     }
 }
 
@@ -175,7 +187,7 @@ mod test
     use fac;
 
     #[test]
-    fn lifetime()
+    fn empty()
     {
         let mut r = Cell::new(0);
         //let s = SimpleObservable;
@@ -191,5 +203,12 @@ mod test
         ));
 
         assert_eq!(2, r.get());
+    }
+
+    #[test]
+    fn pred()
+    {
+        fac::range(0,3).first_if(|i:&_| *i>1).subf(|v| println!("v={}",v));
+        fac::range(0,3).first_if(|i:&_| *i== -1).subf(((), |e| println!("error")));
     }
 }

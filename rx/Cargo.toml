@@ -1,9 +1,0 @@
-[package]
-version = "0.1.0-alpha3"
-description="Reactive Extensions for Rust"
-license="MIT"
-name = "rxrs"
-repository="https://github.com/yingDev/rxrs"
-authors = ["应元东 <ying@yingDev.com>"]
-
-[dependencies]

@@ -1,6 +1,5 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox)]
 #![feature(test)]
-#![feature(duration_as_u128)]
 #![feature(cell_update)]
 #![feature(box_syntax)]
 #![feature(specialization)]
@@ -28,17 +27,15 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::AtomicUsize;
 
-mod immutable_list;
-mod arc_cell;
-mod re_spin_lock;
-mod subject;
+pub mod sync;
+pub mod subject;
 mod collection_ext;
 
+
 use crate::subject::Subject;
-use crate::arc_cell::ArcCell;
-use crate::immutable_list::ImmutableList;
+use crate::sync::ArcCell;
 use crate::collection_ext::CollectionExt;
-use crate::re_spin_lock::ReSpinLock;
+use crate::sync::ReSpinLock;
 
 pub trait YesNo { const VALUE: bool; }
 pub struct YES;
@@ -46,25 +43,6 @@ pub struct NO;
 impl YesNo for YES { const VALUE: bool = true; }
 impl YesNo for NO { const VALUE: bool = false; }
 
-const N: usize = 1000 * 1000;
-
-fn main()
-{
-
-    let n = Cell::new(0);
-    let s = Subject::<usize, (), NO>::new();
-
-    s.subscribe(|v| { n.replace(v); });
-
-    let time = std::time::Instant::now();
-
-    for i in 0..N { s.next(i); }
-
-    let t = time.elapsed();
-
-    println!("n={}", n.get());
-    println!("time={:?}", t);
-}
 
 pub struct Subscription<'a, SS:YesNo>
 {

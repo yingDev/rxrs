@@ -10,8 +10,8 @@ use std::sync::atomic::Ordering;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicPtr;
 
-use crate::arc_cell::ArcCell;
-use crate::re_spin_lock::ReSpinLock;
+use crate::sync::ArcCell;
+use crate::sync::ReSpinLock;
 use crate::Observable;
 use crate::ObservableSendSync;
 use crate::Observer;

@@ -1,4 +1,36 @@
+use std::rc::Rc;
+use std::sync::Arc;
 use crate::*;
+
+impl<'a, V:Clone, E:Clone> Observer<V,E> for Box<Observer<V,E>+'a>
+{
+    #[inline(always)] fn next(&self, value: V) { Box::as_ref(self).next(value); }
+    #[inline(always)] fn error(&self, e: E) { Box::as_ref(self).error(e); }
+    #[inline(always)] fn complete(&self){ Box::as_ref(self).complete() }
+}
+
+impl<'a, V:Clone, E:Clone> Observer<V,E> for Box<Observer<V,E>+Send+Sync+'a>
+{
+    #[inline(always)] fn next(&self, value: V) { Box::as_ref(self).next(value); }
+    #[inline(always)] fn error(&self, e: E) { Box::as_ref(self).error(e); }
+    #[inline(always)] fn complete(&self){ Box::as_ref(self).complete() }
+}
+
+impl<'a, V:Clone, E:Clone> Observer<V,E> for Rc<Observer<V,E>+'a>
+{
+    #[inline(always)] fn next(&self, value: V) { Rc::as_ref(self).next(value); }
+    #[inline(always)] fn error(&self, e: E) { Rc::as_ref(self).error(e); }
+    #[inline(always)] fn complete(&self){ Rc::as_ref(self).complete() }
+}
+
+impl<'a, V:Clone, E:Clone> Observer<V,E> for Arc<Observer<V,E>+'a>
+{
+    #[inline(always)] fn next(&self, value: V) { Arc::as_ref(self).next(value); }
+    #[inline(always)] fn error(&self, e: E) { Arc::as_ref(self).error(e); }
+    #[inline(always)] fn complete(&self){ Arc::as_ref(self).complete() }
+}
+
+
 
 impl<V:Clone, E:Clone, R, FN:Fn(V)->R> Observer<V,E> for FN
 {

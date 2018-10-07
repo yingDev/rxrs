@@ -3,22 +3,18 @@ use std::sync::*;
 use std::sync::atomic::*;
 use std::cell::UnsafeCell;
 
-use crate::sync::ArcCell;
 use crate::sync::ReSpinLock;
 use crate::*;
 
 
-enum SubjectState<'o, V:Clone, E:Clone, SS>
+enum SubjectState<'o, V:Clone, E:Clone>
 {
     Next(Vec<Arc<Observer<V,E> + 'o>>),
     Error(E),
-    Complete(PhantomData<SS>)
+    Complete
 }
 
-unsafe impl <'o, V:Clone, E:Clone> Send for SubjectState<'o, V, E, YES> {}
-unsafe impl <'o, V:Clone, E:Clone> Sync for SubjectState<'o, V, E, YES> {}
-
-struct Wrap<'o, V:Clone, E:Clone, SS:YesNo>{ lock: ReSpinLock<SS>, state: UnsafeCell<*mut SubjectState<'o, V, E, SS>> }
+struct Wrap<'o, V:Clone, E:Clone, SS:YesNo>{ lock: ReSpinLock<SS>, state: UnsafeCell<*mut SubjectState<'o, V, E>> }
 unsafe impl <'o, V:Clone, E:Clone> Send for Wrap<'o, V, E, YES> {}
 unsafe impl <'o, V:Clone, E:Clone> Sync for Wrap<'o, V, E, YES> {}
 
@@ -35,17 +31,17 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Subject<'o, V, E, SS>
         Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), state: UnsafeCell::new(state_ptr) })  }
     }
 
-    fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
+    fn COMPLETE() -> *mut SubjectState<'o, V, E>
     {
         unsafe {
             static mut VAL: *const () = ::std::ptr::null();
             static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (SubjectState::Complete(PhantomData) as SubjectState<'o, V, E, SS>))));
+            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (SubjectState::Complete as SubjectState<'o, V, E>))));
             ::std::mem::transmute(VAL)
         }
     }
 
-    fn subscribe_internal<'x:'o>(&self, subscriber: Arc<Observer<V,E> +'x>) -> Subscription<'o, SS>
+    fn subscribe_internal(&self, subscriber: Arc<Observer<V,E> +'o>) -> Subscription<'o, SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
@@ -68,7 +64,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Subject<'o, V, E, SS>
                 subscriber.error(e.clone());
                 Subscription::<SS>::done()
             },
-            SubjectState::Complete(_) => {
+            SubjectState::Complete => {
                 subscriber.complete();
                 Subscription::<SS>::done()
             }
@@ -101,6 +97,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Subject<'o, V, E, SS>
         }
     }
 }
+
+
 
 unsafe impl<'o, V:Clone+Send+Sync, E:Clone> Send for Subject<'o, V, E, YES> {}
 unsafe impl<'o, V:Clone+Send+Sync, E:Clone> Sync for Subject<'o, V, E, YES> {}

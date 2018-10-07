@@ -36,8 +36,8 @@ pub trait ObservableOpMap<V, VOut, E, EOut, SS> : Sized
     }
 }
 
-impl<'s, 'o, V:Clone,VOut:Clone, E:Clone, EOut:Clone, Src> ObservableOpMap<V, VOut, E, EOut, NO> for Src where Src : Observable<'o, V, E> {}
-impl<'s, V:Clone+Send+Sync,VOut:Clone+Send+Sync, E:Clone+Send+Sync, EOut:Clone+Send+Sync, Src> ObservableOpMap<V, VOut, E, EOut, YES> for Src where Src : ObservableSendSync<V, E> {}
+impl<'o, V:Clone+'o,VOut:Clone+'o, E:Clone+'o, EOut:Clone+'o, Src> ObservableOpMap<V, VOut, E, EOut, NO> for Src where Src : Observable<'o, V, E> {}
+impl<V:Clone+Send+Sync+'static,VOut:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, EOut:Clone+Send+Sync+'static, Src> ObservableOpMap<V, VOut, E, EOut, YES> for Src where Src : ObservableSendSync<V, E> {}
 
 pub struct OpMap<V, VOut, E, EOut, Src, F, SS> where F : Mapper<V,VOut,E,EOut>
 {
@@ -53,6 +53,7 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observab
     {
         self.src.subscribe( OpMapSubscriber { observer, f: self.f.clone(), PhantomData })
     }
+
 }
 
 impl<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, EOut: Clone+Send+Sync+'static, VOut:Clone+Send+Sync+'static, Src: ObservableSendSync<V, E>, F: Mapper<V,VOut, E, EOut>+Send+Sync+Clone+'static> ObservableSendSync<VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, YES>
@@ -62,6 +63,7 @@ impl<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, EOut: Clone+Send+Sync
     {
         self.src.subscribe( OpMapSubscriber { observer, f: self.f.clone(), PhantomData})
     }
+
 }
 
 struct OpMapSubscriber<V, VOut, E, EOut, Dest, F: Mapper<V,VOut, E, EOut>>

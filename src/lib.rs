@@ -7,21 +7,6 @@
 #![allow(non_snake_case)]
 
 pub mod sync;
-pub mod fac;
-
-mod op;
-mod subscription;
-mod yesno;
-mod subject;
-mod observer_fn;
-mod observable_rc;
-
-pub use crate::subscription::*;
-pub use crate::yesno::*;
-pub use crate::fac::*;
-pub use crate::subject::*;
-pub use crate::observer_fn::*;
-pub use crate::observable_rc::*;
 
 pub trait Observable<'s, 'o, V:Clone, E:Clone>
 {
@@ -45,4 +30,17 @@ trait Subscriber<V:Clone, E:Clone> : Observer<V,E>
     fn unsubscribe(&self);
 }
 
+mod fac;
+mod op;
+mod subscription;
+mod yesno;
+mod subject;
+mod observer_fn;
+mod observable_rc;
 
+pub use crate::subscription::*;
+pub use crate::yesno::*;
+pub use crate::fac::*;
+pub use crate::subject::*;
+pub use crate::observer_fn::*;
+pub use crate::observable_rc::*;

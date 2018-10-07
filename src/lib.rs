@@ -1,14 +1,19 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, )]
 #![allow(non_snake_case)]
 
-pub trait Observable<'s, 'o, V:Clone, E:Clone>
+pub trait Observable<V:Clone, E:Clone>
 {
-    fn subscribe(&'s self, observer: impl Observer<V,E>+'o) -> Subscription<'o,NO>;
+    fn subscribe<'o>(&self, observer: impl Observer<V,E>+'o) -> Subscription<'o,NO>;
 }
 
-pub trait ObservableSendSync<'s, V:Clone, E:Clone> : Send + Sync
+pub trait ObservableSendSync<V:Clone, E:Clone> : Send + Sync
 {
-    fn subscribe(&'s self, observer: impl Observer<V,E>+ Send + Sync+'static) -> Subscription<'static, YES>;
+    fn subscribe(&self, observer: impl Observer<V,E>+ Send + Sync+'static) -> Subscription<'static, YES>;
+}
+
+pub trait DynObservable<'s, 'o, V:Clone, E:Clone, SS: YesNo, O: Observer<V,E>+'o = ::std::rc::Rc<Observer<V,E>+'o>>
+{
+    fn subscribe(&'s self, observer: O) -> Subscription<'o, SS>;
 }
 
 pub trait Observer<V:Clone, E:Clone>
@@ -22,6 +27,17 @@ trait Subscriber<V:Clone, E:Clone> : Observer<V,E>
 {
     fn unsubscribe(&self);
 }
+
+//struct Wrap<V:Clone, E:Clone, Src: Observable<'s, 'o, > O: Observer<V,E>>
+//{
+//    src:
+//}
+//
+//fn shit<'s, 'o>() -> Box<DynObservable<'s, 'o, i32, (), NO>>
+//{
+//    let o = of(123, NO);
+//
+//}
 
 pub mod sync;
 

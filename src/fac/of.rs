@@ -11,6 +11,7 @@ impl<V> !Sync for Of<V, NO> {}
 
 impl<V:Clone, SS:YesNo> Of<V,SS>
 {
+    #[inline(always)]
     fn subscribe_internal<'o>(&self, observer: impl Observer<V,()>+'o) -> Subscription<'o, SS>
     {
         observer.next(self.0.clone());
@@ -34,7 +35,6 @@ impl<'s, 'o, V: Clone+Send+Sync> ObservableSendSync<'s, V, ()> for Of<V, YES>
 mod test
 {
     use crate::*;
-    use super::of;
     use std::sync::atomic::*;
 
     #[test]

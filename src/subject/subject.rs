@@ -213,16 +213,10 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 mod tests
 {
     //use test::Bencher;
-    use crate::subject::Subject;
-    use crate::Observable;
-    use crate::ObservableSendSync;
-    use crate::Observer;
-    use crate::NO;
-    use crate::YES;
+    use crate::*;
     use std::cell::Cell;
     use std::sync::Arc;
-    use std::sync::atomic::AtomicI32;
-    use std::sync::atomic::Ordering;
+    use std::sync::atomic::*;
 
     #[test]
     fn smoke()

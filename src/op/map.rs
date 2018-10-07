@@ -169,4 +169,10 @@ mod test
         b.subscribe(move |v| nn.store(v, Ordering::SeqCst));
         assert_eq!(n.load(Ordering::SeqCst), 125);
     }
+
+    #[test]
+    fn trait_objcet()
+    {
+        let o: Box<Observable<i32, ()>> = box of(123, NO).map(|v| v+1);
+    }
 }

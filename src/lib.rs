@@ -29,10 +29,11 @@ use std::sync::atomic::AtomicUsize;
 
 pub mod sync;
 pub mod subject;
+pub mod fac;
 mod subscription;
 mod yesno;
 
-pub use crate::subscription::Subscription;
+pub use crate::subscription::*;
 pub use crate::yesno::*;
 
 use crate::subject::Subject;
@@ -66,105 +67,73 @@ trait Subscriber<V:Clone, E:Clone> : Observer<V,E>
 
 impl<V:Clone, E:Clone, FN:Fn(V)> Observer<V,E> for FN
 {
-    fn next(&self, value: V) { self(value) }
-    fn error(&self, _: E) {}
-    fn complete(&self){}
+    #[inline(always)] fn next(&self, value: V) { self(value) }
+    #[inline(always)] fn error(&self, _: E) {}
+    #[inline(always)] fn complete(&self){}
 }
 
 impl<V:Clone, E:Clone, FN:Fn(V)> Observer<V,E> for (FN,())
 {
-    fn next(&self, value: V) { self.0(value) }
-    fn error(&self, _: E) {}
-    fn complete(&self){}
+    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn error(&self, _: E) {}
+    #[inline(always)] fn complete(&self){}
 }
 
 impl<V:Clone, E:Clone, FN:Fn(V)> Observer<V,E> for (FN,(), ())
 {
-    fn next(&self, value: V) { self.0(value) }
-    fn error(&self, _: E) {}
-    fn complete(&self){}
+    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn error(&self, _: E) {}
+    #[inline(always)] fn complete(&self){}
 }
 
 impl<V:Clone, E:Clone, FN:Fn(V), FE:Fn(E)> Observer<V,E> for (FN,FE)
 {
-    fn next(&self, value: V) { self.0(value) }
-    fn error(&self, error: E){ self.1(error) }
-    fn complete(&self){}
+    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn complete(&self){}
 }
 
 impl<V:Clone, E:Clone, FN:Fn(V), FE:Fn(E)> Observer<V,E> for (FN,FE, ())
 {
-    fn next(&self, value: V) { self.0(value) }
-    fn error(&self, error: E){ self.1(error) }
-    fn complete(&self){}
+    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn complete(&self){}
 }
 
 impl<V:Clone, E:Clone, FN:Fn(V), FC:Fn()> Observer<V,E> for (FN,(),FC)
 {
-    fn next(&self, value: V) { self.0(value) }
-    fn error(&self, _: E) {}
-    fn complete(&self){ self.2() }
+    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn error(&self, _: E) {}
+    #[inline(always)] fn complete(&self){ self.2() }
 }
 
 impl<V:Clone, E:Clone, FE:Fn(E), FC:Fn()> Observer<V,E> for ((),FE,FC)
 {
-    fn next(&self, _:V) {}
-    fn error(&self, error: E){ self.1(error) }
-    fn complete(&self){ self.2() }
+    #[inline(always)] fn next(&self, _:V) {}
+    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn complete(&self){ self.2() }
 }
 
 impl<V:Clone, E:Clone, FE:Fn(E)> Observer<V,E> for ((),FE,())
 {
-    fn next(&self, _:V) {}
-    fn error(&self, error: E){ self.1(error) }
-    fn complete(&self){ }
+    #[inline(always)] fn next(&self, _:V) {}
+    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn complete(&self){ }
 }
 
 impl<V:Clone, E:Clone, FC:Fn()> Observer<V,E> for ((),(),FC)
 {
-    fn next(&self, _:V) {}
-    fn error(&self, _: E) {}
-    fn complete(&self){ self.2() }
+    #[inline(always)] fn next(&self, _:V) {}
+    #[inline(always)] fn error(&self, _: E) {}
+    #[inline(always)] fn complete(&self){ self.2() }
 }
 
 impl<V:Clone, E:Clone, FN:Fn(V), FE:Fn(E), FC:Fn()> Observer<V,E> for (FN,FE,FC)
 {
-    fn next(&self, value: V) { self.0(value) }
-    fn error(&self, error: E){ self.1(error) }
-    fn complete(&self){ self.2() }
+    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn complete(&self){ self.2() }
 }
-
-#[derive(Copy, Clone)]
-pub struct Of<V: Clone, SS>(V, SS);
-
-pub fn of<V:Clone, SS>(v:V, s:SS) -> Of<V, SS>
-{
-    Of(v, s)
-}
-
-impl<V> !Send for Of<V, NO> {}
-impl<V> !Sync for Of<V, NO> {}
-
-impl<'s, 'o, V: Clone> Observable<'s, 'o, V, ()> for Of<V, NO>
-{
-    fn subscribe(&'s self, observer: impl Observer<V,()>+'o) -> Subscription<'o, NO>
-    {
-        observer.next(self.0.clone());
-        observer.complete();
-        Subscription::new()
-    }
-}
-
-impl<'s, 'o, V: Clone+Send+Sync> ObservableSendSync<'s, V, ()> for Of<V, YES>
-{
-    fn subscribe(&'s self, observer: impl Observer<V,()>+Send+Sync+'static) -> Subscription<'static, YES>
-    {
-        observer.next(self.0.clone());
-        observer.complete();
-        Subscription::new()
-    }
-}
-
 
 pub trait Mapper<V, VOut, E, EOut>
 {
@@ -174,20 +143,20 @@ pub trait Mapper<V, VOut, E, EOut>
 
 impl<V, VOut, E, FN> Mapper<V, VOut, E, E> for FN where FN: Fn(V)->VOut
 {
-    fn next(&self, v:V) -> VOut { self.call((v,)) }
-    fn error(&self, e:E) -> E { e }
+    #[inline(always)] fn next(&self, v:V) -> VOut { self.call((v,)) }
+    #[inline(always)] fn error(&self, e:E) -> E { e }
 }
 
 impl<V, E, EOut, FE> Mapper<V, V, E, EOut> for ((), FE) where FE: Fn(E)->EOut
 {
-    fn next(&self, v:V) -> V { v }
-    fn error(&self, e:E) -> EOut { self.1.call((e,)) }
+    #[inline(always)] fn next(&self, v:V) -> V { v }
+    #[inline(always)] fn error(&self, e:E) -> EOut { self.1.call((e,)) }
 }
 
 impl<V, VOut, E, EOut, FN, FE> Mapper<V, VOut, E, EOut> for (FN, FE) where FN: Fn(V)->VOut, FE: Fn(E)->EOut
 {
-    fn next(&self, v:V) -> VOut { self.0.call((v,)) }
-    fn error(&self, e:E) -> EOut { self.1.call((e,)) }
+    #[inline(always)] fn next(&self, v:V) -> VOut { self.0.call((v,)) }
+    #[inline(always)] fn error(&self, e:E) -> EOut { self.1.call((e,)) }
 }
 
 
@@ -235,9 +204,9 @@ struct OpMapSubscriber<V, VOut, E, EOut, Dest, F: Mapper<V,VOut, E, EOut>>
 
 impl<'a, V:Clone, VOut:Clone, E:Clone, EOut:Clone, Dest: Observer<VOut,EOut>, F: Mapper<V,VOut, E, EOut>> Observer<V,E> for OpMapSubscriber<V, VOut, E, EOut, Dest, F>
 {
-    fn next(&self, v:V) { self.observer.next(self.f.next(v)) }
-    fn error(&self, e: E) { self.observer.error(self.f.error(e)) }
-    fn complete(&self) { self.observer.complete() }
+    #[inline(always)] fn next(&self, v:V) { self.observer.next(self.f.next(v)) }
+    #[inline(always)] fn error(&self, e: E) { self.observer.error(self.f.error(e)) }
+    #[inline(always)] fn complete(&self) { self.observer.complete() }
 }
 
 

@@ -1,19 +1,17 @@
-use crate::{YesNo, YES, NO, Observable, ObservableSendSync, Observer, Subscription};
+use crate::*;
 
 #[derive(Copy, Clone)]
-pub struct Of<V: Clone, SS>(V, SS);
+pub struct Of<V: Clone, SS: YesNo>(V, SS);
 
-pub fn of<V:Clone, SS>(v:V, s:SS) -> Of<V, SS>
-{
-    Of(v, s)
-}
+#[inline(always)]
+pub fn of<V:Clone, SS: YesNo>(v:V, s:SS) -> Of<V, SS> { Of(v, s) }
 
 impl<V> !Send for Of<V, NO> {}
 impl<V> !Sync for Of<V, NO> {}
 
-impl<'s, 'o, V: Clone> Observable<'s, 'o, V, ()> for Of<V, NO>
+impl<V:Clone, SS:YesNo> Of<V,SS>
 {
-    fn subscribe(&'s self, observer: impl Observer<V,()>+'o) -> Subscription<'o, NO>
+    fn subscribe_internal<'o>(&self, observer: impl Observer<V,()>+'o) -> Subscription<'o, SS>
     {
         observer.next(self.0.clone());
         observer.complete();
@@ -21,21 +19,21 @@ impl<'s, 'o, V: Clone> Observable<'s, 'o, V, ()> for Of<V, NO>
     }
 }
 
+impl<'s, 'o, V: Clone> Observable<'s, 'o, V, ()> for Of<V, NO>
+{
+    #[inline(always)] fn subscribe(&'s self, observer: impl Observer<V,()>+'o) -> Subscription<'o, NO> { self.subscribe_internal(observer) }
+}
+
 impl<'s, 'o, V: Clone+Send+Sync> ObservableSendSync<'s, V, ()> for Of<V, YES>
 {
-    fn subscribe(&'s self, observer: impl Observer<V,()>+Send+Sync+'static) -> Subscription<'static, YES>
-    {
-        observer.next(self.0.clone());
-        observer.complete();
-        Subscription::done()
-    }
+    #[inline(always)] fn subscribe(&'s self, observer: impl Observer<V,()>+Send+Sync+'static) -> Subscription<'static, YES> { self.subscribe_internal(observer) }
 }
 
 
 #[cfg(test)]
 mod test
 {
-    use crate::{YesNo, YES, NO, Observable, ObservableSendSync, Observer, Subscription};
+    use crate::*;
     use super::of;
     use std::sync::atomic::*;
 

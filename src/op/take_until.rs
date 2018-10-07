@@ -18,39 +18,29 @@ pub struct OpTakeUntil<V, E, VS, ES, Src, Sig, SS: YesNo>
 pub trait ObservableOpTakeUntil<V, E, VS, ES, Sig, SS: YesNo> : Sized
 {
     #[inline(always)]
-    fn take_until(self, sig: Sig) -> OpTakeUntil<V, E, VS, ES, Self, Sig, SS>
-    {
-        OpTakeUntil { src:self, sig,  PhantomData }
-    }
+    fn take_until(self, sig: Sig) -> OpTakeUntil<V, E, VS, ES, Self, Sig, SS> { OpTakeUntil { src:self, sig,  PhantomData } }
 }
 
-
-impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, NO> for Src {}
+impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, NO> for Src {}
 impl<V:CSS, E:CSS, VS: CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, YES> for Src {}
 
 
-impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> Observable<'o, V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, NO>
+impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> Observable<'o, V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, NO>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Subscription<'o, NO>
-    {
-        subscribe_nss(self, Rc::new(observer))
-    }
+    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Subscription<'o, NO> { subscribe_nss(self, Rc::new(observer)) }
 }
 
 impl<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableSendSync<V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, YES>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Subscription<'static, YES>
-    {
-        subscribe_ss(self, Arc::new(observer))
-    }
+    fn subscribe(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Subscription<'static, YES> { subscribe_ss(self, Arc::new(observer)) }
 }
 
 //todo: macro ?
 
 #[inline(never)]
-fn subscribe_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>>
+fn subscribe_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>>
     (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,NO>, observer: Rc<Observer<V,E>+'o>) -> Subscription<'o, NO>
 {
     let (sub, sub1, sub2, sub3) = Subscription::new().cloned4();
@@ -87,6 +77,7 @@ mod test
     use std::rc::Rc;
     use std::cell::Cell;
     use crate::*;
+    use crate::util::CloneN;
 
     #[test]
     fn basic()
@@ -96,11 +87,7 @@ mod test
         let src = Rc::new(Subject::<i32, (), NO>::new());
         let sig = Rc::new(Subject::<i32, (), NO>::new());
 
-        src.clone().take_until(sig.clone()).subscribe((
-            |v| n.replace(v),
-            (),
-            | | c.replace(c.get() + 1))
-        );
+        src.clone().take_until(sig.clone()).subscribe((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
 
         src.next(1);
         assert_eq!(n.get(), 1);
@@ -122,11 +109,7 @@ mod test
 
         sig.complete();
 
-        src.clone().take_until(sig.clone()).subscribe((
-            |v| n.replace(v),
-            (),
-            | | c.replace(c.get() + 1))
-        );
+        src.clone().take_until(sig.clone()).subscribe((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
 
         src.next(1);
         assert_eq!(n.get(), 0);
@@ -136,5 +119,18 @@ mod test
         assert_eq!(n.get(), 0);
 
         assert_eq!(c.get(), 1);
+    }
+
+    #[test]
+    fn recursive()
+    {
+        let n = Cell::new(0);
+        let (s, s2, s3) = Rc::new(Subject::<i32, (), NO>::new()).cloned3();
+
+        s2.take_until(s3).subscribe((|v| n.replace(v),(), ||{ println!("complete??")}));
+
+        s.next(1);
+
+        assert_eq!(n.get(), 0);
     }
 }

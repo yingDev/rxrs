@@ -149,7 +149,10 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 
         let old = unsafe { *state.get() };
         if let SubjectState::Next(vec) = unsafe { &*old } {
-            for o in vec { o.0.next(v.clone()); }
+            for (o,sub) in vec {
+                if sub.is_done() { continue; }
+                o.next(v.clone());
+            }
 
             if unsafe { *state.get() != old } && recur == 0 {
                 lock.exit();
@@ -173,6 +176,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
             lock.exit();
 
             for (o,sub) in vec {
+                if sub.is_done() { continue; }
                 sub.unsub();
                 o.error(e.clone());
             }
@@ -195,6 +199,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
             lock.exit();
 
             for (o, sub) in vec {
+                if sub.is_done() { continue; }
+
                 sub.unsub();
                 o.complete();
             }
@@ -214,6 +220,7 @@ mod tests
     use std::cell::Cell;
     use std::sync::Arc;
     use std::sync::atomic::*;
+    use crate::util::CloneN;
 
     #[test]
     fn smoke()
@@ -247,8 +254,18 @@ mod tests
     {
         let s = Subject::<i32, (), NO>::new();
         let sub = s.subscribe(|_| assert!(false, "shouldn't call"));
-
         sub.unsub();
+
+        s.next(1);
+    }
+
+    #[test]
+    fn unsub_in_next()
+    {
+        let (sub, sub2) = Subscription::new().cloned2();
+        let s = Subject::<i32, (), NO>::new();
+        s.subscribe(move |_| sub.unsub());
+        sub2.add(s.subscribe(move |_| assert!(false, "should not happen")));
 
         s.next(1);
     }

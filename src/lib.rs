@@ -28,16 +28,17 @@ use std::sync::atomic::Ordering;
 use std::sync::atomic::AtomicUsize;
 
 pub mod sync;
-pub mod subject;
 pub mod fac;
 
 mod op;
 mod subscription;
 mod yesno;
+mod subject;
 
 pub use crate::subscription::*;
 pub use crate::yesno::*;
 pub use crate::fac::*;
+pub use crate::subject::*;
 
 use crate::subject::Subject;
 use crate::sync::ArcCell;
@@ -78,74 +79,74 @@ impl<'s, V:Clone+Send+Sync, E:Clone+Send+Sync, RC: ObservableSendSync<'s, V, E>>
 }
 
 
-impl<V:Clone, E:Clone, FN:Fn(V)> Observer<V,E> for FN
+impl<V:Clone, E:Clone, R, FN:Fn(V)->R> Observer<V,E> for FN
 {
-    #[inline(always)] fn next(&self, value: V) { self(value) }
+    #[inline(always)] fn next(&self, value: V) { self(value); }
     #[inline(always)] fn error(&self, _: E) {}
     #[inline(always)] fn complete(&self){}
 }
 
-impl<V:Clone, E:Clone, FN:Fn(V)> Observer<V,E> for (FN,())
+impl<V:Clone, E:Clone, R, FN:Fn(V)->R> Observer<V,E> for (FN,())
 {
-    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn next(&self, value: V) { self.0(value); }
     #[inline(always)] fn error(&self, _: E) {}
     #[inline(always)] fn complete(&self){}
 }
 
-impl<V:Clone, E:Clone, FN:Fn(V)> Observer<V,E> for (FN,(), ())
+impl<V:Clone, E:Clone, R, FN:Fn(V)->R> Observer<V,E> for (FN,(), ())
 {
-    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn next(&self, value: V) { self.0(value); }
     #[inline(always)] fn error(&self, _: E) {}
     #[inline(always)] fn complete(&self){}
 }
 
-impl<V:Clone, E:Clone, FN:Fn(V), FE:Fn(E)> Observer<V,E> for (FN,FE)
+impl<V:Clone, E:Clone, RN, RE, FN:Fn(V)->RN, FE:Fn(E)->RE> Observer<V,E> for (FN,FE)
 {
-    #[inline(always)] fn next(&self, value: V) { self.0(value) }
-    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn next(&self, value: V) { self.0(value); }
+    #[inline(always)] fn error(&self, error: E){ self.1(error); }
     #[inline(always)] fn complete(&self){}
 }
 
-impl<V:Clone, E:Clone, FN:Fn(V), FE:Fn(E)> Observer<V,E> for (FN,FE, ())
+impl<V:Clone, E:Clone, RN, RE, FN:Fn(V)->RN, FE:Fn(E)->RE> Observer<V,E> for (FN,FE, ())
 {
-    #[inline(always)] fn next(&self, value: V) { self.0(value) }
-    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn next(&self, value: V) { self.0(value); }
+    #[inline(always)] fn error(&self, error: E){ self.1(error); }
     #[inline(always)] fn complete(&self){}
 }
 
-impl<V:Clone, E:Clone, FN:Fn(V), FC:Fn()> Observer<V,E> for (FN,(),FC)
+impl<V:Clone, E:Clone, RN, RC, FN:Fn(V)->RN, FC:Fn()->RC> Observer<V,E> for (FN,(),FC)
 {
-    #[inline(always)] fn next(&self, value: V) { self.0(value) }
+    #[inline(always)] fn next(&self, value: V) { self.0(value); }
     #[inline(always)] fn error(&self, _: E) {}
-    #[inline(always)] fn complete(&self){ self.2() }
+    #[inline(always)] fn complete(&self){ self.2(); }
 }
 
-impl<V:Clone, E:Clone, FE:Fn(E), FC:Fn()> Observer<V,E> for ((),FE,FC)
+impl<V:Clone, E:Clone, RE, RC, FE:Fn(E)->RE, FC:Fn()->RC> Observer<V,E> for ((),FE,FC)
 {
     #[inline(always)] fn next(&self, _:V) {}
-    #[inline(always)] fn error(&self, error: E){ self.1(error) }
-    #[inline(always)] fn complete(&self){ self.2() }
+    #[inline(always)] fn error(&self, error: E){ self.1(error); }
+    #[inline(always)] fn complete(&self){ self.2(); }
 }
 
-impl<V:Clone, E:Clone, FE:Fn(E)> Observer<V,E> for ((),FE,())
+impl<V:Clone, E:Clone, RE, FE:Fn(E)->RE> Observer<V,E> for ((),FE,())
 {
     #[inline(always)] fn next(&self, _:V) {}
-    #[inline(always)] fn error(&self, error: E){ self.1(error) }
+    #[inline(always)] fn error(&self, error: E){ self.1(error); }
     #[inline(always)] fn complete(&self){ }
 }
 
-impl<V:Clone, E:Clone, FC:Fn()> Observer<V,E> for ((),(),FC)
+impl<V:Clone, E:Clone, RC, FC:Fn()->RC> Observer<V,E> for ((),(),FC)
 {
     #[inline(always)] fn next(&self, _:V) {}
     #[inline(always)] fn error(&self, _: E) {}
-    #[inline(always)] fn complete(&self){ self.2() }
+    #[inline(always)] fn complete(&self){ self.2(); }
 }
 
-impl<V:Clone, E:Clone, FN:Fn(V), FE:Fn(E), FC:Fn()> Observer<V,E> for (FN,FE,FC)
+impl<V:Clone, E:Clone, RN, RE, RC, FN:Fn(V)->RN, FE:Fn(E)->RE, FC:Fn()->RC> Observer<V,E> for (FN,FE,FC)
 {
-    #[inline(always)] fn next(&self, value: V) { self.0(value) }
-    #[inline(always)] fn error(&self, error: E){ self.1(error) }
-    #[inline(always)] fn complete(&self){ self.2() }
+    #[inline(always)] fn next(&self, value: V) { self.0(value); }
+    #[inline(always)] fn error(&self, error: E){ self.1(error); }
+    #[inline(always)] fn complete(&self){ self.2(); }
 }
 
 

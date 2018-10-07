@@ -1,12 +1,5 @@
-#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox)]
-#![feature(test)]
-#![feature(cell_update)]
-#![feature(box_syntax)]
-#![feature(specialization)]
-
+#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, )]
 #![allow(non_snake_case)]
-
-pub mod sync;
 
 pub trait Observable<'s, 'o, V:Clone, E:Clone>
 {
@@ -29,6 +22,9 @@ trait Subscriber<V:Clone, E:Clone> : Observer<V,E>
 {
     fn unsubscribe(&self);
 }
+
+pub mod sync;
+
 
 mod fac;
 mod op;

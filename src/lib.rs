@@ -28,7 +28,7 @@ pub mod sync;
 
 mod fac;
 mod op;
-mod subscription;
+mod unsub;
 mod yesno;
 mod subject;
 mod observers;
@@ -36,7 +36,7 @@ mod observables;
 
 mod util;
 
-pub use crate::subscription::*;
+pub use crate::unsub::*;
 pub use crate::yesno::*;
 pub use crate::fac::*;
 pub use crate::subject::*;

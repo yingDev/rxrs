@@ -20,14 +20,14 @@ impl<V:Clone, SS:YesNo> Of<V,SS>
     }
 }
 
-impl<'s, 'o, V: Clone> Observable<'s, 'o, V, ()> for Of<V, NO>
+impl<'o, V: Clone> Observable<'o, V, ()> for Of<V, NO>
 {
-    #[inline(always)] fn subscribe(&'s self, observer: impl Observer<V,()>+'o) -> Subscription<'o, NO> { self.subscribe_internal(observer) }
+    #[inline(always)] fn subscribe(&self, observer: impl Observer<V,()>+'o) -> Subscription<'o, NO> { self.subscribe_internal(observer) }
 }
 
-impl<'s, 'o, V: Clone+Send+Sync> ObservableSendSync<'s, V, ()> for Of<V, YES>
+impl<V: Clone+Send+Sync> ObservableSendSync<V, ()> for Of<V, YES>
 {
-    #[inline(always)] fn subscribe(&'s self, observer: impl Observer<V,()>+Send+Sync+'static) -> Subscription<'static, YES> { self.subscribe_internal(observer) }
+    #[inline(always)] fn subscribe(&self, observer: impl Observer<V,()>+Send+Sync+'static) -> Subscription<'static, YES> { self.subscribe_internal(observer) }
 }
 
 

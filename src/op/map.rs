@@ -84,13 +84,16 @@ mod test
     use crate::*;
     use super::*;
     use std::sync::atomic::*;
+    use std::sync::Arc;
+    use std::cell::Cell;
+    use std::rc::Rc;
 
     #[test]
     fn basic()
     {
         let n = ::std::cell::Cell::new(0);
         let o = of(123, NO);
-        o.map(|v| v+1).subscribe(|v| n.replace(v) );
+        o.map(|v| v+1).subscribe(|v| n.replace(v));
 
         assert_eq!(n.get(), 124);
     }
@@ -110,7 +113,7 @@ mod test
     #[test]
     fn thread()
     {
-        let n = ::std::sync::Arc::new(AtomicI32::new(0));
+        let n = Arc::new(AtomicI32::new(0));
         let o = of(123, YES);
         let nn = n.clone();
 
@@ -126,7 +129,7 @@ mod test
     #[test]
     fn multiple()
     {
-        let n = ::std::cell::Cell::new(0);
+        let n = Cell::new(0);
         let o = of(0, NO);
         o.map(|v| v+1).map(|v| v+1).map(|v| v+1).map(|v| v+1).subscribe(|v| n.replace(v));
 
@@ -136,8 +139,8 @@ mod test
     #[test]
     fn src_rc()
     {
-        let n = ::std::cell::Cell::new(0);
-        let o = ::std::rc::Rc::new(of(123, NO));
+        let n = Cell::new(0);
+        let o = Rc::new(of(123, NO));
         let a = o.clone().map(|v| v+1);
         let b = o.clone().map(|v| v+2);
 
@@ -148,12 +151,11 @@ mod test
         assert_eq!(n.get(), 125);
     }
 
-
     #[test]
     fn src_arc()
     {
-        let n = ::std::sync::Arc::new(AtomicI32::new(0));
-        let o = ::std::sync::Arc::new(of(123, YES));
+        let n = Arc::new(AtomicI32::new(0));
+        let o = Arc::new(of(123, YES));
         let a = o.clone().map(|v| v+1);
         let b = o.clone().map(|v| v+2);
 

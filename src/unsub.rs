@@ -6,14 +6,12 @@ use std::sync::{Arc, Once, ONCE_INIT};
 
 use crate::{YesNo, YES, NO, sync::{ReSpinLock}};
 
-//todo: cbs => Vec<State> ...
 struct State<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
     cb: UnsafeCell<Option<Box<FnBox() + 'a>>>,
     cbs: UnsafeCell<Vec<Unsub<'a, SS>>>,
-    //PhantomData: PhantomData<SS>
 }
 
 pub struct Unsub<'a, SS:YesNo>

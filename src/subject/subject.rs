@@ -5,6 +5,7 @@ use std::cell::UnsafeCell;
 
 use crate::sync::ReSpinLock;
 use crate::*;
+use crate::util::trait_alias::CSS;
 
 
 enum SubjectState<'o, V:Clone, E:Clone, SS:YesNo>
@@ -107,8 +108,8 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
 
 
 
-unsafe impl<'o, V:Clone+Send+Sync, E:Clone> Send for Subject<'o, V, E, YES> {}
-unsafe impl<'o, V:Clone+Send+Sync, E:Clone> Sync for Subject<'o, V, E, YES> {}
+unsafe impl<V:CSS, E:Clone> Send for Subject<'static, V, E, YES> {}
+unsafe impl<V:CSS, E:Clone> Sync for Subject<'static, V, E, YES> {}
 
 impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 {
@@ -131,7 +132,7 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
     }
 }
 
-impl<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
+impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
 {
     fn subscribe(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Subscription<'static, YES>
     {

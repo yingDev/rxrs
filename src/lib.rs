@@ -1,4 +1,4 @@
-#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, )]
+#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias)]
 #![allow(non_snake_case)]
 
 pub trait Observable<'o, V:Clone+'o, E:Clone+'o>

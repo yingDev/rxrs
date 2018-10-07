@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use crate::*;
+use crate::util::trait_alias::CSS;
 
 pub trait Mapper<V, VOut, E, EOut>
 {
@@ -37,7 +38,7 @@ pub trait ObservableOpMap<V, VOut, E, EOut, SS> : Sized
 }
 
 impl<'o, V:Clone+'o,VOut:Clone+'o, E:Clone+'o, EOut:Clone+'o, Src> ObservableOpMap<V, VOut, E, EOut, NO> for Src where Src : Observable<'o, V, E> {}
-impl<V:Clone+Send+Sync+'static,VOut:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, EOut:Clone+Send+Sync+'static, Src> ObservableOpMap<V, VOut, E, EOut, YES> for Src where Src : ObservableSendSync<V, E> {}
+impl<V:CSS,VOut:CSS, E:CSS, EOut:CSS, Src> ObservableOpMap<V, VOut, E, EOut, YES> for Src where Src : ObservableSendSync<V, E> {}
 
 pub struct OpMap<V, VOut, E, EOut, Src, F, SS> where F : Mapper<V,VOut,E,EOut>
 {
@@ -56,7 +57,7 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observab
 
 }
 
-impl<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, EOut: Clone+Send+Sync+'static, VOut:Clone+Send+Sync+'static, Src: ObservableSendSync<V, E>, F: Mapper<V,VOut, E, EOut>+Send+Sync+Clone+'static> ObservableSendSync<VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, YES>
+impl<V:CSS, E:CSS, EOut: CSS, VOut:CSS, Src: ObservableSendSync<V, E>, F: Mapper<V,VOut, E, EOut>+Send+Sync+Clone+'static> ObservableSendSync<VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, YES>
 {
     #[inline(always)]
     fn subscribe(&self, observer: impl Observer<VOut,EOut>+Send+Sync+'static) -> Subscription<'static, YES>

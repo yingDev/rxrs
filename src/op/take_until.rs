@@ -6,8 +6,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::*;
-use crate::util::*;
-
+use crate::util::{CloneN, trait_alias::CSS};
 
 pub struct OpTakeUntil<V, E, VS, ES, Src, Sig, SS: YesNo>
 {
@@ -18,14 +17,16 @@ pub struct OpTakeUntil<V, E, VS, ES, Src, Sig, SS: YesNo>
 
 pub trait ObservableOpTakeUntil<V, E, VS, ES, Sig, SS: YesNo> : Sized
 {
+    #[inline(always)]
     fn take_until(self, sig: Sig) -> OpTakeUntil<V, E, VS, ES, Self, Sig, SS>
     {
         OpTakeUntil { src:self, sig,  PhantomData }
     }
 }
 
-impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, NO> for Src where Src : Observable<'o, V, E> {}
-impl<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, VS: Clone+Send+Sync+'static, ES:Clone+Send+Sync+'static, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, YES> for Src where Src : ObservableSendSync<V, E> {}
+
+impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, NO> for Src {}
+impl<V:CSS, E:CSS, VS: CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableOpTakeUntil<V, E, VS, ES, Sig, YES> for Src {}
 
 
 impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> Observable<'o, V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, NO>
@@ -37,7 +38,7 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, VS:Clone+'o, 
     }
 }
 
-impl<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, VS: Clone+Send+Sync+'static, ES:Clone+Send+Sync+'static, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableSendSync<V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, YES>
+impl<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableSendSync<V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, YES>
 {
     #[inline(always)]
     fn subscribe(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Subscription<'static, YES>
@@ -65,7 +66,7 @@ fn subscribe_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o, V, E>+'s, V
 }
 
 #[inline(never)]
-fn subscribe_ss<V:Clone+Send+Sync+'static, E:Clone+Send+Sync+'static, VS: Clone+Send+Sync+'static, ES:Clone+Send+Sync+'static, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>>
+fn subscribe_ss<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>>
     (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,YES>, observer: Arc<Observer<V,E>+Send+Sync+'static>) -> Subscription<'static, YES>
 {
     let (sub, sub1, sub2, sub3) = Subscription::new().cloned4();

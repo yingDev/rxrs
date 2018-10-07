@@ -19,7 +19,6 @@ use crate::YES;
 use crate::NO;
 use crate::Subscriber;
 use crate::Subscription;
-use crate::collection_ext::CollectionExt;
 use crate::YesNo;
 
 

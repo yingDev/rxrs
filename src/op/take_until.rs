@@ -28,29 +28,83 @@ impl<V:CSS, E:CSS, VS: CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: Observab
 impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> Observable<'o, V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, NO>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Subscription<'o, NO> { subscribe_nss(self, Rc::new(observer)) }
+    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Subscription<'o, NO>
+    {
+        subscribe_nss(self, Rc::new(observer))
+    }
 }
 
 impl<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableSendSync<V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, YES>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Subscription<'static, YES> { subscribe_ss(self, Arc::new(observer)) }
+    fn subscribe(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Subscription<'static, YES>
+    {
+        subscribe_ss(self, Arc::new(observer))
+    }
 }
 
-//todo: macro ?
+struct Notifier<'o, V, E, VS, ES, Dest, SS: YesNo>
+{
+    sub: Subscription<'o, SS>,
+    dest: Dest,
+    PhantomData: PhantomData<(V, E, VS, ES)>
+}
+
+impl<'o, V:Clone+'o, E:Clone+'o, VS:Clone+'o, ES:Clone+'o> Observer<VS, ES> for Notifier<'o, V, E, VS, ES, Rc<Observer<V,E>+'o>, NO>
+{
+    fn next(&self, v: VS)
+    {
+        if !self.sub.is_done() {
+            self.sub.unsub();
+            self.dest.complete();
+        }
+    }
+    fn error(&self, e: ES)
+    {
+        self.sub.unsub();
+    }
+
+    fn complete(&self)
+    {
+        if !self.sub.is_done() {
+            self.sub.unsub();
+            self.dest.complete();
+        }
+    }
+}
+
+
+impl<V:Clone+'static, E:Clone+'static, VS:Clone+'static, ES:Clone+'static> Observer<VS, ES> for Notifier<'static, V, E, VS, ES, Arc<Observer<V,E>+Send+Sync+'static>, YES>
+{
+    fn next(&self, v: VS)
+    {
+        if !self.sub.is_done() {
+            self.sub.unsub();
+            self.dest.complete();
+        }
+    }
+
+    fn error(&self, e: ES)
+    {
+        self.sub.unsub();
+    }
+
+    fn complete(&self)
+    {
+        if !self.sub.is_done() {
+            self.sub.unsub();
+            self.dest.complete();
+        }
+    }
+}
+
 
 #[inline(never)]
 fn subscribe_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>>
     (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,NO>, observer: Rc<Observer<V,E>+'o>) -> Subscription<'o, NO>
 {
-    let (sub, sub1, sub2, sub3) = Subscription::new().cloned4();
-    let (o1, o2) = observer.clone2();
-
-    let sigsub = selv.sig.subscribe((
-        move |v| { if(!sub1.is_done()) { sub1.unsub(); o1.complete(); } },
-        move |e| { sub2.unsub(); },
-        move | | { if(!sub3.is_done()) { sub3.unsub(); o2.complete(); } }));
-
+    let sub = Subscription::new();
+    let sigsub = selv.sig.subscribe(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
     if sigsub.is_done() { return sigsub; }
     sub.added_each(&sigsub).added_each(&selv.src.subscribe(observer))
 }
@@ -59,14 +113,8 @@ fn subscribe_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:
 fn subscribe_ss<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>>
     (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,YES>, observer: Arc<Observer<V,E>+Send+Sync+'static>) -> Subscription<'static, YES>
 {
-    let (sub, sub1, sub2, sub3) = Subscription::new().cloned4();
-    let (o1, o2) = observer.clone2();
-
-    let sigsub = selv.sig.subscribe((
-        move |v| { if(!sub1.is_done()) { sub1.unsub(); o1.complete(); } },
-        move |e| { sub2.unsub(); },
-        move | | { if(!sub3.is_done()) { sub3.unsub(); o2.complete(); } }));
-
+    let sub = Subscription::new();
+    let sigsub = selv.sig.subscribe(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
     if sigsub.is_done() { return sigsub; }
     sub.added_each(&sigsub).added_each(&selv.src.subscribe(observer))
 }

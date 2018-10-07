@@ -44,6 +44,7 @@ impl<'a, SS:YesNo> Subscription<'a, SS>
         Subscription { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
+    #[inline(never)]
     pub fn done() -> Subscription<'a, SS>
     {
         unsafe {
@@ -57,6 +58,7 @@ impl<'a, SS:YesNo> Subscription<'a, SS>
         }
     }
 
+    #[inline(always)]
     pub fn is_done(&self) -> bool
     {
         self.state.done.load(Ordering::Relaxed)

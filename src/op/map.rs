@@ -132,4 +132,24 @@ mod test
         b.subscribe(|v| { n.replace(v); });
         assert_eq!(n.get(), 125);
     }
+
+
+    #[test]
+    fn src_arc()
+    {
+        let n = ::std::sync::Arc::new(AtomicI32::new(0));
+        let o = ::std::sync::Arc::new(of(123, YES));
+        let a = o.clone().map(|v| v+1);
+        let b = o.clone().map(|v| v+2);
+
+        let nn = n.clone();
+        ::std::thread::spawn(move ||{
+            a.subscribe(move |v| { nn.store(v, Ordering::SeqCst); } );
+        }).join();
+        assert_eq!(n.load(Ordering::SeqCst), 124);
+
+        let nn = n.clone();
+        b.subscribe(move |v| { nn.store(v, Ordering::SeqCst); });
+        assert_eq!(n.load(Ordering::SeqCst), 125);
+    }
 }

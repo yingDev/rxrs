@@ -3,12 +3,12 @@
 
 pub trait Observable<'o, V:Clone+'o, E:Clone+'o>
 {
-    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Subscription<'o, NO>;
+    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Unsub<'o, NO>;
 }
 
 pub trait ObservableSendSync<V:Clone+'static, E:Clone+'static> : 'static + Send + Sync
 {
-    fn subscribe(&self, observer: impl Observer<V,E>+ Send + Sync+'static) -> Subscription<'static, YES>;
+    fn subscribe(&self, observer: impl Observer<V,E>+ Send + Sync+'static) -> Unsub<'static, YES>;
 }
 
 

@@ -12,47 +12,47 @@ struct State<'a, SS:YesNo>
     lock: ReSpinLock<SS>,
     done: AtomicBool,
     cb: UnsafeCell<Option<Box<FnBox() + 'a>>>,
-    cbs: UnsafeCell<Vec<Subscription<'a, SS>>>,
+    cbs: UnsafeCell<Vec<Unsub<'a, SS>>>,
     //PhantomData: PhantomData<SS>
 }
 
-pub struct Subscription<'a, SS:YesNo>
+pub struct Unsub<'a, SS:YesNo>
 {
     state: Arc<State<'a, SS>>
 }
 
-impl<'a, SS:YesNo> Clone for Subscription<'a, SS>
+impl<'a, SS:YesNo> Clone for Unsub<'a, SS>
 {
-    fn clone(&self) -> Subscription<'a, SS>
+    fn clone(&self) -> Unsub<'a, SS>
     {
-        Subscription{ state: self.state.clone() }
+        Unsub { state: self.state.clone() }
     }
 }
 
-unsafe impl Send for Subscription<'static, YES> {}
-unsafe impl Sync for Subscription<'static, YES> {}
+unsafe impl Send for Unsub<'static, YES> {}
+unsafe impl Sync for Unsub<'static, YES> {}
 
-impl<'a, SS:YesNo> Subscription<'a, SS>
+impl<'a, SS:YesNo> Unsub<'a, SS>
 {
-    pub fn new() -> Subscription<'a, SS>
+    pub fn new() -> Unsub<'a, SS>
     {
-        Subscription { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
+        Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
-    pub fn with(cb: impl FnBox() + 'a) -> Subscription<'a, SS>
+    pub fn with(cb: impl FnBox() + 'a) -> Unsub<'a, SS>
     {
-        Subscription { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
+        Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
     #[inline(never)]
-    pub fn done() -> Subscription<'a, SS>
+    pub fn done() -> Unsub<'a, SS>
     {
         unsafe {
             static mut VAL: *const () = ::std::ptr::null();
             static INIT: Once = ONCE_INIT;
             INIT.call_once(|| VAL = ::std::mem::transmute(Arc::into_raw(Arc::<State<'a, SS>>::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(true), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }))));
             let arc = Arc::<State<'a, SS>>::from_raw(::std::mem::transmute(VAL));
-            let sub = Subscription{ state: arc.clone() };
+            let sub = Unsub { state: arc.clone() };
             ::std::mem::forget(arc);
             return sub;
         }
@@ -103,7 +103,7 @@ impl<'a, SS:YesNo> Subscription<'a, SS>
     }
 
     #[inline(never)]
-    fn add_internal(&self, cb: Subscription<'a, SS>)
+    fn add_internal(&self, cb: Unsub<'a, SS>)
     {
         if self.is_done() {
             cb.unsub();
@@ -123,24 +123,24 @@ impl<'a, SS:YesNo> Subscription<'a, SS>
         self.state.lock.exit();
     }
 
-    pub fn add(&self, cb: Subscription<'a, SS>)
+    pub fn add(&self, cb: Unsub<'a, SS>)
     {
         self.add_internal(cb);
     }
 
-    pub fn added(self, cb: Subscription<'a, SS>) -> Self
+    pub fn added(self, cb: Unsub<'a, SS>) -> Self
     {
         self.add(cb);
         self
     }
 
-    pub fn add_each(&self, b: &Subscription<'a, SS>)
+    pub fn add_each(&self, b: &Unsub<'a, SS>)
     {
         self.add(b.clone());
         b.add(self.clone());
     }
 
-    pub fn added_each(self, b: &Subscription<'a, SS>) -> Self
+    pub fn added_each(self, b: &Unsub<'a, SS>) -> Self
     {
         self.add_each(b);
         self

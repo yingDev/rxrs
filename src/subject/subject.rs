@@ -10,7 +10,7 @@ use crate::util::trait_alias::CSS;
 
 enum SubjectState<'o, V:Clone, E:Clone, SS:YesNo>
 {
-    Next(Vec<(Arc<Observer<V,E> + 'o>, Subscription<'o, SS>)>),
+    Next(Vec<(Arc<Observer<V,E> + 'o>, Unsub<'o, SS>)>),
     Error(E),
     Complete
 }
@@ -43,7 +43,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     }
 
     #[inline(never)]
-    fn subscribe_internal(&self, observer: Arc<Observer<V,E> +'o>) -> Subscription<'o, SS>
+    fn subscribe_internal(&self, observer: Arc<Observer<V,E> +'o>) -> Unsub<'o, SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
@@ -52,7 +52,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         let sub = match unsafe { &mut *old } {
             SubjectState::Next(obs) => {
                 let (weak_state, observer_clone) = (Arc::downgrade(&self.state),observer.clone());
-                let sub = Subscription::<SS>::with(move || Self::unsubscribe(weak_state, observer_clone));
+                let sub = Unsub::<SS>::with(move || Self::unsubscribe(weak_state, observer_clone));
 
                 if recur == 0 {
                     obs.push((observer, sub.clone()));
@@ -66,11 +66,11 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
             },
             SubjectState::Error(e) => {
                 observer.error(e.clone());
-                Subscription::<SS>::done()
+                Unsub::<SS>::done()
             },
             SubjectState::Complete => {
                 observer.complete();
-                Subscription::<SS>::done()
+                Unsub::<SS>::done()
             }
         };
 
@@ -126,7 +126,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
 {
-    fn subscribe(&self, observer: impl Observer<V,E>+'o) -> Subscription<'o, NO>
+    fn subscribe(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO>
     {
         self.subscribe_internal(Arc::new(observer))
     }
@@ -134,7 +134,7 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
 
 impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
 {
-    fn subscribe(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Subscription<'static, YES>
+    fn subscribe(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
     {
         self.subscribe_internal(Arc::new(observer))
     }
@@ -262,7 +262,7 @@ mod tests
     #[test]
     fn unsub_in_next()
     {
-        let (sub, sub2) = Subscription::new().cloned2();
+        let (sub, sub2) = Unsub::new().cloned2();
         let s = Subject::<i32, (), NO>::new();
         s.subscribe(move |_| sub.unsub());
         sub2.add(s.subscribe(move |_| assert!(false, "should not happen")));

@@ -50,7 +50,7 @@ pub struct OpMap<V, VOut, E, EOut, Src, F, SS> where F : Mapper<V,VOut,E,EOut>
 impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observable<'o, V, E>+'s, F: Mapper<V,VOut, E, EOut>+Clone+'o> Observable<'o, VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, NO>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<VOut,EOut>+'o) -> Subscription<'o, NO>
+    fn subscribe(&self, observer: impl Observer<VOut,EOut>+'o) -> Unsub<'o, NO>
     {
         self.src.subscribe( OpMapSubscriber { observer, f: self.f.clone(), PhantomData })
     }
@@ -60,7 +60,7 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observab
 impl<V:CSS, E:CSS, EOut: CSS, VOut:CSS, Src: ObservableSendSync<V, E>, F: Mapper<V,VOut, E, EOut>+Send+Sync+Clone+'static> ObservableSendSync<VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, YES>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<VOut,EOut>+Send+Sync+'static) -> Subscription<'static, YES>
+    fn subscribe(&self, observer: impl Observer<VOut,EOut>+Send+Sync+'static) -> Unsub<'static, YES>
     {
         self.src.subscribe( OpMapSubscriber { observer, f: self.f.clone(), PhantomData})
     }

@@ -12,23 +12,23 @@ impl<V> !Sync for Of<V, NO> {}
 impl<V:Clone, SS:YesNo> Of<V,SS>
 {
     #[inline(always)]
-    fn subscribe_internal<'o>(&self, observer: impl Observer<V,()>+'o) -> Subscription<'o, SS>
+    fn subscribe_internal<'o>(&self, observer: impl Observer<V,()>+'o) -> Unsub<'o, SS>
     {
         observer.next(self.0.clone());
         observer.complete();
-        Subscription::done()
+        Unsub::done()
     }
 }
 
 impl<'o, V: Clone+'o> Observable<'o, V, ()> for Of<V, NO>
 {
-    #[inline(always)] fn subscribe(&self, observer: impl Observer<V,()>+'o) -> Subscription<'o, NO> { self.subscribe_internal(observer) }
+    #[inline(always)] fn subscribe(&self, observer: impl Observer<V,()>+'o) -> Unsub<'o, NO> { self.subscribe_internal(observer) }
 
 }
 
 impl<V: Clone+Send+Sync+'static> ObservableSendSync<V, ()> for Of<V, YES>
 {
-    #[inline(always)] fn subscribe(&self, observer: impl Observer<V,()>+Send+Sync+'static) -> Subscription<'static, YES> { self.subscribe_internal(observer) }
+    #[inline(always)] fn subscribe(&self, observer: impl Observer<V,()>+Send+Sync+'static) -> Unsub<'static, YES> { self.subscribe_internal(observer) }
 
 }
 

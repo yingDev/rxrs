@@ -2,15 +2,31 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::boxed::FnBox;
+use std::sync::{Arc, Once, ONCE_INIT};
 
 use crate::{YesNo, YES, NO, sync::{ReSpinLock}};
 
-pub struct Subscription<'a, SS:YesNo>
+//todo: cbs => Vec<State> ...
+struct State<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
-    cbs: UnsafeCell<Option<Vec<Box<FnBox()+'a>>>>,
-    PhantomData: PhantomData<SS>
+    cb: UnsafeCell<Option<Box<FnBox() + 'a>>>,
+    cbs: UnsafeCell<Vec<Subscription<'a, SS>>>,
+    //PhantomData: PhantomData<SS>
+}
+
+pub struct Subscription<'a, SS:YesNo>
+{
+    state: Arc<State<'a, SS>>
+}
+
+impl<'a, SS:YesNo> Clone for Subscription<'a, SS>
+{
+    fn clone(&self) -> Subscription<'a, SS>
+    {
+        Subscription{ state: self.state.clone() }
+    }
 }
 
 unsafe impl Send for Subscription<'static, YES> {}
@@ -20,76 +36,92 @@ impl<'a, SS:YesNo> Subscription<'a, SS>
 {
     pub fn new() -> Subscription<'a, SS>
     {
-        Subscription{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cbs: UnsafeCell::new(None), PhantomData }
+        Subscription { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
+    }
+
+    pub fn with(cb: impl FnBox() + 'a) -> Subscription<'a, SS>
+    {
+        Subscription { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
     pub fn done() -> Subscription<'a, SS>
     {
-        let val = Self::new();
-        val.unsubscribe();
-        val
+        unsafe {
+            static mut VAL: *const () = ::std::ptr::null();
+            static INIT: Once = ONCE_INIT;
+            INIT.call_once(|| VAL = ::std::mem::transmute(Arc::into_raw(Arc::<State<'a, SS>>::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(true), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }))));
+            let arc = Arc::<State<'a, SS>>::from_raw(::std::mem::transmute(VAL));
+            let sub = Subscription{ state: arc.clone() };
+            ::std::mem::forget(arc);
+            return sub;
+        }
     }
 
     pub fn is_done(&self) -> bool
     {
-        self.done.load(Ordering::Relaxed)
+        self.state.done.load(Ordering::Relaxed)
     }
 
-    pub fn unsubscribe(&self)
+    pub fn unsub(&self)
     {
-        self.lock.enter();
-        self.done.store(true, Ordering::Release);
+        let state = &self.state;
+        if ! state.done.swap(true, Ordering::Release) {
+            state.lock.enter();
 
-        unsafe{
-            let mut old : &mut Option<_> = &mut *self.cbs.get();
-            if let Some(mut vec) = old.take() {
-                vec.reverse();
-                for cb in vec.drain(..) {
+            unsafe{
+                if let Some(cb) = (&mut *state.cb.get()).take() {
                     cb();
                 }
+                for cb in (&mut *state.cbs.get()).drain(..) {
+                    cb.unsub();
+                }
             }
-
+            state.lock.exit();
         }
-        self.lock.exit();
     }
 
-    fn add_internal(&self, cb: Box<FnBox()+'a>)
+    #[inline(never)]
+    fn add_internal(&self, cb: Subscription<'a, SS>)
     {
         if self.is_done() {
-            return cb.call_box(());
+            cb.unsub();
+            return;
         }
 
-        self.lock.enter();
+        if cb.is_done() {
+            return;
+        }
+
+        self.state.lock.enter();
 
         unsafe {
-            let cbs = &mut * self.cbs.get();
-            if let Some(mut vec) = cbs.as_mut() {
-                vec.push(cb);
-            } else {
-                let mut vec = Vec::new();
-                vec.push(cb);
-                *cbs = Some(vec);
-            }
+            (&mut * self.state.cbs.get()).push(cb);
         }
 
-        self.lock.exit();
+        self.state.lock.exit();
     }
 
-    pub fn add_sendsync(&'static self, cb: impl FnBox() + Send + Sync + 'static) { self.add_internal(Box::new(cb)); }
-}
-
-impl<'a> Subscription<'a, NO>
-{
-    pub fn add(&self, cb: impl FnBox() + 'a)
+    pub fn add(&self, cb: Subscription<'a, SS>)
     {
-        self.add_internal(Box::new(cb));
+        self.add_internal(cb);
     }
-}
 
-impl Subscription<'static, YES>
-{
-    pub fn add(&self, cb: impl FnBox() + Send + Sync + 'static)
+    pub fn added(self, cb: Subscription<'a, SS>) -> Self
     {
-        self.add_internal(Box::new(cb));
+        self.add(cb);
+        self
     }
+
+    pub fn add_each(&self, b: &Subscription<'a, SS>)
+    {
+        self.add(b.clone());
+        b.add(self.clone());
+    }
+
+    pub fn added_each(self, b: &Subscription<'a, SS>) -> Self
+    {
+        self.add_each(b);
+        self
+    }
+
 }

@@ -30,6 +30,12 @@ impl<'a, V:Clone, E:Clone> Observer<V,E> for Arc<Observer<V,E>+'a>
     #[inline(always)] fn complete(&self){ Arc::as_ref(self).complete() }
 }
 
+impl<V:Clone, E:Clone> Observer<V,E> for Arc<Observer<V,E>+Send+Sync+'static>
+{
+    #[inline(always)] fn next(&self, value: V) { Arc::as_ref(self).next(value); }
+    #[inline(always)] fn error(&self, e: E) { Arc::as_ref(self).error(e); }
+    #[inline(always)] fn complete(&self){ Arc::as_ref(self).complete() }
+}
 
 
 impl<V:Clone, E:Clone, R, FN:Fn(V)->R> Observer<V,E> for FN

@@ -1,4 +1,4 @@
-pub trait YesNo { const VALUE: bool; }
+pub trait YesNo : 'static { const VALUE: bool; }
 pub struct YES;
 pub struct NO;
 impl YesNo for YES { const VALUE: bool = true; }

@@ -6,7 +6,7 @@ pub trait Observable<'o, V:Clone+'o, E:Clone+'o>
     fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Subscription<'o, NO>;
 }
 
-pub trait ObservableSendSync<V:Clone+'static, E:Clone+'static> : Send + Sync
+pub trait ObservableSendSync<V:Clone+'static, E:Clone+'static> : 'static + Send + Sync
 {
     fn subscribe(&self, observer: impl Observer<V,E>+ Send + Sync+'static) -> Subscription<'static, YES>;
 }
@@ -26,7 +26,6 @@ trait Subscriber<V:Clone, E:Clone> : Observer<V,E>
 
 pub mod sync;
 
-
 mod fac;
 mod op;
 mod subscription;
@@ -34,6 +33,8 @@ mod yesno;
 mod subject;
 mod observers;
 mod observables;
+
+mod util;
 
 pub use crate::subscription::*;
 pub use crate::yesno::*;

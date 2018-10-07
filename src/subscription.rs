@@ -82,6 +82,26 @@ impl<'a, SS:YesNo> Subscription<'a, SS>
         }
     }
 
+    pub fn unsub_then(&self, f: impl Fn())
+    {
+        let state = &self.state;
+        if ! state.done.swap(true, Ordering::Release) {
+            state.lock.enter();
+
+            unsafe{
+                if let Some(cb) = (&mut *state.cb.get()).take() {
+                    cb();
+                }
+                for cb in (&mut *state.cbs.get()).drain(..) {
+                    cb.unsub();
+                }
+            }
+            state.lock.exit();
+
+            f();
+        }
+    }
+
     #[inline(never)]
     fn add_internal(&self, cb: Subscription<'a, SS>)
     {

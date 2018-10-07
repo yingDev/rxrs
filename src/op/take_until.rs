@@ -52,50 +52,16 @@ struct Notifier<'o, V, E, VS, ES, Dest, SS: YesNo>
 
 impl<'o, V:Clone+'o, E:Clone+'o, VS:Clone+'o, ES:Clone+'o> Observer<VS, ES> for Notifier<'o, V, E, VS, ES, Rc<Observer<V,E>+'o>, NO>
 {
-    fn next(&self, v: VS)
-    {
-        if !self.sub.is_done() {
-            self.sub.unsub();
-            self.dest.complete();
-        }
-    }
-    fn error(&self, e: ES)
-    {
-        self.sub.unsub();
-    }
-
-    fn complete(&self)
-    {
-        if !self.sub.is_done() {
-            self.sub.unsub();
-            self.dest.complete();
-        }
-    }
+    fn next(&self, v: VS) { self.sub.unsub_then(|| self.dest.complete()); }
+    fn error(&self, e: ES) { self.sub.unsub(); }
+    fn complete(&self) { self.sub.unsub_then(|| self.dest.complete()); }
 }
-
 
 impl<V:Clone+'static, E:Clone+'static, VS:Clone+'static, ES:Clone+'static> Observer<VS, ES> for Notifier<'static, V, E, VS, ES, Arc<Observer<V,E>+Send+Sync+'static>, YES>
 {
-    fn next(&self, v: VS)
-    {
-        if !self.sub.is_done() {
-            self.sub.unsub();
-            self.dest.complete();
-        }
-    }
-
-    fn error(&self, e: ES)
-    {
-        self.sub.unsub();
-    }
-
-    fn complete(&self)
-    {
-        if !self.sub.is_done() {
-            self.sub.unsub();
-            self.dest.complete();
-        }
-    }
+    fn next(&self, v: VS) { self.sub.unsub_then(|| self.dest.complete()); }
+    fn error(&self, e: ES) { self.sub.unsub(); }
+    fn complete(&self) { self.sub.unsub_then(|| self.dest.complete()); }
 }
 
 

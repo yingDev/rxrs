@@ -181,12 +181,10 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
 
-        if self.is_behavior {
-            unsafe { &mut*self.behavior_v.get()}.replace(v.clone());
-        }
-
         let old = unsafe { *state.get() };
         if let SubjectState::Next(vec) = unsafe { &*old } {
+            if self.is_behavior { unsafe { &mut*self.behavior_v.get()}.replace(v.clone()); }
+
             for (o,sub) in vec {
                 if sub.is_done() { continue; }
                 o.next(v.clone());

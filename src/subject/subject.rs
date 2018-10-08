@@ -108,11 +108,11 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
 
                 if let Some(i) = obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)) {
                     if recur == 0 {
-                        let (o, sub) = obs.remove(i);
+                        let (_, sub) = obs.remove(i);
                         sub.unsub();
                     } else {
                         let mut vec = obs.clone();
-                        let (o, sub) = vec.remove(i);
+                        let (_, sub) = vec.remove(i);
                         old = Box::into_raw(box SubjectState::Next(vec));
                         unsafe { *state.get() = old; }
                         sub.unsub();
@@ -179,8 +179,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let old = unsafe { *state.get() };
         if let SubjectState::Next(vec) = unsafe { &*old } {
             for (o,sub) in vec {
-                if sub.is_done() { continue; }
-                o.next(v.clone());
+                if ! sub.is_done() { o.next(v.clone()); }
             }
 
             if unsafe { *state.get() != old } && recur == 0 {

@@ -19,10 +19,6 @@ pub trait Observer<V:Clone, E:Clone>
     fn complete(&self);
 }
 
-trait Subscriber<V:Clone, E:Clone> : Observer<V,E>
-{
-    fn unsubscribe(&self);
-}
 
 pub mod sync;
 

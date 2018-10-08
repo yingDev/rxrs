@@ -11,14 +11,12 @@ pub trait ObservableSendSync<V:Clone+'static, E:Clone+'static> : 'static + Send 
     fn sub(&self, o: impl Observer<V,E>+ Send + Sync+'static) -> Unsub<'static, YES>;
 }
 
-
 pub trait Observer<V:Clone, E:Clone>
 {
     fn next(&self, v: V);
     fn error(&self, e: E);
     fn complete(&self);
 }
-
 
 pub mod sync;
 

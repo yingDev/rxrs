@@ -16,10 +16,7 @@ struct State<'a, SS:YesNo>
 
 impl<'a, SS:YesNo> Drop for State<'a, SS>
 {
-    fn drop(&mut self)
-    {
-        self.unsub();
-    }
+    fn drop(&mut self) { self.unsub_then(||{}); }
 }
 
 impl<'a, SS:YesNo> State<'a, SS>
@@ -28,23 +25,6 @@ impl<'a, SS:YesNo> State<'a, SS>
     fn is_done(&self) -> bool
     {
         self.done.load(Ordering::Relaxed)
-    }
-
-    fn unsub(&self)
-    {
-        self.lock.enter();
-        if ! self.done.swap(true, Ordering::Release) {
-
-            unsafe{
-                if let Some(cb) = (&mut *self.cb.get()).take() {
-                    cb();
-                }
-                for cb in (&mut *self.cbs.get()).drain(..) {
-                    cb.unsub();
-                }
-            }
-        }
-        self.lock.exit();
     }
 
     fn unsub_then(&self, f: impl FnOnce())
@@ -85,21 +65,13 @@ impl<'a, SS:YesNo> State<'a, SS>
     #[inline(never)]
     fn add_internal(&self, cb: Unsub<'a, SS>)
     {
-        if self.is_done() {
+        if self.is_done() || cb.is_done() {
             cb.unsub();
             return;
         }
 
-        if cb.is_done() {
-            return;
-        }
-
         self.lock.enter();
-
-        unsafe {
-            (&mut * self.cbs.get()).push(cb);
-        }
-
+        unsafe { (&mut * self.cbs.get()).push(cb); }
         self.lock.exit();
     }
 }
@@ -137,7 +109,7 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
 
     pub fn unsub(&self)
     {
-        self.state.unsub();
+        self.state.unsub_then(||{});
     }
 
     pub fn unsub_then(&self, f: impl Fn())

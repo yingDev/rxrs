@@ -12,7 +12,8 @@ enum SubjectState<'o, V:Clone, E:Clone, SS:YesNo>
 {
     Next(Vec<(Arc<Observer<V,E> + 'o>, Unsub<'o, SS>)>),
     Error(E),
-    Complete
+    Complete,
+    Drop
 }
 
 struct Wrap<'o, V:Clone, E:Clone, SS:YesNo>{ lock: ReSpinLock<SS>, state: UnsafeCell<*mut SubjectState<'o, V, E, SS>> }
@@ -38,6 +39,16 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
             static mut VAL: *const () = ::std::ptr::null();
             static INIT: Once = ONCE_INIT;
             INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (SubjectState::Complete as SubjectState<'o, V, E, SS>))));
+            ::std::mem::transmute(VAL)
+        }
+    }
+
+    fn DROP() -> *mut SubjectState<'o, V, E, SS>
+    {
+        unsafe {
+            static mut VAL: *const () = ::std::ptr::null();
+            static INIT: Once = ONCE_INIT;
+            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (SubjectState::Drop as SubjectState<'o, V, E, SS>))));
             ::std::mem::transmute(VAL)
         }
     }
@@ -70,6 +81,9 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
             },
             SubjectState::Complete => {
                 observer.complete();
+                Unsub::<SS>::done()
+            },
+            SubjectState::Drop => {
                 Unsub::<SS>::done()
             }
         };
@@ -117,10 +131,19 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
 
-        let ptr = unsafe { *state.get() };
-        if ptr != Self::COMPLETE() {
-            unsafe { Box::from_raw(ptr); }
+        lock.enter();
+
+        let old = unsafe { *state.get() };
+        if let SubjectState::Next(vec) = unsafe { &*old } {
+            unsafe { *state.get() = Self::DROP(); }
+            lock.exit();
+
+            for (_, sub) in vec { sub.unsub(); }
+            unsafe { Box::from_raw(old); }
+            return;
         }
+
+        lock.exit();
     }
 }
 
@@ -218,6 +241,7 @@ mod tests
     //use test::Bencher;
     use crate::*;
     use std::cell::Cell;
+    use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::*;
     use crate::util::CloneN;
@@ -292,6 +316,25 @@ mod tests
         for t in threads { t.join(); }
 
         assert_eq!(n.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn should_release_subs()
+    {
+        let n = Rc::new(Cell::new(0));
+        let s = Subject::<i32,(), NO>::new();
+
+        for i in 0..10{
+            let nn = n.clone();
+            s.subscribe(|v|{}).add(move || { nn.replace(nn.get() + 1); });
+        }
+
+        //s.complete();
+        drop(s);
+
+        assert_eq!(n.get(), 10);
+
+
     }
 
 }

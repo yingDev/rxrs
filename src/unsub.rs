@@ -32,8 +32,8 @@ impl<'a, SS:YesNo> State<'a, SS>
 
     fn unsub(&self)
     {
+        self.lock.enter();
         if ! self.done.swap(true, Ordering::Release) {
-            self.lock.enter();
 
             unsafe{
                 if let Some(cb) = (&mut *self.cb.get()).take() {
@@ -43,14 +43,14 @@ impl<'a, SS:YesNo> State<'a, SS>
                     cb.unsub();
                 }
             }
-            self.lock.exit();
         }
+        self.lock.exit();
     }
 
-    fn unsub_then(&self, f: impl Fn())
+    fn unsub_then(&self, f: impl FnOnce())
     {
+        self.lock.enter();
         if ! self.done.swap(true, Ordering::Release) {
-            self.lock.enter();
 
             unsafe{
                 if let Some(cb) = (&mut *self.cb.get()).take() {
@@ -63,7 +63,23 @@ impl<'a, SS:YesNo> State<'a, SS>
             self.lock.exit();
 
             f();
+            return;
         }
+
+        self.lock.exit();
+    }
+
+    pub fn if_not_done(&self, then: impl FnOnce())
+    {
+        if self.is_done() { return; }
+
+        self.lock.enter();
+
+        if ! self.is_done() {
+            then();
+        }
+
+        self.lock.exit();
     }
 
     #[inline(never)]
@@ -127,6 +143,11 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
     pub fn unsub_then(&self, f: impl Fn())
     {
         self.state.unsub_then(f);
+    }
+
+    pub fn if_not_done(&self, then: impl FnOnce())
+    {
+        self.state.if_not_done(then);
     }
 
     #[inline(never)]

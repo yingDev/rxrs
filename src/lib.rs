@@ -1,21 +1,21 @@
-#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias)]
+#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias, option_replace)]
 #![allow(non_snake_case)]
 
 pub trait Observable<'o, V:Clone+'o, E:Clone+'o>
 {
-    fn sub(&self, observer: impl Observer<V, E> + 'o) -> Unsub<'o, NO>;
+    fn sub(&self, o: impl Observer<V, E> + 'o) -> Unsub<'o, NO>;
 }
 
 pub trait ObservableSendSync<V:Clone+'static, E:Clone+'static> : 'static + Send + Sync
 {
-    fn sub(&self, observer: impl Observer<V,E>+ Send + Sync+'static) -> Unsub<'static, YES>;
+    fn sub(&self, o: impl Observer<V,E>+ Send + Sync+'static) -> Unsub<'static, YES>;
 }
 
 
 pub trait Observer<V:Clone, E:Clone>
 {
-    fn next(&self, value: V);
-    fn error(&self, error: E);
+    fn next(&self, v: V);
+    fn error(&self, e: E);
     fn complete(&self);
 }
 

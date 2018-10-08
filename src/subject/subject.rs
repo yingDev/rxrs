@@ -22,6 +22,10 @@ unsafe impl <'o, V:Clone, E:Clone> Sync for Wrap<'o, V, E, YES> {}
 
 pub struct Subject<'o, V:Clone+'o, E:Clone+'o, SS:YesNo>
 {
+    //use this for BehaviorSubject for performance
+    behavior_v: UnsafeCell<Option<V>>,
+    is_behavior: bool,
+
     state: Arc<Wrap<'o,V,E,SS>>,
 }
 
@@ -30,7 +34,13 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     pub fn new() -> Subject<'o, V, E, SS>
     {
         let state_ptr = Box::into_raw(box SubjectState::Next(Vec::new()));
-        Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), state: UnsafeCell::new(state_ptr) })  }
+        Subject{ is_behavior: false, behavior_v: UnsafeCell::new(None), state: Arc::new(Wrap{lock: ReSpinLock::new(), state: UnsafeCell::new(state_ptr) })  }
+    }
+
+    pub(crate) fn behavior(v: V) -> Subject<'o, V, E, SS>
+    {
+        let state_ptr = Box::into_raw(box SubjectState::Next(Vec::new()));
+        Subject{ is_behavior: true, behavior_v: UnsafeCell::new(Some(v)), state: Arc::new(Wrap{lock: ReSpinLock::new(), state: UnsafeCell::new(state_ptr) })  }
     }
 
     fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
@@ -66,12 +76,15 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                 let sub = Unsub::<SS>::with(move || Self::unsub(weak_state, observer_clone));
 
                 if recur == 0 {
-                    obs.push((observer, sub.clone()));
+                    obs.push((observer.clone(), sub.clone()));
                 } else {
                     let mut vec = Vec::with_capacity(obs.len() + 1);
                     vec.extend( obs.iter().cloned());
-                    vec.push((observer, sub.clone()));
+                    vec.push((observer.clone(), sub.clone()));
                     unsafe { *state.get() = Box::into_raw(box SubjectState::Next(vec)); }
+                }
+                if self.is_behavior {
+                    observer.next(unsafe { &*self.behavior_v.get() }.as_ref().unwrap().clone());
                 }
                 sub
             },
@@ -133,6 +146,8 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 
         lock.enter();
 
+        unsafe { (&mut *self.behavior_v.get()).take(); }
+
         let old = unsafe { *state.get() };
         if let SubjectState::Next(vec) = unsafe { &*old } {
             unsafe { *state.get() = Self::DROP(); }
@@ -169,6 +184,10 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
+
+        if self.is_behavior {
+            unsafe { &mut*self.behavior_v.get()}.replace(v.clone());
+        }
 
         let old = unsafe { *state.get() };
         if let SubjectState::Next(vec) = unsafe { &*old } {

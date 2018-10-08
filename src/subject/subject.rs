@@ -319,7 +319,7 @@ mod tests
     }
 
     #[test]
-    fn should_release_subs()
+    fn drop_should_unsub()
     {
         let n = Rc::new(Cell::new(0));
         let s = Subject::<i32,(), NO>::new();
@@ -333,8 +333,6 @@ mod tests
         drop(s);
 
         assert_eq!(n.get(), 10);
-
-
     }
 
 }

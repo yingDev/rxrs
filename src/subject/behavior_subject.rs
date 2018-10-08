@@ -47,6 +47,8 @@ mod test
     fn shoudl_emit_on_sub()
     {
         let n = Cell::new(0);
+        let x = Cell::new(0);
+
         let s = BehaviorSubject::<i32, (), NO>::new(123);
 
         s.sub(|v| n.replace(v));
@@ -57,7 +59,7 @@ mod test
 
         s.next(789);
 
-        s.sub(|v| n.replace(v));
-        assert_eq!(n.get(), 789);
+        s.sub(|v| x.replace(v));
+        assert_eq!(x.get(), 789);
     }
 }

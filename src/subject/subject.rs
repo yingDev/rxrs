@@ -207,16 +207,17 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 
         let old = unsafe { *state.get() };
 
-        if let SubjectState::Next(vec) = unsafe { &*old } {
+        if let SubjectState::Next(vec) = unsafe { &mut *old } {
             unsafe { *state.get() = Box::into_raw(box SubjectState::Error(e.clone()) ) };
             lock.exit();
 
             unsafe { (&mut *self.behavior_v.get()).take(); }
-            for (o,sub) in vec {
+            for (o,sub) in vec.drain(..) {
                 if sub.is_done() { continue; }
                 sub.unsub();
                 o.error(e.clone());
             }
+            vec.shrink_to_fit();
             if recur == 0 { unsafe { Box::from_raw(old); } }
             return;
         }
@@ -231,17 +232,18 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 
         let old = unsafe { *state.get() };
 
-        if let SubjectState::Next(vec) = unsafe { &*old } {
+        if let SubjectState::Next(vec) = unsafe { &mut *old } {
             unsafe { *state.get() = Self::COMPLETE(); }
             lock.exit();
 
             unsafe { (&mut *self.behavior_v.get()).take(); }
-            for (o, sub) in vec {
+            for (o, sub) in vec.drain(..) {
                 if sub.is_done() { continue; }
 
                 sub.unsub();
                 o.complete();
             }
+            vec.shrink_to_fit();
             if recur == 0 { unsafe { Box::from_raw(old); } }
             return;
         }

@@ -39,6 +39,7 @@ impl<'a, SS:YesNo> State<'a, SS>
                 for cb in (&mut *self.cbs.get()).drain(..) {
                     cb.unsub();
                 }
+                (&mut *self.cbs.get()).shrink_to_fit();
             }
             self.lock.exit();
 

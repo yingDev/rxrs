@@ -43,6 +43,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         Subject{ is_behavior: true, behavior_v: UnsafeCell::new(Some(v)), state: Arc::new(Wrap{lock: ReSpinLock::new(), state: UnsafeCell::new(state_ptr) })  }
     }
 
+    #[inline(never)]
     fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
     {
         unsafe {
@@ -53,6 +54,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         }
     }
 
+    #[inline(never)]
     fn DROP() -> *mut SubjectState<'o, V, E, SS>
     {
         unsafe {
@@ -140,19 +142,19 @@ unsafe impl<V:CSS, E:Clone> Sync for Subject<'static, V, E, YES> {}
 
 impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 {
+    #[inline(never)]
     fn drop(&mut self)
     {
         let Wrap{lock, state} = self.state.as_ref();
 
         lock.enter();
 
-        unsafe { (&mut *self.behavior_v.get()).take(); }
-
         let old = unsafe { *state.get() };
         if let SubjectState::Next(vec) = unsafe { &*old } {
             unsafe { *state.get() = Self::DROP(); }
             lock.exit();
 
+            unsafe { (&mut *self.behavior_v.get()).take(); }
             for (_, sub) in vec { sub.unsub(); }
             unsafe { Box::from_raw(old); }
             return;
@@ -164,18 +166,12 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
 {
-    fn sub(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO>
-    {
-        self.sub_internal(Arc::new(observer))
-    }
+    #[inline(always)] fn sub(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO> { self.sub_internal(Arc::new(observer)) }
 }
 
 impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
 {
-    fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
-    {
-        self.sub_internal(Arc::new(observer))
-    }
+    #[inline(always)] fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES> { self.sub_internal(Arc::new(observer)) }
 }
 
 impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
@@ -217,6 +213,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
             unsafe { *state.get() = Box::into_raw(box SubjectState::Error(e.clone()) ) };
             lock.exit();
 
+            unsafe { (&mut *self.behavior_v.get()).take(); }
             for (o,sub) in vec {
                 if sub.is_done() { continue; }
                 sub.unsub();
@@ -240,6 +237,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
             unsafe { *state.get() = Self::COMPLETE(); }
             lock.exit();
 
+            unsafe { (&mut *self.behavior_v.get()).take(); }
             for (o, sub) in vec {
                 if sub.is_done() { continue; }
 

@@ -61,5 +61,6 @@ mod test
 
         s.sub(|v| x.replace(v));
         assert_eq!(x.get(), 789);
+        assert_eq!(n.get(), 789);
     }
 }

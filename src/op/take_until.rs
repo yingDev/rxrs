@@ -28,18 +28,18 @@ impl<V:CSS, E:CSS, VS: CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: Observab
 impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>> Observable<'o, V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, NO>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<V, E> + 'o) -> Unsub<'o, NO>
+    fn sub(&self, observer: impl Observer<V, E> + 'o) -> Unsub<'o, NO>
     {
-        subscribe_nss(self, Rc::new(observer))
+        sub_nss(self, Rc::new(observer))
     }
 }
 
 impl<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableSendSync<V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, YES>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Unsub<'static, YES>
+    fn sub(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Unsub<'static, YES>
     {
-        subscribe_ss(self, Arc::new(observer))
+        sub_ss(self, Arc::new(observer))
     }
 }
 
@@ -66,23 +66,23 @@ impl<V:Clone+'static, E:Clone+'static, VS:Clone+'static, ES:Clone+'static> Obser
 
 
 #[inline(never)]
-fn subscribe_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>>
+fn sub_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES:Clone+'o, Sig: Observable<'o, VS, ES>>
     (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,NO>, observer: Rc<Observer<V,E>+'o>) -> Unsub<'o, NO>
 {
     let sub = Unsub::new();
-    let sigsub = selv.sig.subscribe(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
+    let sigsub = selv.sig.sub(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
     if sigsub.is_done() { return sigsub; }
-    sub.added_each(&sigsub).added_each(&selv.src.subscribe(observer))
+    sub.added_each(&sigsub).added_each(&selv.src.sub(observer))
 }
 
 #[inline(never)]
-fn subscribe_ss<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>>
+fn sub_ss<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>>
     (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,YES>, observer: Arc<Observer<V,E>+Send+Sync+'static>) -> Unsub<'static, YES>
 {
     let sub = Unsub::new();
-    let sigsub = selv.sig.subscribe(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
+    let sigsub = selv.sig.sub(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
     if sigsub.is_done() { return sigsub; }
-    sub.added_each(&sigsub).added_each(&selv.src.subscribe(observer))
+    sub.added_each(&sigsub).added_each(&selv.src.sub(observer))
 }
 
 #[cfg(test)]
@@ -101,7 +101,7 @@ mod test
         let src = Rc::new(Subject::<i32, (), NO>::new());
         let sig = Rc::new(Subject::<i32, (), NO>::new());
 
-        src.clone().take_until(sig.clone()).subscribe((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
+        src.clone().take_until(sig.clone()).sub((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
 
         src.next(1);
         assert_eq!(n.get(), 1);
@@ -123,7 +123,7 @@ mod test
 
         sig.complete();
 
-        src.clone().take_until(sig.clone()).subscribe((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
+        src.clone().take_until(sig.clone()).sub((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
 
         src.next(1);
         assert_eq!(n.get(), 0);
@@ -141,7 +141,7 @@ mod test
         let n = Cell::new(0);
         let (s, s2, s3) = Rc::new(Subject::<i32, (), NO>::new()).cloned3();
 
-        s2.take_until(s3).subscribe((|v| n.replace(v),(), ||{ println!("complete??")}));
+        s2.take_until(s3).sub((|v| n.replace(v),(), ||{ println!("complete??")}));
 
         s.next(1);
 

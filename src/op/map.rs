@@ -50,9 +50,9 @@ pub struct OpMap<V, VOut, E, EOut, Src, F, SS> where F : Mapper<V,VOut,E,EOut>
 impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observable<'o, V, E>+'s, F: Mapper<V,VOut, E, EOut>+Clone+'o> Observable<'o, VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, NO>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<VOut,EOut>+'o) -> Unsub<'o, NO>
+    fn sub(&self, observer: impl Observer<VOut,EOut>+'o) -> Unsub<'o, NO>
     {
-        self.src.subscribe( OpMapSubscriber { observer, f: self.f.clone(), PhantomData })
+        self.src.sub( OpMapSubscriber { observer, f: self.f.clone(), PhantomData })
     }
 
 }
@@ -60,9 +60,9 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observab
 impl<V:CSS, E:CSS, EOut: CSS, VOut:CSS, Src: ObservableSendSync<V, E>, F: Mapper<V,VOut, E, EOut>+Send+Sync+Clone+'static> ObservableSendSync<VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, YES>
 {
     #[inline(always)]
-    fn subscribe(&self, observer: impl Observer<VOut,EOut>+Send+Sync+'static) -> Unsub<'static, YES>
+    fn sub(&self, observer: impl Observer<VOut,EOut>+Send+Sync+'static) -> Unsub<'static, YES>
     {
-        self.src.subscribe( OpMapSubscriber { observer, f: self.f.clone(), PhantomData})
+        self.src.sub( OpMapSubscriber { observer, f: self.f.clone(), PhantomData})
     }
 
 }
@@ -96,7 +96,7 @@ mod test
     {
         let n = ::std::cell::Cell::new(0);
         let o = of(123, NO);
-        o.map(|v| v+1).subscribe(|v| n.replace(v));
+        o.map(|v| v+1).sub(|v| n.replace(v));
 
         assert_eq!(n.get(), 124);
     }
@@ -107,7 +107,7 @@ mod test
         let n = ::std::cell::Cell::new(0);
         let x = 1;
         let o = ::std::rc::Rc::new(Subject::<i32, (), NO>::new());
-        o.clone().map(|v| v + x).subscribe(|v| n.replace(v));
+        o.clone().map(|v| v + x).sub(|v| n.replace(v));
 
         o.next(123);
         assert_eq!(n.get(), 124);
@@ -123,7 +123,7 @@ mod test
         let mapped = o.map(|v| v + 1);
 
         ::std::thread::spawn(move ||{
-            mapped.subscribe(move |v| nn.store(v, Ordering::SeqCst));
+            mapped.sub(move |v| nn.store(v, Ordering::SeqCst));
         }).join();
 
         assert_eq!(n.load(Ordering::SeqCst), 124);
@@ -134,7 +134,7 @@ mod test
     {
         let n = Cell::new(0);
         let o = of(0, NO);
-        o.map(|v| v+1).map(|v| v+1).map(|v| v+1).map(|v| v+1).subscribe(|v| n.replace(v));
+        o.map(|v| v+1).map(|v| v+1).map(|v| v+1).map(|v| v+1).sub(|v| n.replace(v));
 
         assert_eq!(n.get(), 4);
     }
@@ -147,10 +147,10 @@ mod test
         let a = o.clone().map(|v| v+1);
         let b = o.clone().map(|v| v+2);
 
-        a.subscribe(|v| n.replace(v) );
+        a.sub(|v| n.replace(v) );
         assert_eq!(n.get(), 124);
 
-        b.subscribe(|v| n.replace(v));
+        b.sub(|v| n.replace(v));
         assert_eq!(n.get(), 125);
     }
 
@@ -164,12 +164,12 @@ mod test
 
         let nn = n.clone();
         ::std::thread::spawn(move ||{
-            a.subscribe(move |v| nn.store(v, Ordering::SeqCst));
+            a.sub(move |v| nn.store(v, Ordering::SeqCst));
         }).join();
         assert_eq!(n.load(Ordering::SeqCst), 124);
 
         let nn = n.clone();
-        b.subscribe(move |v| nn.store(v, Ordering::SeqCst));
+        b.sub(move |v| nn.store(v, Ordering::SeqCst));
         assert_eq!(n.load(Ordering::SeqCst), 125);
     }
 

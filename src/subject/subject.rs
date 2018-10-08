@@ -54,7 +54,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     }
 
     #[inline(never)]
-    fn subscribe_internal(&self, observer: Arc<Observer<V,E> +'o>) -> Unsub<'o, SS>
+    fn sub_internal(&self, observer: Arc<Observer<V,E> +'o>) -> Unsub<'o, SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
@@ -63,7 +63,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         let sub = match unsafe { &mut *old } {
             SubjectState::Next(obs) => {
                 let (weak_state, observer_clone) = (Arc::downgrade(&self.state),observer.clone());
-                let sub = Unsub::<SS>::with(move || Self::unsubscribe(weak_state, observer_clone));
+                let sub = Unsub::<SS>::with(move || Self::unsub(weak_state, observer_clone));
 
                 if recur == 0 {
                     obs.push((observer, sub.clone()));
@@ -93,7 +93,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     }
 
     #[inline(never)]
-    fn unsubscribe(state: Weak<Wrap<'o,V,E,SS>>, observer: Arc<Observer<V,E>+'o>)
+    fn unsub(state: Weak<Wrap<'o,V,E,SS>>, observer: Arc<Observer<V,E>+'o>)
     {
         if let Some(state) = state.upgrade() {
             let Wrap{lock, state} = state.as_ref();
@@ -149,17 +149,17 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
 {
-    fn subscribe(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO>
+    fn sub(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO>
     {
-        self.subscribe_internal(Arc::new(observer))
+        self.sub_internal(Arc::new(observer))
     }
 }
 
 impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
 {
-    fn subscribe(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
+    fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
     {
-        self.subscribe_internal(Arc::new(observer))
+        self.sub_internal(Arc::new(observer))
     }
 }
 
@@ -252,7 +252,7 @@ mod tests
         let n = Cell::new(0);
         let s = Subject::<i32, (), NO>::new();
 
-        s.subscribe(|v| { n.replace(v); });
+        s.sub(|v| { n.replace(v); });
 
         s.next(1);
         assert_eq!(n.get(), 1);
@@ -267,7 +267,7 @@ mod tests
     fn next_after_complete()
     {
         let s = Subject::<i32, (), NO>::new();
-        s.subscribe(|v| assert!(false, "shouldn't call"));
+        s.sub(|v| assert!(false, "shouldn't call"));
 
         s.complete();
         s.next(1);
@@ -277,7 +277,7 @@ mod tests
     fn unsub()
     {
         let s = Subject::<i32, (), NO>::new();
-        let sub = s.subscribe(|_| assert!(false, "shouldn't call"));
+        let sub = s.sub(|_| assert!(false, "shouldn't call"));
         sub.unsub();
 
         s.next(1);
@@ -288,8 +288,8 @@ mod tests
     {
         let (sub, sub2) = Unsub::new().cloned2();
         let s = Subject::<i32, (), NO>::new();
-        s.subscribe(move |_| sub.unsub());
-        sub2.add(s.subscribe(move |_| assert!(false, "should not happen")));
+        s.sub(move |_| sub.unsub());
+        sub2.add(s.sub(move |_| assert!(false, "should not happen")));
 
         s.next(1);
     }
@@ -301,7 +301,7 @@ mod tests
         let s = Arc::new(Subject::<i32, (), YES>::new());
 
         let nn = n.clone();
-        s.subscribe(((), (), move ||{ nn.fetch_add(1, Ordering::SeqCst); }));
+        s.sub(((), (), move ||{ nn.fetch_add(1, Ordering::SeqCst); }));
 
         let mut threads = vec![];
         for i in 0..8 {
@@ -326,7 +326,7 @@ mod tests
 
         for i in 0..10{
             let nn = n.clone();
-            s.subscribe(|v|{}).add(move || { nn.replace(nn.get() + 1); });
+            s.sub(|v|{}).add(move || { nn.replace(nn.get() + 1); });
         }
 
         //s.complete();

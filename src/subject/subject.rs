@@ -95,16 +95,14 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
 
                 let mut old = unsafe { *state.get() };
                 if let Next(obs) = unsafe { &mut *old } {
-
-                    if let Some(i) = obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)) {
-                        if recur == 0 {
-                            obs.remove(i);
-                        } else {
-                            let mut vec = obs.clone();
-                            vec.remove(i);
-                            old = Box::into_raw(box Next(vec));
-                            unsafe { *state.get() = old; }
-                        }
+                    if recur == 0 {
+                        obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)).map(|i| obs.remove(i))
+                            .expect("the observer is expected to be in the vec");
+                    } else {
+                        let mut vec = Vec::with_capacity(obs.len() - 1 );
+                        vec.extend(obs.iter().filter(|o| ! Arc::ptr_eq(&o.0, &observer)).cloned());
+                        old = Box::into_raw(box Next(vec));
+                        unsafe { *state.get() = old; }
                     }
                 }
                 lock.exit();
@@ -129,9 +127,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
             lock.exit();
 
             for (_, sub) in vec { sub.unsub(); }
-            if recur == 0 {
-                unsafe { Box::from_raw(old); }
-            }
+            if recur == 0 { unsafe { Box::from_raw(old); } }
             return;
         }
 
@@ -337,27 +333,10 @@ mod tests
         let (n,n1) = Rc::new(Cell::new(0)).clones();
         let (s1, s2, s3) = Rc::new(Subject::<i32,(),NO>::new()).clones();
 
-        //let o : Rc<Observer<i32, ()>> = Rc::new(ObsDropFx { cb: box move ||{ s3.complete(); } });
-
-        let sub1 = s1.sub(Rc::new(ObsDropFx { cb: box move ||{ s3.complete(); } }) as Rc<Observer<i32, ()>>);
+        let sub1 = s1.sub(ObsDropFx { cb: box move ||{ s3.complete(); } });
         let sub2 = s1.sub(move |v| sub1.unsub() );
 
         s2.next(0);
-
-
-        let mut v = Vec::new();
-        let x = Rc::new(ObsDropFx { cb: box move ||{} }) as Rc<Observer<i32, ()>>;
-
-        v.push(x.clone());
-        drop(x);
-
-        {
-            println!("rm>>>");
-            let xx = v.remove(0);
-            drop(xx);
-            println!("rm<<<");
-        }
-
 
         struct ObsDropFx{ cb: Box<Fn()> }
 
@@ -372,9 +351,7 @@ mod tests
         {
             fn drop(&mut self)
             {
-                println!("obs drop [ ");
                 (self.cb)();
-                println!("obs drop ]");
             }
         }
 

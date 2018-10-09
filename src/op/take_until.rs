@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::*;
-use crate::util::{CloneN, trait_alias::CSS};
+use crate::util::{Clones, trait_alias::CSS};
 
 pub struct OpTakeUntil<V, E, VS, ES, Src, Sig, SS: YesNo>
 {
@@ -91,7 +91,7 @@ mod test
     use std::rc::Rc;
     use std::cell::Cell;
     use crate::*;
-    use crate::util::CloneN;
+    use crate::util::Clones;
 
     #[test]
     fn basic()
@@ -139,7 +139,7 @@ mod test
     fn recursive()
     {
         let n = Cell::new(0);
-        let (s, s2, s3) = Rc::new(Subject::<i32, (), NO>::new()).cloned3();
+        let (s, s2, s3) = Rc::new(Subject::<i32, (), NO>::new()).clones();
 
         s2.take_until(s3).sub((|v| n.replace(v),(), ||{ println!("complete??")}));
 

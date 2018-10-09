@@ -1,4 +1,4 @@
-mod clone_n;
+mod clones;
 pub mod trait_alias;
 
-pub use self::clone_n::*;
+pub use self::clones::*;

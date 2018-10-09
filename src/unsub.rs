@@ -100,11 +100,6 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
         Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
-    pub fn with(cb: impl FnBox() + 'a) -> Unsub<'a, SS>
-    {
-        Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
-    }
-
     #[inline(always)]
     pub fn is_done(&self) -> bool { self.state.is_done() }
 
@@ -137,27 +132,47 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
         }
     }
 
-    pub fn add(&self, cb: impl IntoUnsub<'a, SS>)
+    pub fn add(&self, cb: Unsub<'a, SS>) -> &Self
     {
-        self.state.add_internal(cb.into_unsub());
-    }
-
-    pub fn added(self, cb: impl IntoUnsub<'a, SS>) -> Self
-    {
-        self.add(cb.into_unsub());
+        self.state.add_internal(cb);
         self
     }
 
-    pub fn add_each(&self, b: &Unsub<'a, SS>)
+    pub fn added(self, cb: Unsub<'a, SS>) -> Self
+    {
+        self.add(cb);
+        self
+    }
+
+    pub fn add_each(&self, b: &Unsub<'a, SS>) -> &Self
     {
         self.add(b.clone());
         b.add(self.clone());
+        self
     }
 
     pub fn added_each(self, b: &Unsub<'a, SS>) -> Self
     {
         self.add_each(b);
         self
+    }
+}
+
+impl<'a> Unsub<'a, NO>
+{
+    pub fn with<R>(cb: impl FnOnce()->R + 'a) -> Unsub<'a, NO>
+    {
+        let cb = || {cb();};
+        Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
+    }
+}
+
+impl Unsub<'static, YES>
+{
+    pub fn with<R>(cb: impl FnOnce()->R + Send + Sync + 'static) -> Unsub<'static, YES>
+    {
+        let cb = || {cb();};
+        Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 }
 
@@ -171,20 +186,21 @@ impl<'a, SS:YesNo> IntoUnsub<'a, SS> for Unsub<'a, SS>
     fn into_unsub(self) -> Unsub<'a, SS> { self }
 }
 
-impl<'a, F:FnBox()+'a> IntoUnsub<'a, NO> for F
+impl<F:FnOnce()+Send+Sync+'static> IntoUnsub<'static, YES> for F
 {
-    fn into_unsub(self) -> Unsub<'a, NO> { Unsub::with(self) }
+    fn into_unsub(self) -> Unsub<'static, YES> { Unsub::<YES>::with(self) }
 }
 
-impl<F:FnBox()+Send+Sync+'static> IntoUnsub<'static, YES> for F
+impl<'a, F:FnOnce()+'a> IntoUnsub<'a, NO> for F
 {
-    fn into_unsub(self) -> Unsub<'static, YES> { Unsub::with(self) }
+    fn into_unsub(self) -> Unsub<'a, NO> { Unsub::<NO>::with(self) }
 }
 
 #[cfg(test)]
 mod test
 {
     use std::cell::Cell;
+    use std::sync::Arc;
     use crate::*;
 
     #[test]
@@ -196,5 +212,16 @@ mod test
         drop(a);
 
         assert_eq!(n.get(), 1);
+    }
+
+    #[test]
+    fn send_sync()
+    {
+        let c = Cell::new(0);
+        let a = Arc::new(0);
+//        let ss = Unsub::<YES>::with(move || c.replace(1));
+        let ss = Unsub::<NO>::with(move || println!("s {}", *a) );
+
+        ss.add((||{ c; }).into_unsub());
     }
 }

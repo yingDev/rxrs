@@ -1,16 +1,10 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::atomic::AtomicUsize;
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::sync::atomic::*;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
-use crate::YES;
-use crate::NO;
-use crate::YesNo;
+use crate::{YesNo, YES, NO};
 
 /// Recursive SpinLock
-pub struct ReSpinLock<SS: YesNo+?Sized>
+pub struct ReSpinLock<SS: YesNo>
 {
     recur: UnsafeCell<usize>,
     held: AtomicUsize,
@@ -25,7 +19,7 @@ pub struct ReSpinLock<SS: YesNo+?Sized>
 unsafe impl Send for ReSpinLock<YES>{}
 unsafe impl Sync for ReSpinLock<YES>{}
 
-impl<SS: YesNo+?Sized> ReSpinLock<SS>
+impl<SS: YesNo> ReSpinLock<SS>
 {
     pub fn new() -> ReSpinLock<SS>
     {
@@ -60,6 +54,8 @@ impl<SS: YesNo+?Sized> ReSpinLock<SS>
             unsafe {
                 let r = *self.recur_nss.get();
                 *self.recur_nss.get() += 1;
+
+                println!("enter > {}", r);
                 r
             }
         }
@@ -79,7 +75,10 @@ impl<SS: YesNo+?Sized> ReSpinLock<SS>
                 self.held.store(0, Ordering::Release);
             }
         } else {
-            unsafe { *self.recur_nss.get() -= 1; }
+            unsafe {
+                *self.recur_nss.get() -= 1;
+                println!("exit: {}", *self.recur_nss.get());
+            }
         }
     }
 
@@ -91,5 +90,37 @@ impl<SS: YesNo+?Sized> ReSpinLock<SS>
         // current thread, and is also guaranteed to be recur_nssn-zero.
         thread_local!(static KEY: u8 = unsafe { ::std::mem::uninitialized() });
         KEY.with(|x| x as *const _ as usize)
+    }
+}
+
+#[cfg(test)]
+mod test
+{
+    #[test]
+    fn recur()
+    {
+        let r = crate::sync::ReSpinLock::<crate::NO>::new();
+        assert_eq!(r.enter(), 0);
+        a(&r);
+        r.exit();
+
+        assert_eq!(r.enter(), 0);
+        r.exit();
+
+
+        fn a(l: &crate::sync::ReSpinLock<crate::NO>)
+        {
+            assert_eq!(l.enter(), 1);
+
+            b(l);
+
+            l.exit();
+        }
+
+        fn b(l: &crate::sync::ReSpinLock<crate::NO>)
+        {
+            assert_eq!(l.enter(), 2);
+            l.exit();
+        }
     }
 }

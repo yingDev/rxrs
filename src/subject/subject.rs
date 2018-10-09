@@ -1,12 +1,11 @@
-use std::marker::PhantomData;
 use std::sync::*;
-use std::sync::atomic::*;
 use std::cell::UnsafeCell;
 
 use crate::sync::ReSpinLock;
 use crate::*;
-use crate::util::trait_alias::CSS;
+use crate::util::{trait_alias::CSS, *};
 
+use self::SubjectState::*;
 
 enum SubjectState<'o, V:Clone, E:Clone, SS:YesNo>
 {
@@ -17,19 +16,21 @@ enum SubjectState<'o, V:Clone, E:Clone, SS:YesNo>
 }
 
 struct Wrap<'o, V:Clone, E:Clone, SS:YesNo>{ lock: ReSpinLock<SS>, state: UnsafeCell<*mut SubjectState<'o, V, E, SS>> }
-unsafe impl <'o, V:Clone, E:Clone> Send for Wrap<'o, V, E, YES> {}
-unsafe impl <'o, V:Clone, E:Clone> Sync for Wrap<'o, V, E, YES> {}
+unsafe impl <'o, V:CSS, E:CSS> Send for Wrap<'o, V, E, YES> {}
+unsafe impl <'o, V:CSS, E:CSS> Sync for Wrap<'o, V, E, YES> {}
 
 pub struct Subject<'o, V:Clone+'o, E:Clone+'o, SS:YesNo>
 {
     state: Arc<Wrap<'o,V,E,SS>>,
 }
+unsafe impl<V:CSS, E:CSS> Send for Subject<'static, V, E, YES> {}
+unsafe impl<V:CSS, E:CSS> Sync for Subject<'static, V, E, YES> {}
 
 impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
 {
     pub fn new() -> Subject<'o, V, E, SS>
     {
-        let state_ptr = Box::into_raw(box SubjectState::Next(Vec::new()));
+        let state_ptr = Box::into_raw(box Next(Vec::new()));
         Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), state: UnsafeCell::new(state_ptr) })  }
     }
 
@@ -39,7 +40,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         unsafe {
             static mut VAL: *const () = ::std::ptr::null();
             static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (SubjectState::Complete as SubjectState<'o, V, E, SS>))));
+            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (Complete as SubjectState<'o, V, E, SS>))));
             ::std::mem::transmute(VAL)
         }
     }
@@ -50,49 +51,38 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         unsafe {
             static mut VAL: *const () = ::std::ptr::null();
             static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (SubjectState::Drop as SubjectState<'o, V, E, SS>))));
+            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (Drop as SubjectState<'o, V, E, SS>))));
             ::std::mem::transmute(VAL)
         }
     }
 
     #[inline(never)]
-    fn sub_internal(&self, observer: Arc<Observer<V,E> +'o>) -> Unsub<'o, SS>
+    fn sub_internal(&self, o: Arc<Observer<V,E> +'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
         let old = unsafe { *state.get() };
 
         match unsafe { &mut *old } {
-            SubjectState::Next(obs) => {
-                let (weak_state, observer_clone) = (Arc::downgrade(&self.state),observer.clone());
-                let sub = Unsub::<SS>::with(move || Self::unsub(weak_state, observer_clone));
-
+            Next(obs) => {
+                let sub = make_sub();
                 if recur == 0 {
-                    obs.push((observer.clone(), sub.clone()));
+                    obs.push((o.clone(), sub.clone()));
                 } else {
                     let mut vec = Vec::with_capacity(obs.len() + 1);
                     vec.extend( obs.iter().cloned());
-                    vec.push((observer.clone(), sub.clone()));
-                    unsafe { *state.get() = Box::into_raw(box SubjectState::Next(vec)); }
+                    vec.push((o.clone(), sub.clone()));
+                    unsafe { *state.get() = Box::into_raw(box Next(vec)); }
                 }
                 lock.exit();
-                sub
+                return sub;
             },
-            SubjectState::Error(e) => {
-                observer.error(e.clone());
-                lock.exit();
-                Unsub::<SS>::done()
-            },
-            SubjectState::Complete => {
-                observer.complete();
-                lock.exit();
-                Unsub::<SS>::done()
-            },
-            SubjectState::Drop => {
-                lock.exit();
-                Unsub::<SS>::done()
-            }
+            Error(e) => o.error(e.clone()),
+            Complete => o.complete(),
+            Drop => {}
         }
+        lock.exit();
+        return Unsub::done()
     }
 
     #[inline(never)]
@@ -101,25 +91,32 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         if let Some(state) = state.upgrade() {
             let Wrap{lock, state} = state.as_ref();
             let recur = lock.enter();
+            println!("unsub >> : {}", recur);
 
             let mut old = unsafe { *state.get() };
 
-            if let SubjectState::Next(obs) = unsafe { &mut *old } {
+            if let Next(obs) = unsafe { &mut *old } {
 
                 if let Some(i) = obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)) {
                     if recur == 0 {
                         let (_, sub) = obs.remove(i);
+                        println!("x1 >>");
                         sub.unsub();
+                        println!("<< x1");
+
                     } else {
                         let mut vec = obs.clone();
                         let (_, sub) = vec.remove(i);
-                        old = Box::into_raw(box SubjectState::Next(vec));
+                        old = Box::into_raw(box Next(vec));
                         unsafe { *state.get() = old; }
                         sub.unsub();
+                        println!("******** <<: {}", recur);
                     }
+                    println!("unsub<<: {}", recur);
 
                     if unsafe { *state.get() != old } {
                         lock.exit();
+                        println!("unsub: drop old");
                         unsafe { Box::from_raw(old); }
                         return;
                     }
@@ -132,11 +129,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
 }
 
 
-
-unsafe impl<V:CSS, E:CSS> Send for Subject<'static, V, E, YES> {}
-unsafe impl<V:CSS, E:CSS> Sync for Subject<'static, V, E, YES> {}
-
-impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
+impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,SS>
 {
     #[inline(never)]
     fn drop(&mut self)
@@ -146,12 +139,15 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
         let recur = lock.enter();
 
         let old = unsafe { *state.get() };
-        if let SubjectState::Next(vec) = unsafe { &*old } {
+        if let Next(vec) = unsafe { &*old } {
             unsafe { *state.get() = Self::DROP(); }
             lock.exit();
 
             for (_, sub) in vec { sub.unsub(); }
-            if recur == 0 {unsafe { Box::from_raw(old); } }
+            if recur == 0 {
+                println!("drop: drop old");
+                unsafe { Box::from_raw(old); }
+            }
             return;
         }
 
@@ -161,12 +157,22 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Drop for Subject<'o,V,E,SS>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
 {
-    #[inline(always)] fn sub(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO> { self.sub_internal(Arc::new(observer)) }
+    fn sub(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO>
+    {
+        let o = Arc::new(observer);
+        let (state, o2) = (self.state.weak(), o.clone());
+        self.sub_internal(o, || Unsub::<NO>::with(|| Self::unsub(state, o2)))
+    }
 }
 
 impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
 {
-    #[inline(always)] fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES> { self.sub_internal(Arc::new(observer)) }
+    fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
+    {
+        let o = Arc::new(observer);
+        let (state, o2) = (self.state.weak(), o.clone());
+        self.sub_internal(o, || Unsub::<YES>::with(|| Self::unsub(state, o2)))
+    }
 }
 
 impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
@@ -177,13 +183,15 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let recur = lock.enter();
 
         let old = unsafe { *state.get() };
-        if let SubjectState::Next(vec) = unsafe { &*old } {
+        if let Next(vec) = unsafe { &*old } {
             for (o,sub) in vec {
                 if ! sub.is_done() { o.next(v.clone()); }
             }
 
             if unsafe { *state.get() != old } && recur == 0 {
                 lock.exit();
+                println!("next: drop old");
+
                 unsafe { Box::from_raw(old); }
                 return;
             }
@@ -199,8 +207,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 
         let old = unsafe { *state.get() };
 
-        if let SubjectState::Next(vec) = unsafe { &*old } {
-            unsafe { *state.get() = Box::into_raw(box SubjectState::Error(e.clone()) ) };
+        if let Next(vec) = unsafe { &*old } {
+            unsafe { *state.get() = Box::into_raw(box Error(e.clone()) ) };
             lock.exit();
 
             for (o,sub) in vec.iter() {
@@ -222,17 +230,19 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 
         let old = unsafe { *state.get() };
 
-        if let SubjectState::Next(vec) = unsafe { &*old } {
+        if let Next(vec) = unsafe { &*old } {
             unsafe { *state.get() = Self::COMPLETE(); }
             lock.exit();
 
             for (o, sub) in vec.iter() {
                 if sub.is_done() { continue; }
-
                 sub.unsub();
                 o.complete();
             }
-            if recur == 0 { unsafe { Box::from_raw(old); } }
+            if recur == 0 {
+                println!("complete: drop old");
+                unsafe { Box::from_raw(old); }
+            }
             return;
         }
 
@@ -249,7 +259,7 @@ mod tests
     use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::*;
-    use crate::util::CloneN;
+    use crate::util::Clones;
 
     #[test]
     fn smoke()
@@ -291,7 +301,7 @@ mod tests
     #[test]
     fn unsub_in_next()
     {
-        let (sub, sub2) = Unsub::new().cloned2();
+        let (sub, sub2) = Unsub::new().clones();
         let s = Subject::<i32, (), NO>::new();
         s.sub(move |_| sub.unsub());
         sub2.add(s.sub(move |_| assert!(false, "should not happen")));
@@ -333,13 +343,45 @@ mod tests
 
         for i in 0..10{
             let nn = n.clone();
-            s.sub(|v|{}).add(move || { nn.replace(nn.get() + 1); });
+            s.sub(|v|{}).add(Unsub::<NO>::with(move || { nn.replace(nn.get() + 1); }));
         }
 
         //s.complete();
         drop(s);
 
         assert_eq!(n.get(), 10);
+    }
+
+    #[test]
+    fn deep_recurse()
+    {
+        let (n,n1) = Rc::new(Cell::new(0)).clones();
+        let s = Rc::new(Subject::<i32,(),NO>::new());
+
+        let (sub, sub1) = Unsub::new().clones();
+
+        let (weak1, weak2, weak3, weak4) = Rc::downgrade(&s).clones();
+
+        let (subx, subx2) = s.sub(|v| {}).clones();
+
+        sub.add(s.sub(move |v| {}).added(Unsub::<NO>::with(move || {
+            println!("b");
+            subx.unsub();
+            println!("b1");
+        } )));
+
+        subx2.add(s.sub(move |v| {}).added(Unsub::<NO>::with(move || {
+            println!("c");
+        })));
+
+        s.sub(move |v| { });
+
+        //s.next(0);
+
+        println!("a");
+        sub.unsub();
+        println!("a1");
+        //assert_eq!(n.get(), 100);
     }
 
 }

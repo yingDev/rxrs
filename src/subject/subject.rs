@@ -67,11 +67,11 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
             Next(obs) => {
                 let sub = make_sub();
                 if recur == 0 {
-                    obs.push((o.clone(), sub.clone()));
+                    obs.push((o, sub.clone()));
                 } else {
                     let mut vec = Vec::with_capacity(obs.len() + 1);
                     vec.extend( obs.iter().cloned());
-                    vec.push((o.clone(), sub.clone()));
+                    vec.push((o, sub.clone()));
                     unsafe { *state.get() = Box::into_raw(box Next(vec)); }
                 }
                 lock.exit();
@@ -86,44 +86,29 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     }
 
     #[inline(never)]
-    fn unsub(state: Weak<Wrap<'o,V,E,SS>>, observer: Arc<Observer<V,E>+'o>)
+    fn unsub(state: Weak<Wrap<'o,V,E,SS>>, observer: Weak<Observer<V,E>+'o>)
     {
         if let Some(state) = state.upgrade() {
-            let Wrap{lock, state} = state.as_ref();
-            let recur = lock.enter();
-            println!("unsub >> : {}", recur);
+            if let Some(observer) = observer.upgrade() {
+                let Wrap{lock, state} = state.as_ref();
+                let recur = lock.enter();
 
-            let mut old = unsafe { *state.get() };
+                let mut old = unsafe { *state.get() };
+                if let Next(obs) = unsafe { &mut *old } {
 
-            if let Next(obs) = unsafe { &mut *old } {
-
-                if let Some(i) = obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)) {
-                    if recur == 0 {
-                        let (_, sub) = obs.remove(i);
-                        println!("x1 >>");
-                        sub.unsub();
-                        println!("<< x1");
-
-                    } else {
-                        let mut vec = obs.clone();
-                        let (_, sub) = vec.remove(i);
-                        old = Box::into_raw(box Next(vec));
-                        unsafe { *state.get() = old; }
-                        sub.unsub();
-                        println!("******** <<: {}", recur);
-                    }
-                    println!("unsub<<: {}", recur);
-
-                    if unsafe { *state.get() != old } {
-                        lock.exit();
-                        println!("unsub: drop old");
-                        unsafe { Box::from_raw(old); }
-                        return;
+                    if let Some(i) = obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)) {
+                        if recur == 0 {
+                            obs.remove(i);
+                        } else {
+                            let mut vec = obs.clone();
+                            vec.remove(i);
+                            old = Box::into_raw(box Next(vec));
+                            unsafe { *state.get() = old; }
+                        }
                     }
                 }
+                lock.exit();
             }
-
-            lock.exit();
         }
     }
 }
@@ -145,7 +130,6 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
 
             for (_, sub) in vec { sub.unsub(); }
             if recur == 0 {
-                println!("drop: drop old");
                 unsafe { Box::from_raw(old); }
             }
             return;
@@ -160,7 +144,7 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
     fn sub(&self, observer: impl Observer<V,E>+'o) -> Unsub<'o, NO>
     {
         let o = Arc::new(observer);
-        let (state, o2) = (self.state.weak(), o.clone());
+        let (state, o2) = (self.state.weak(), o.weak());
         self.sub_internal(o, || Unsub::<NO>::with(|| Self::unsub(state, o2)))
     }
 }
@@ -170,7 +154,7 @@ impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
     fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
     {
         let o = Arc::new(observer);
-        let (state, o2) = (self.state.weak(), o.clone());
+        let (state, o2) = (self.state.weak(), o.weak());
         self.sub_internal(o, || Unsub::<YES>::with(|| Self::unsub(state, o2)))
     }
 }
@@ -190,8 +174,6 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
 
             if unsafe { *state.get() != old } && recur == 0 {
                 lock.exit();
-                println!("next: drop old");
-
                 unsafe { Box::from_raw(old); }
                 return;
             }
@@ -239,10 +221,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
                 sub.unsub();
                 o.complete();
             }
-            if recur == 0 {
-                println!("complete: drop old");
-                unsafe { Box::from_raw(old); }
-            }
+            if recur == 0 { unsafe { Box::from_raw(old); } }
             return;
         }
 
@@ -356,32 +335,49 @@ mod tests
     fn deep_recurse()
     {
         let (n,n1) = Rc::new(Cell::new(0)).clones();
-        let s = Rc::new(Subject::<i32,(),NO>::new());
+        let (s1, s2, s3) = Rc::new(Subject::<i32,(),NO>::new()).clones();
 
-        let (sub, sub1) = Unsub::new().clones();
+        //let o : Rc<Observer<i32, ()>> = Rc::new(ObsDropFx { cb: box move ||{ s3.complete(); } });
 
-        let (weak1, weak2, weak3, weak4) = Rc::downgrade(&s).clones();
+        let sub1 = s1.sub(Rc::new(ObsDropFx { cb: box move ||{ s3.complete(); } }) as Rc<Observer<i32, ()>>);
+        let sub2 = s1.sub(move |v| sub1.unsub() );
 
-        let (subx, subx2) = s.sub(|v| {}).clones();
+        s2.next(0);
 
-        sub.add(s.sub(move |v| {}).added(Unsub::<NO>::with(move || {
-            println!("b");
-            subx.unsub();
-            println!("b1");
-        } )));
 
-        subx2.add(s.sub(move |v| {}).added(Unsub::<NO>::with(move || {
-            println!("c");
-        })));
+        let mut v = Vec::new();
+        let x = Rc::new(ObsDropFx { cb: box move ||{} }) as Rc<Observer<i32, ()>>;
 
-        s.sub(move |v| { });
+        v.push(x.clone());
+        drop(x);
 
-        //s.next(0);
+        {
+            println!("rm>>>");
+            let xx = v.remove(0);
+            drop(xx);
+            println!("rm<<<");
+        }
 
-        println!("a");
-        sub.unsub();
-        println!("a1");
-        //assert_eq!(n.get(), 100);
+
+        struct ObsDropFx{ cb: Box<Fn()> }
+
+        impl Observer<i32, ()> for ObsDropFx
+        {
+            fn next(&self, v: i32){}
+            fn error(&self, e: ()){}
+            fn complete(&self){}
+        }
+
+        impl Drop for ObsDropFx
+        {
+            fn drop(&mut self)
+            {
+                println!("obs drop [ ");
+                (self.cb)();
+                println!("obs drop ]");
+            }
+        }
+
     }
 
 }

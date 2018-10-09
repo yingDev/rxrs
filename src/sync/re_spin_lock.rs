@@ -54,8 +54,6 @@ impl<SS: YesNo> ReSpinLock<SS>
             unsafe {
                 let r = *self.recur_nss.get();
                 *self.recur_nss.get() += 1;
-
-                println!("enter > {}", r);
                 r
             }
         }
@@ -77,7 +75,6 @@ impl<SS: YesNo> ReSpinLock<SS>
         } else {
             unsafe {
                 *self.recur_nss.get() -= 1;
-                println!("exit: {}", *self.recur_nss.get());
             }
         }
     }

@@ -100,6 +100,20 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
         Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
+    #[inline(never)]
+    pub fn done() -> Unsub<'a, SS>
+    {
+        unsafe {
+            static mut VAL: *const () = ::std::ptr::null();
+            static INIT: Once = ONCE_INIT;
+            INIT.call_once(|| VAL = ::std::mem::transmute(Arc::into_raw(Arc::<State<'a, SS>>::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(true), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }))));
+            let arc = Arc::<State<'a, SS>>::from_raw(::std::mem::transmute(VAL));
+            let sub = Unsub { state: arc.clone() };
+            ::std::mem::forget(arc);
+            return sub;
+        }
+    }
+
     #[inline(always)]
     pub fn is_done(&self) -> bool { self.state.is_done() }
 
@@ -116,20 +130,6 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
     pub fn if_not_done(&self, then: impl FnOnce())
     {
         self.state.if_not_done(then);
-    }
-
-    #[inline(never)]
-    pub fn done() -> Unsub<'a, SS>
-    {
-        unsafe {
-            static mut VAL: *const () = ::std::ptr::null();
-            static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Arc::into_raw(Arc::<State<'a, SS>>::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(true), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }))));
-            let arc = Arc::<State<'a, SS>>::from_raw(::std::mem::transmute(VAL));
-            let sub = Unsub { state: arc.clone() };
-            ::std::mem::forget(arc);
-            return sub;
-        }
     }
 
     pub fn add(&self, cb: Unsub<'a, SS>) -> &Self
@@ -176,26 +176,6 @@ impl Unsub<'static, YES>
     }
 }
 
-pub trait IntoUnsub<'a, SS:YesNo>
-{
-    fn into_unsub(self) -> Unsub<'a, SS>;
-}
-
-impl<'a, SS:YesNo> IntoUnsub<'a, SS> for Unsub<'a, SS>
-{
-    fn into_unsub(self) -> Unsub<'a, SS> { self }
-}
-
-impl<F:FnOnce()+Send+Sync+'static> IntoUnsub<'static, YES> for F
-{
-    fn into_unsub(self) -> Unsub<'static, YES> { Unsub::<YES>::with(self) }
-}
-
-impl<'a, F:FnOnce()+'a> IntoUnsub<'a, NO> for F
-{
-    fn into_unsub(self) -> Unsub<'a, NO> { Unsub::<NO>::with(self) }
-}
-
 #[cfg(test)]
 mod test
 {
@@ -221,7 +201,5 @@ mod test
         let a = Arc::new(0);
 //        let ss = Unsub::<YES>::with(move || c.replace(1));
         let ss = Unsub::<NO>::with(move || println!("s {}", *a) );
-
-        ss.add((||{ c; }).into_unsub());
     }
 }

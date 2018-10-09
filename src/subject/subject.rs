@@ -35,25 +35,21 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     }
 
     #[inline(never)]
-    fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
+    unsafe fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
     {
-        unsafe {
-            static mut VAL: *const () = ::std::ptr::null();
-            static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (Complete as SubjectState<'o, V, E, SS>))));
-            ::std::mem::transmute(VAL)
-        }
+        static mut VAL: *const () = ::std::ptr::null();
+        static INIT: Once = ONCE_INIT;
+        INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (Complete as SubjectState<'o, V, E, SS>))));
+        ::std::mem::transmute(VAL)
     }
 
     #[inline(never)]
-    fn DROP() -> *mut SubjectState<'o, V, E, SS>
+    unsafe fn DROP() -> *mut SubjectState<'o, V, E, SS>
     {
-        unsafe {
-            static mut VAL: *const () = ::std::ptr::null();
-            static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (Drop as SubjectState<'o, V, E, SS>))));
-            ::std::mem::transmute(VAL)
-        }
+        static mut VAL: *const () = ::std::ptr::null();
+        static INIT: Once = ONCE_INIT;
+        INIT.call_once(|| VAL = ::std::mem::transmute(Box::into_raw(box (Drop as SubjectState<'o, V, E, SS>))));
+        ::std::mem::transmute(VAL)
     }
 
     #[inline(never)]
@@ -61,9 +57,8 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     {
         let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
-        let old = unsafe { *state.get() };
 
-        match unsafe { &mut *old } {
+        match unsafe { &mut **state.get() } {
             Next(obs) => {
                 let sub = make_sub();
                 if recur == 0 {

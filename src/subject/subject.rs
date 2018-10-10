@@ -119,12 +119,22 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
 
+        let recur = lock.enter();
+
         let old = unsafe { *state.get() };
-        if let Next(vec) = unsafe { &mut *old } {
+        if let Next(vec) = unsafe { &*old } {
+            let to_drop = unsafe { (&mut *to_drop.get()) };
             unsafe { *state.get() = Self::DROP(); }
+            to_drop.push(old);
+
+            lock.exit();
+
             for (_, sub) in vec { sub.unsub(); }
-            unsafe { Box::from_raw(old); }
+            if recur == 0 { unsafe { for ptr in to_drop.into_iter() {  Box::from_raw(ptr); } } }
+            return;
         }
+
+        lock.exit();
     }
 }
 

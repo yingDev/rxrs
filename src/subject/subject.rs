@@ -91,7 +91,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                 let Wrap{lock, to_drop, state} = state.as_ref();
                 let recur = lock.enter();
 
-                let mut old = unsafe { *state.get() };
+                let old = unsafe { *state.get() };
                 if let Next(obs) = unsafe { &mut *old } {
                     if recur == 0 {
                         obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)).map(|i| obs.remove(i))
@@ -119,24 +119,12 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
 
-        let recur = lock.enter();
-
         let old = unsafe { *state.get() };
-        if let Next(vec) = unsafe { &*old } {
-            let to_drop = unsafe { (&mut *to_drop.get()) };
+        if let Next(vec) = unsafe { &mut *old } {
             unsafe { *state.get() = Self::DROP(); }
-            to_drop.push(old);
-
-            lock.exit();
-
             for (_, sub) in vec { sub.unsub(); }
-            if recur == 0 {
-                unsafe { for ptr in to_drop.into_iter() {  Box::from_raw(ptr); } }
-            }
-            return;
+            unsafe { Box::from_raw(old); }
         }
-
-        lock.exit();
     }
 }
 

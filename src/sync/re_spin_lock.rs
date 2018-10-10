@@ -79,6 +79,7 @@ impl<SS: YesNo> ReSpinLock<SS>
         }
     }
 
+    #[inline(always)]
     fn tid() -> usize
     {
         //from: https://github.com/Amanieu/parking_lot/blob/master/src/remutex.rs

@@ -16,12 +16,12 @@ unsafe impl<'o, V:CSS, E:CSS> Sync for BehaviorSubject<'o, V, E, YES>{}
 
 impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> BehaviorSubject<'o, V, E, SS>
 {
-    pub fn new(value: V) -> BehaviorSubject<'o, V, E, SS>
+    #[inline(always)]  pub fn new(value: V) -> BehaviorSubject<'o, V, E, SS>
     {
         BehaviorSubject{ lock: ReSpinLock::new(), val: UnsafeCell::new(Some(value)), subj: Subject::new() }
     }
 
-    pub fn value(&self) -> Option<V>
+    #[inline(always)] pub fn value(&self) -> Option<V>
     {
         self.lock.enter();
         let val = unsafe{ (&*self.val.get()).clone() };
@@ -29,32 +29,37 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> BehaviorSubject<'o, V, E, SS>
 
         val
     }
-}
 
-impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for  BehaviorSubject<'o, V, E, NO>
-{
-    fn sub(&self, o: impl Observer<V, E> + 'o) -> Unsub<'o, NO>
+    #[inline(never)]
+    fn sub_internal(&self, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
         self.lock.enter();
+        let val = unsafe { &mut *self.val.get() };
+        if val.is_none() {
+            self.lock.exit();
+            return Unsub::done();
+        }
 
-        let sub = self.subj.sub(o);
-        self.subj.next(unsafe { &*self.val.get() }.as_ref().unwrap().clone());
+        let sub = make_sub();
+        self.subj.next(val.as_ref().unwrap().clone());
         self.lock.exit();
         sub
     }
 }
 
+impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for  BehaviorSubject<'o, V, E, NO>
+{
+    #[inline(always)] fn sub(&self, o: impl Observer<V, E> + 'o) -> Unsub<'o, NO>
+    {
+        self.sub_internal(|| self.subj.sub(o))
+    }
+}
+
 impl< V:CSS, E:CSS> ObservableSendSync<V, E> for  BehaviorSubject<'static, V, E, YES>
 {
-    fn sub(&self, o: impl Observer<V, E> + Send + Sync + 'static) -> Unsub<'static, YES>
+    #[inline(always)] fn sub(&self, o: impl Observer<V, E> + Send + Sync + 'static) -> Unsub<'static, YES>
     {
-        self.lock.enter();
-        let sub = self.subj.sub(o);
-        let val = unsafe { &*self.val.get() }.as_ref().unwrap().clone();
-        self.lock.exit();
-
-        self.subj.next(val);
-        sub
+        self.sub_internal(|| self.subj.sub(o))
     }
 }
 
@@ -69,9 +74,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Observer<V, E> for BehaviorSubject<'o
         }else { None };
         self.lock.exit();
 
-        if old.is_some() {
-            self.subj.next(v);
-        }
+        self.subj.next(v);
     }
 
     fn error(&self, e:E)

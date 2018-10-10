@@ -34,10 +34,6 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), to_drop: UnsafeCell::new(Vec::new()), state: UnsafeCell::new(state_ptr) })  }
     }
 
-    pub fn is_stopped(&self) {
-
-    }
-
     #[inline(never)]
     unsafe fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
     {
@@ -122,26 +118,14 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
     fn drop(&mut self)
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
-
         let recur = lock.enter();
 
         let old = unsafe { *state.get() };
         if let Next(vec) = unsafe { &*old } {
-            let to_drop = unsafe { (&mut *to_drop.get()) };
             unsafe { *state.get() = Self::DROP(); }
-            to_drop.push(old);
+            unsafe { (&mut *to_drop.get()) }.push(old);
 
-            let to_drop = if recur == 0 {
-                let old = to_drop.clone();
-                to_drop.clear();
-                Some(old)
-            } else { None };
-
-            lock.exit();
-
-            if let Some(mut vec) = to_drop{
-                for ptr in vec.drain(..) { unsafe{ Box::from_raw(ptr); } };
-            }
+            drop_garbage(to_drop, lock);
             for (_, sub) in vec { sub.unsub(); }
             return;
         }
@@ -156,7 +140,7 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
     {
         let o = Arc::new(observer);
         let (state, o2) = (self.state.weak(), o.weak());
-        self.sub_internal(o, || Unsub::<NO>::with(|| Self::unsub(state, o2)))
+        self.sub_internal(o, move || Unsub::<NO>::with(move || Self::unsub(state, o2)))
     }
 }
 
@@ -166,7 +150,20 @@ impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
     {
         let o = Arc::new(observer);
         let (state, o2) = (self.state.weak(), o.weak());
-        self.sub_internal(o, || Unsub::<YES>::with(|| Self::unsub(state, o2)))
+        self.sub_internal(o, move || Unsub::<YES>::with(move || Self::unsub(state, o2)))
+    }
+}
+
+#[inline(never)]
+fn drop_garbage<'o, V:Clone, E:Clone, SS:YesNo>(to_drop: &UnsafeCell<Vec<*mut SubjectState<'o, V, E, SS>>>, lock:&ReSpinLock<SS>)
+{
+    let to_drop = unsafe { (&mut *to_drop.get()) };
+    if to_drop.len() > 0 {
+        let old = to_drop.clone();
+        to_drop.clear();
+        lock.exit();
+
+        for ptr in old.into_iter() { unsafe { Box::from_raw(ptr); } }
     }
 }
 
@@ -177,22 +174,14 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let Wrap{lock, to_drop, state} = self.state.as_ref();
         let recur = lock.enter();
 
-        let old = unsafe { *state.get() };
-        if let Next(vec) = unsafe { &*old } {
+        if let Next(vec) = unsafe { &**state.get() } {
             for (o,sub) in vec {
                 if ! sub.is_done() { o.next(v.clone()); }
             }
 
             if recur == 0 {
-                let to_drop = unsafe { (&mut *to_drop.get()) };
-                if to_drop.len() > 0 {
-                    let old = to_drop.clone();
-                    to_drop.clear();
-                    lock.exit();
-
-                    for ptr in old.into_iter() { unsafe { Box::from_raw(ptr); } }
-                    return;
-                }
+                drop_garbage(to_drop, lock);
+                return;
             }
         }
 
@@ -207,9 +196,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let old = unsafe { *state.get() };
 
         if let Next(vec) = unsafe { &*old } {
-            let to_drop = unsafe { (&mut *to_drop.get()) };
             unsafe { *state.get() = Box::into_raw(box Error(e.clone()) ) };
-            to_drop.push(old);
+            unsafe { (&mut *to_drop.get()) }.push(old);
 
             for (o,sub) in vec.iter() {
                 if sub.is_done() { continue; }
@@ -218,14 +206,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
             }
 
             if recur == 0 {
-                if to_drop.len() > 0 {
-                    let old = to_drop.clone();
-                    to_drop.clear();
-                    lock.exit();
-
-                    for ptr in old.into_iter() { unsafe { Box::from_raw(ptr); } }
-                    return;
-                }
+                drop_garbage(to_drop, lock);
+                return;
             }
         }
 
@@ -240,9 +222,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let old = unsafe { *state.get() };
 
         if let Next(vec) = unsafe { &*old } {
-            let to_drop = unsafe { (&mut *to_drop.get()) };
             unsafe { *state.get() = Self::COMPLETE(); }
-            to_drop.push(old);
+            unsafe { (&mut *to_drop.get()) }.push(old);
 
             for (o, sub) in vec.iter() {
                 if sub.is_done() { continue; }
@@ -250,14 +231,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
                 o.complete();
             }
             if recur == 0 {
-                if to_drop.len() > 0 {
-                    let old = to_drop.clone();
-                    to_drop.clear();
-                    lock.exit();
-
-                    for ptr in old.into_iter() { unsafe { Box::from_raw(ptr); } }
-                    return;
-                }
+                drop_garbage(to_drop, lock);
+                return;
             }
         }
 

@@ -195,11 +195,25 @@ mod test
     }
 
     #[test]
-    fn send_sync()
+    fn scope()
     {
-        let c = Cell::new(0);
-        let a = Arc::new(0);
-//        let ss = Unsub::<YES>::with(move || c.replace(1));
-        let ss = Unsub::<NO>::with(move || println!("s {}", *a) );
+        let a = Unsub::<NO>::new();
+        let r = Arc::new(123);
+        {
+            //let n = Cell::new(123);
+            //a.add(Unsub::<NO>::with(|| println!("n={}", n.get())));
+            let weak = Arc::downgrade(&r);
+
+            //let mksub = || Unsub::<NO>::with(|| weak.upgrade());
+            //a.add(mksub());
+            //a.add(Unsub::<NO>::with(|| weak.upgrade()));
+
+            //let x = weak.upgrade();
+
+
+        }
+
+        a.unsub();
     }
+
 }

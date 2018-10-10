@@ -34,6 +34,10 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), to_drop: UnsafeCell::new(Vec::new()), state: UnsafeCell::new(state_ptr) })  }
     }
 
+    pub fn is_stopped(&self) {
+
+    }
+
     #[inline(never)]
     unsafe fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
     {
@@ -127,10 +131,18 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
             unsafe { *state.get() = Self::DROP(); }
             to_drop.push(old);
 
+            let to_drop = if recur == 0 {
+                let old = to_drop.clone();
+                to_drop.clear();
+                Some(old)
+            } else { None };
+
             lock.exit();
 
+            if let Some(mut vec) = to_drop{
+                for ptr in vec.drain(..) { unsafe{ Box::from_raw(ptr); } };
+            }
             for (_, sub) in vec { sub.unsub(); }
-            if recur == 0 { unsafe { for ptr in to_drop.into_iter() {  Box::from_raw(ptr); } } }
             return;
         }
 

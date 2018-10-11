@@ -34,7 +34,6 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), to_drop: UnsafeCell::new(Vec::new()), state: UnsafeCell::new(state_ptr) })  }
     }
 
-    #[inline(never)]
     unsafe fn COMPLETE() -> *mut SubjectState<'o, V, E, SS>
     {
         static mut VAL: *const () = ::std::ptr::null();
@@ -43,7 +42,6 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         ::std::mem::transmute(VAL)
     }
 
-    #[inline(never)]
     unsafe fn DROP() -> *mut SubjectState<'o, V, E, SS>
     {
         static mut VAL: *const () = ::std::ptr::null();
@@ -58,8 +56,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         let Wrap{lock, to_drop, state} = self.state.as_ref();
         let recur = lock.enter();
 
-        let old = unsafe { *state.get() };
-        match unsafe { &mut *old } {
+        match unsafe { &mut **state.get() } {
             Next(obs) => {
                 let sub = make_sub();
                 if recur == 0 {
@@ -68,7 +65,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                     let mut vec = Vec::with_capacity(obs.len() + 1);
                     vec.extend( obs.iter().cloned());
                     vec.push((o, sub.clone()));
-                    unsafe { Self::change_state(&to_drop, &state, Box::into_raw(box Next(vec))); }
+                    unsafe { Self::change_state(to_drop, state, Box::into_raw(box Next(vec))); }
                 }
                 lock.exit();
                 return sub;
@@ -89,8 +86,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                 let Wrap{lock, to_drop, state} = state.as_ref();
                 let recur = lock.enter();
 
-                let old = unsafe { *state.get() };
-                if let Next(obs) = unsafe { &mut *old } {
+                if let Next(obs) = unsafe { &mut **state.get() } {
                     if recur == 0 {
                         obs.iter().position(|o| Arc::ptr_eq(&o.0, &observer)).map(|i| obs.remove(i))
                             .expect("the observer is expected to be in the vec");
@@ -105,7 +101,6 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
         }
     }
 
-    #[inline(never)]
     unsafe fn change_state(to_drop: &UnsafeCell<Vec<*mut SubjectState<'o, V, E, SS>>>, state: &UnsafeCell<*mut SubjectState<'o, V, E, SS>>, new: *mut SubjectState<'o, V, E, SS> )
     {
         let old = *state.get();
@@ -117,17 +112,14 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
 
 impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,SS>
 {
-    #[inline(never)]
     fn drop(&mut self)
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
         let recur = lock.enter();
 
-        let old = unsafe { *state.get() };
-        if let Next(vec) = unsafe { &*old } {
+        if let Next(vec) = unsafe { &**state.get() } {
             unsafe { Self::change_state(to_drop, state, Self::DROP()); }
             for (_, sub) in vec { sub.unsub(); }
-            return;
         }
 
         lock.exit();
@@ -193,10 +185,8 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let Wrap{lock, to_drop, state} = self.state.as_ref();
         let recur = lock.enter();
 
-        let old = unsafe { *state.get() };
-
-        if let Next(vec) = unsafe { &*old } {
-            unsafe { Self::change_state(&to_drop, &state, Box::into_raw(box Error(e.clone()) )) };
+        if let Next(vec) = unsafe { &**state.get() } {
+            unsafe { Self::change_state(to_drop, state, Box::into_raw(box Error(e.clone())) ) };
 
             for (o,sub) in vec.iter() {
                 if sub.is_done() { continue; }

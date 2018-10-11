@@ -19,6 +19,7 @@ pub trait Observer<V:Clone, E:Clone>
 }
 
 pub mod sync;
+pub mod util;
 
 mod fac;
 mod op;
@@ -28,7 +29,6 @@ mod subject;
 mod observers;
 mod observables;
 
-mod util;
 
 pub use crate::unsub::*;
 pub use crate::yesno::*;

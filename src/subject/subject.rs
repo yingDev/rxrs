@@ -65,12 +65,10 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                 if recur == 0 {
                     obs.push((o, sub.clone()));
                 } else {
-                    unsafe { (&mut *to_drop.get()).push(old); };
-
                     let mut vec = Vec::with_capacity(obs.len() + 1);
                     vec.extend( obs.iter().cloned());
                     vec.push((o, sub.clone()));
-                    unsafe { *state.get() = Box::into_raw(box Next(vec)); }
+                    unsafe { Self::change_state(&to_drop, &state, Box::into_raw(box Next(vec))); }
                 }
                 lock.exit();
                 return sub;
@@ -99,14 +97,21 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                     } else {
                         let mut vec = Vec::with_capacity(obs.len() - 1 );
                         vec.extend(obs.iter().filter(|o| ! Arc::ptr_eq(&o.0, &observer)).cloned());
-                        unsafe {
-                            *state.get() = Box::into_raw(box Next(vec));
-                            (&mut *to_drop.get()).push(old);
-                        }
+                        unsafe { Self::change_state(&to_drop, &state, Box::into_raw(box Next(vec))); }
                     }
                 }
                 lock.exit();
             }
+        }
+    }
+
+    #[inline(never)]
+    unsafe fn change_state(to_drop: &UnsafeCell<Vec<*mut SubjectState<'o, V, E, SS>>>, state: &UnsafeCell<*mut SubjectState<'o, V, E, SS>>, new: *mut SubjectState<'o, V, E, SS> )
+    {
+        unsafe {
+            let old = *state.get();
+            *state.get() = new;
+            (&mut *to_drop.get()).push(old);
         }
     }
 }
@@ -122,8 +127,9 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
 
         let old = unsafe { *state.get() };
         if let Next(vec) = unsafe { &*old } {
-            unsafe { *state.get() = Self::DROP(); }
-            unsafe { (&mut *to_drop.get()) }.push(old);
+            unsafe { Self::change_state(&to_drop, &state, Self::DROP()); }
+//            unsafe { *state.get() = Self::DROP(); }
+//            unsafe { (&mut *to_drop.get()) }.push(old);
 
             drop_garbage(to_drop, lock);
             for (_, sub) in vec { sub.unsub(); }
@@ -196,8 +202,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let old = unsafe { *state.get() };
 
         if let Next(vec) = unsafe { &*old } {
-            unsafe { *state.get() = Box::into_raw(box Error(e.clone()) ) };
-            unsafe { (&mut *to_drop.get()) }.push(old);
+            unsafe { Self::change_state(&to_drop, &state, Box::into_raw(box Error(e.clone()) )) };
 
             for (o,sub) in vec.iter() {
                 if sub.is_done() { continue; }
@@ -222,8 +227,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let old = unsafe { *state.get() };
 
         if let Next(vec) = unsafe { &*old } {
-            unsafe { *state.get() = Self::COMPLETE(); }
-            unsafe { (&mut *to_drop.get()) }.push(old);
+            unsafe { Self::change_state(&to_drop, &state, Self::COMPLETE()); }
 
             for (o, sub) in vec.iter() {
                 if sub.is_done() { continue; }
@@ -306,7 +310,7 @@ mod tests
         let s = Arc::new(Subject::<i32, (), YES>::new());
 
         let nn = n.clone();
-        s.sub(((), (), move ||{ nn.fetch_add(1, Ordering::SeqCst); }));
+        s.sub(((), (), move |()|{ nn.fetch_add(1, Ordering::SeqCst); }));
 
         let mut threads = vec![];
         for i in 0..8 {

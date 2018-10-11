@@ -102,7 +102,7 @@ mod test
         let src = Rc::new(Subject::<i32, (), NO>::new());
         let sig = Rc::new(Subject::<i32, (), NO>::new());
 
-        src.clone().take_until(sig.clone()).sub((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
+        src.clone().take_until(sig.clone()).sub((|v| n.replace(v), (), |()| c.replace(c.get() + 1)));
 
         src.next(1);
         assert_eq!(n.get(), 1);
@@ -124,7 +124,7 @@ mod test
 
         sig.complete();
 
-        src.clone().take_until(sig.clone()).sub((|v| n.replace(v), (), | | c.replace(c.get() + 1)));
+        src.clone().take_until(sig.clone()).sub((|v| n.replace(v), (), |()| c.replace(c.get() + 1)));
 
         src.next(1);
         assert_eq!(n.get(), 0);
@@ -142,7 +142,7 @@ mod test
         let n = Cell::new(0);
         let (s, s2, s3) = Rc::new(Subject::<i32, (), NO>::new()).clones();
 
-        s2.take_until(s3).sub((|v| n.replace(v),(), ||{ println!("complete??")}));
+        s2.take_until(s3).sub((|v| n.replace(v),(), |()|{ println!("complete??")}));
 
         s.next(1);
 

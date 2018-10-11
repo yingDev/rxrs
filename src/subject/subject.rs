@@ -3,7 +3,7 @@ use std::cell::UnsafeCell;
 
 use crate::sync::ReSpinLock;
 use crate::*;
-use crate::util::{trait_alias::CSS, *};
+use crate::util::{trait_alias::{CSS, ObserverSS}, *};
 
 use self::SubjectState::*;
 
@@ -146,7 +146,7 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, V, E> for Subject<'o, V, E, NO>
 
 impl<V:CSS, E:CSS> ObservableSendSync<V, E> for Subject<'static, V, E, YES>
 {
-    fn sub(&self, observer: impl Observer<V,E> + Send + Sync+'static) -> Unsub<'static, YES>
+    fn sub(&self, observer: impl ObserverSS<V,E>) -> Unsub<'static, YES>
     {
         let o = Arc::new(observer);
         let (state, o2) = (self.state.weak(), o.weak());

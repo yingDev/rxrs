@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use crate::*;
-use crate::util::trait_alias::CSS;
+use crate::util::trait_alias::{CSS, ObserverSS};
 
 pub trait Mapper<V, VOut, E, EOut>
 {
@@ -60,7 +60,7 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, VOut:Clone+'o, EOut:Clone+'o, Src: Observab
 impl<V:CSS, E:CSS, EOut: CSS, VOut:CSS, Src: ObservableSendSync<V, E>, F: Mapper<V,VOut, E, EOut>+Send+Sync+Clone+'static> ObservableSendSync<VOut, EOut> for OpMap<V, VOut, E, EOut, Src, F, YES>
 {
     #[inline(always)]
-    fn sub(&self, observer: impl Observer<VOut,EOut>+Send+Sync+'static) -> Unsub<'static, YES>
+    fn sub(&self, observer: impl ObserverSS<VOut,EOut>) -> Unsub<'static, YES>
     {
         self.src.sub( OpMapSubscriber { observer, f: self.f.clone(), PhantomData})
     }

@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::*;
-use crate::util::{Clones, trait_alias::CSS};
+use crate::util::{Clones, trait_alias::{CSS, ObserverSS}};
 
 pub struct OpTakeUntil<V, E, VS, ES, Src, Sig, SS: YesNo>
 {
@@ -37,7 +37,7 @@ impl<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+'o, ES
 impl<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>> ObservableSendSync<V, E> for OpTakeUntil<V, E, VS, ES, Src, Sig, YES>
 {
     #[inline(always)]
-    fn sub(&self, observer: impl Observer<V,E>+Send+Sync+'static) -> Unsub<'static, YES>
+    fn sub(&self, observer: impl ObserverSS<V,E>) -> Unsub<'static, YES>
     {
         sub_ss(self, Arc::new(observer))
     }
@@ -57,7 +57,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, VS:Clone+'o, ES:Clone+'o> Observer<VS, ES> for 
     fn complete(&self) { self.sub.unsub_then(|| self.dest.complete()); }
 }
 
-impl<V:Clone+'static, E:Clone+'static, VS:Clone+'static, ES:Clone+'static> Observer<VS, ES> for Notifier<'static, V, E, VS, ES, Arc<Observer<V,E>+Send+Sync+'static>, YES>
+impl<V:CSS, E:CSS, VS:CSS, ES:CSS> Observer<VS, ES> for Notifier<'static, V, E, VS, ES, Arc<ObserverSS<V,E>>, YES>
 {
     fn next(&self, v: VS) { self.sub.unsub_then(|| self.dest.complete()); }
     fn error(&self, e: ES) { self.sub.unsub(); }
@@ -77,7 +77,7 @@ fn sub_nss<'s, 'o, V:Clone+'o, E:Clone+'o, Src: Observable<'o,V,E>+'s, VS:Clone+
 
 #[inline(never)]
 fn sub_ss<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: ObservableSendSync<VS, ES>>
-    (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,YES>, observer: Arc<Observer<V,E>+Send+Sync+'static>) -> Unsub<'static, YES>
+    (selv: &OpTakeUntil<V,E,VS,ES,Src,Sig,YES>, observer: Arc<ObserverSS<V,E>>) -> Unsub<'static, YES>
 {
     let sub = Unsub::new();
     let sigsub = selv.sig.sub(Notifier{ sub: sub.clone(), dest: observer.clone(), PhantomData });
@@ -89,6 +89,7 @@ fn sub_ss<V:CSS, E:CSS, VS:CSS, ES:CSS, Src: ObservableSendSync<V, E>, Sig: Obse
 mod test
 {
     use std::rc::Rc;
+    use std::sync::Arc;
     use std::cell::Cell;
     use crate::*;
     use crate::util::Clones;

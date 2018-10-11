@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 use crate::*;
+use crate::util::trait_alias::ObserverSS;
 
 impl<'a, V:Clone, E:Clone> Observer<V,E> for Box<Observer<V,E>+'a>
 {
@@ -9,7 +10,7 @@ impl<'a, V:Clone, E:Clone> Observer<V,E> for Box<Observer<V,E>+'a>
     #[inline(always)] fn complete(&self){ Box::as_ref(self).complete() }
 }
 
-impl<'a, V:Clone, E:Clone> Observer<V,E> for Box<Observer<V,E>+Send+Sync+'a>
+impl<V:Clone, E:Clone> Observer<V,E> for Box<ObserverSS<V,E>>
 {
     #[inline(always)] fn next(&self, value: V) { Box::as_ref(self).next(value); }
     #[inline(always)] fn error(&self, e: E) { Box::as_ref(self).error(e); }
@@ -30,7 +31,7 @@ impl<'a, V:Clone, E:Clone> Observer<V,E> for Arc<Observer<V,E>+'a>
     #[inline(always)] fn complete(&self){ Arc::as_ref(self).complete() }
 }
 
-impl<V:Clone, E:Clone> Observer<V,E> for Arc<Observer<V,E>+Send+Sync+'static>
+impl<V:Clone, E:Clone> Observer<V,E> for Arc<ObserverSS<V,E>>
 {
     #[inline(always)] fn next(&self, value: V) { Arc::as_ref(self).next(value); }
     #[inline(always)] fn error(&self, e: E) { Arc::as_ref(self).error(e); }

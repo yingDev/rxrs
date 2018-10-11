@@ -108,11 +108,9 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
     #[inline(never)]
     unsafe fn change_state(to_drop: &UnsafeCell<Vec<*mut SubjectState<'o, V, E, SS>>>, state: &UnsafeCell<*mut SubjectState<'o, V, E, SS>>, new: *mut SubjectState<'o, V, E, SS> )
     {
-        unsafe {
-            let old = *state.get();
-            *state.get() = new;
-            (&mut *to_drop.get()).push(old);
-        }
+        let old = *state.get();
+        *state.get() = new;
+        (&mut *to_drop.get()).push(old);
     }
 }
 
@@ -128,9 +126,6 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
         let old = unsafe { *state.get() };
         if let Next(vec) = unsafe { &*old } {
             unsafe { Self::change_state(&to_drop, &state, Self::DROP()); }
-//            unsafe { *state.get() = Self::DROP(); }
-//            unsafe { (&mut *to_drop.get()) }.push(old);
-
             drop_garbage(to_drop, lock);
             for (_, sub) in vec { sub.unsub(); }
             return;

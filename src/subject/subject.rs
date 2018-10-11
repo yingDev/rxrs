@@ -156,7 +156,7 @@ fn drop_garbage<'o, V:Clone, E:Clone, SS:YesNo>(to_drop: &UnsafeCell<Vec<*mut Su
         lock.exit();
 
         for ptr in old.into_iter() { unsafe { Box::from_raw(ptr); } }
-    }
+    } else { lock.exit(); }
 }
 
 impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>

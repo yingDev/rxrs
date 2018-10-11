@@ -1,4 +1,5 @@
 use crate::*;
+use crate::util::trait_alias::{ObserverSS, CSS};
 
 #[derive(Copy, Clone)]
 pub struct Of<V: Clone, SS: YesNo>(V, SS);
@@ -26,9 +27,9 @@ impl<'o, V: Clone+'o> Observable<'o, V, ()> for Of<V, NO>
 
 }
 
-impl<V: Clone+Send+Sync+'static> ObservableSendSync<V, ()> for Of<V, YES>
+impl<V: CSS> ObservableSendSync<V, ()> for Of<V, YES>
 {
-    #[inline(always)] fn sub(&self, observer: impl Observer<V,()>+Send+Sync+'static) -> Unsub<'static, YES> { self.sub_internal(observer) }
+    #[inline(always)] fn sub(&self, observer: impl ObserverSS<V,()>) -> Unsub<'static, YES> { self.sub_internal(observer) }
 
 }
 

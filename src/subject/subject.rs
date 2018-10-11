@@ -97,7 +97,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> Subject<'o, V, E, SS>
                     } else {
                         let mut vec = Vec::with_capacity(obs.len() - 1 );
                         vec.extend(obs.iter().filter(|o| ! Arc::ptr_eq(&o.0, &observer)).cloned());
-                        unsafe { Self::change_state(&to_drop, &state, Box::into_raw(box Next(vec))); }
+                        unsafe { Self::change_state(to_drop, state, Box::into_raw(box Next(vec))); }
                     }
                 }
                 lock.exit();
@@ -125,8 +125,7 @@ impl<'o, V:Clone+'o, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,V,E,S
 
         let old = unsafe { *state.get() };
         if let Next(vec) = unsafe { &*old } {
-            unsafe { Self::change_state(&to_drop, &state, Self::DROP()); }
-            drop_garbage(to_drop, lock);
+            unsafe { Self::change_state(to_drop, state, Self::DROP()); }
             for (_, sub) in vec { sub.unsub(); }
             return;
         }
@@ -222,7 +221,7 @@ impl<'o, V:Clone, E:Clone, SS:YesNo> Observer<V,E> for Subject<'o, V,E, SS>
         let old = unsafe { *state.get() };
 
         if let Next(vec) = unsafe { &*old } {
-            unsafe { Self::change_state(&to_drop, &state, Self::COMPLETE()); }
+            unsafe { Self::change_state(to_drop, state, Self::COMPLETE()); }
 
             for (o, sub) in vec.iter() {
                 if sub.is_done() { continue; }

@@ -1,7 +1,7 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias, option_replace)]
 #![allow(non_snake_case)]
 
-mod map;
+mod op;
 mod util;
 mod subject;
 mod unsub;
@@ -13,6 +13,7 @@ pub use crate::util::{*, alias::*};
 pub use crate::unsub::*;
 pub use crate::subject::*;
 pub use crate::fac::*;
+pub use crate::op::*;
 
 
 pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
@@ -34,7 +35,6 @@ pub unsafe trait IntoDyn<'s, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal>
 {
     #[inline(always)] fn into_dyn(self) -> Box<dyn Observable<'o, SS, VBy, EBy> + 's>{ box self }
     #[inline(always)] fn into_dyn_ss(self) -> Box<dyn Observable<'o, SS, VBy, EBy>+Send+Sync+'s> where Self: Send+Sync { box self }
-
 }
 
 unsafe impl<'s, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O> IntoDyn<'s, 'o, SS, VBy, EBy> for O

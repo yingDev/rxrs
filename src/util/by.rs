@@ -3,7 +3,10 @@ use std::ops::Deref;
 use crate::*;
 
 pub unsafe trait RefOrVal{}
-pub unsafe trait RefOrValHint<V> : RefOrVal {}
+pub unsafe trait RefOrValHint<V> : RefOrVal
+{
+    type V = V;
+}
 
 pub struct Ref<V>(*const V);
 pub struct Val<V>(V);

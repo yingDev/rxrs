@@ -41,24 +41,19 @@ unsafe impl<'s, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O> IntoDyn<'s, 'o, S
     where O: 's + Observable<'o, SS, VBy, EBy> + Sized
 {}
 
-unsafe impl<'a, BY: RefOrVal, F> FnNext<NO, BY> for F
-    where F: Fn(By<BY>)+'a
+unsafe impl<'a, BY: RefOrVal, F: Fn(By<BY>)+'a> FnNext<NO, BY> for F
 { #[inline(always)] fn call(&self, v: By<BY>) { self(v) } }
 
-unsafe impl<BY: RefOrVal, F> FnNext<YES, BY> for F
-    where F: Fn(By<BY>)+Send+Sync+'static
+unsafe impl<BY: RefOrVal, F: Fn(By<BY>)+Send+Sync+'static> FnNext<YES, BY> for F
 { #[inline(always)] fn call(&self, v: By<BY>) { self(v) } }
 
-unsafe impl<'a, BY: RefOrVal, F> FnErrComp<NO, BY> for F
-    where F: FnOnce(Option<By<BY>>)+'a
+unsafe impl<'a, BY: RefOrVal, F: FnOnce(Option<By<BY>>)+'a> FnErrComp<NO, BY> for F
 { #[inline(always)] fn call_once(self, v: Option<By<BY>>) { self(v) } }
 
-unsafe impl<BY: RefOrVal, F> FnErrComp<YES, BY> for F
-    where F: FnOnce(Option<By<BY>>)+Send+Sync+'static
+unsafe impl<BY: RefOrVal, F: FnOnce(Option<By<BY>>)+Send+Sync+'static> FnErrComp<YES, BY> for F
 { #[inline(always)] fn call_once(self, v: Option<By<BY>>) { self(v) } }
 
-unsafe impl<SS:YesNo, F, BY: RefOrVal> FnErrCompBox<SS, BY> for F
-    where F: FnErrComp<SS, BY>
+unsafe impl<SS:YesNo, F: FnErrComp<SS, BY>, BY: RefOrVal> FnErrCompBox<SS, BY> for F
 { #[inline(always)] fn call_box(self: Box<Self>, v: Option<By<BY>>) { self.call_once(v) } }
 
 

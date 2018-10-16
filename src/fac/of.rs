@@ -37,8 +37,12 @@ mod test
         o.sub(|v:By<_>| { n.replace(*v); }, ());
         assert_eq!(n.get(), 123);
 
+//        o.sub(|v| { n.replace(*v); }, ());
+
+
         let o = Of::value_dyn(123);
         o.sub_dyn(box |v:By<_>| { n.replace(*v+1); }, box());
         assert_eq!(n.get(), 124);
     }
+
 }

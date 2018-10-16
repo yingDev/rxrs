@@ -23,6 +23,27 @@ impl<'o, V: 'o> Observable<'o, NO, Ref<V>, Ref<()>> for Of<V>
                next: Box<FnNext<NO, Ref<V>> + 'o>,
                ec: Box<FnErrCompBox<NO, Ref<()>> + 'o>) -> Unsub<'o, NO>
     {
-        self.sub(move |v: By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
+        self.sub(next, ec)
+    }
+}
+
+
+#[cfg(test)]
+mod test
+{
+    use crate::*;
+
+    #[test]
+    fn smoke()
+    {
+        let n = std::cell::Cell::new(0);
+        let o = Of::value(123);
+
+        o.sub(|v:By<_>| { n.replace(*v); }, ());
+        assert_eq!(n.get(), 123);
+
+        let o = o.into_dyn();
+        o.sub_dyn(box |v:By<_>| { n.replace(*v+1); }, box());
+        assert_eq!(n.get(), 124);
     }
 }

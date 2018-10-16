@@ -62,6 +62,13 @@ unsafe impl<SS:YesNo, F, BY: RefOrVal> FnErrCompBox<SS, BY> for F
 { #[inline(always)] fn call_box(self: Box<Self>, v: Option<By<BY>>) { self.call_once(v) } }
 
 
+unsafe impl<'a, SS: YesNo, BY: RefOrVal> FnNext<SS, BY> for Box<FnNext<SS, BY>+'a>
+{ #[inline(always)] fn call(&self, v: By<BY>) { self.as_ref().call(v) } }
+
+unsafe impl<'a, SS:YesNo, BY: RefOrVal> FnErrComp<SS, BY> for Box<FnErrCompBox<SS, BY>+'a>
+{ #[inline(always)] fn call_once(self, v: Option<By<BY>>) { self.call_box(v) } }
+
+
 unsafe impl<SS:YesNo, BY: RefOrVal> FnNext<SS, BY> for ()
 { #[inline(always)] fn call(&self, v: By<BY>) {  } }
 

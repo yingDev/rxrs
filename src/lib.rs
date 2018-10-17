@@ -64,6 +64,26 @@ impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> 
     { Arc::as_ref(self).sub_dyn(next, ec) }
 }
 
+
+impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> for Box<O>
+    where O: Observable<'o, SS, VBy, EBy>
+{
+    #[inline(always)]
+    fn sub(&self, next: impl for<'x> Act<SS, By<'x, VBy>>+'o, ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+    { Box::as_ref(self).sub(next, ec) }
+
+    #[inline(always)]
+    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    { Box::as_ref(self).sub_dyn(next, ec) }
+}
+
+impl<'o, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> for Box<dyn Observable<'o, SS, VBy, EBy>>
+{
+    #[inline(always)]
+    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    { Box::as_ref(self).sub_dyn(next, ec) }
+}
+
 mod op;
 mod util;
 mod subject;

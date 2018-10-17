@@ -9,14 +9,11 @@ pub struct MapOp<VBY: RefOrVal, Src, F>
     PhantomData: PhantomData<VBY>
 }
 
-
 pub trait ObservableMapOp<V, VBY: RefOrVal, EBY: RefOrVal, VOut, F> : Sized
     where F: Fn(&V)->VOut
 {
     fn map(self, f: F) -> MapOp<VBY, Self, F>
-    {
-        MapOp{ f: Arc::new(f), src: self, PhantomData}
-    }
+    { MapOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
 impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<V, VBY,EBY, VOut, F> for Src
@@ -91,5 +88,13 @@ mod test
         unsub();
         i.next(2);
         assert_eq!(n.get(), 2);
+    }
+
+    #[test]
+    fn boxed()
+    {
+        let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
+
+        o.map(|v| v+1).sub(|v:By<_>| println!("v={}", *v), ());
     }
 }

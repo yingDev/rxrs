@@ -95,6 +95,7 @@ mod test
     {
         let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
 
-        o.map(|v| v+1).sub(|v:By<_>| println!("v={}", *v), ());
+        let o: Box<Observable<NO, Val<i32>>> = o.map(|v| v+1).into_dyn();
+        o.sub(|v:By<Val<i32>>| println!("v={}", *v), ());
     }
 }

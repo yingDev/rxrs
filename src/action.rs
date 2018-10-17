@@ -7,8 +7,16 @@ pub unsafe trait ActOnce<SS:YesNo, A>
 {
     fn call_once(self, e: A);
 }
-pub unsafe trait Act<SS:YesNo, A>  { fn call(&self, v: A); }
-pub unsafe trait ActBox<SS:YesNo, A> { fn call_box(self: Box<Self>, e: A); }
+
+pub unsafe trait Act<SS:YesNo, A>
+{
+    fn call(&self, v: A);
+}
+
+pub unsafe trait ActBox<SS:YesNo, A>
+{
+    fn call_box(self: Box<Self>, e: A);
+}
 
 
 unsafe impl<'a, A, F: Fn(A)+'a> Act<NO, A> for F

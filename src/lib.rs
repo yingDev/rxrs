@@ -1,4 +1,4 @@
-#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias, option_replace)]
+#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias, option_replace, coerce_unsized, unsize)]
 #![allow(non_snake_case)]
 
 mod op;
@@ -7,6 +7,7 @@ mod subject;
 mod unsub;
 mod fac;
 mod action;
+mod into_sendsync;
 
 pub mod sync;
 
@@ -16,6 +17,7 @@ pub use crate::subject::*;
 pub use crate::fac::*;
 pub use crate::op::*;
 pub use crate::action::*;
+pub use crate::into_sendsync::*;
 
 pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
 {

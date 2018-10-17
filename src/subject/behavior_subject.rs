@@ -73,8 +73,7 @@ impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, Y
 
     fn sub_dyn(&self, next: Box<for<'x> Act<YES, By<'x, Ref<V>>>+'static>, ec: Box<for<'x> ActBox<YES, Option<By<'x, Ref<E>>>>+'static>) -> Unsub<'static, YES>
     {
-        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+'static> = next.into();
-        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+'static+Send+Sync> = unsafe{ ::std::mem::transmute(next) };
+        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+Send+Sync> = next.into_sendsync().into();
         self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
     }
 }

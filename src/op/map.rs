@@ -1,56 +1,79 @@
-//use std::marker::PhantomData;
-//use std::sync::Arc;
-//use crate::*;
-//
-//pub struct MapOp<V, Src, F>
-//{
-//    f: F,
-//    src: Src,
-//    PhantomData: PhantomData<V>
-//}
-//
-//struct MapOpSubscriber<'s, O, F>
-//{
-//    f: &'s F,
-//    o: O,
-//}
-//
-//pub trait ObservableMapOp<V, E, VOut, F> : Sized
-//    where F: Fn(V)->VOut
-//{
-//    fn map(self, f: F) -> MapOp<V, Self, F>
-//    {
-//        MapOp{ f, src: self, PhantomData}
-//    }
-//}
-//
-//impl<'s, 'o, V, E, VOut, Src, F> ObservableMapOp<V,E, VOut, F> for Src
-//    where F: Fn(V)->VOut,
-//          Src: Observable<'s, 'o, V, E>
-//{}
-//
-//impl<'s, 'o, V, E, VOut, Src, F> ObservableMapOp<V,E, VOut, F> for Src
-//    where F: Fn(&V)->VOut,
-//          Src: ByRefObservable<'s, 'o, V, E>
-//{}
-//
-//impl<'s, V, E, VOut, O, F> Observer<V, E> for MapOpSubscriber<'s, O, F>
-//    where O: Observer<VOut, E>,
-//          F: Fn(V)->VOut,
-//{
-//    fn next(&self, v:V) { self.o.next(self.f.call((v,))) }
-//    fn error(&self, e:E){ self.o.error(e) }
-//    fn complete(&self)  { self.o.complete() }
-//}
-//
-//impl<'s: 'o, 'o, V, VOut, E, Src, F> Observable<'s, 'o, VOut, E> for MapOp<V, Src, F>
-//    where F: Fn(V)->VOut,
-//          Src: Observable<'s, 'o, V, E>
-//{
-//    fn sub(&'s self, o: impl Observer<VOut, E> + 'o) -> Unsub<'o, NO>
-//    {
-//        self.src.sub(MapOpSubscriber{ f: &self.f, o })
-//    }
-//
-//}
-//
+use std::marker::PhantomData;
+use std::sync::Arc;
+use crate::*;
+
+pub struct MapOp<VBY: RefOrVal, Src, F>
+{
+    f: Arc<F>,
+    src: Src,
+    PhantomData: PhantomData<VBY>
+}
+
+
+pub trait ObservableMapOp<V, VBY: RefOrVal, EBY: RefOrVal, VOut, F> : Sized
+    where F: Fn(&V)->VOut
+{
+    fn map(self, f: F) -> MapOp<VBY, Self, F>
+    {
+        MapOp{ f: Arc::new(f), src: self, PhantomData}
+    }
+}
+
+impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<V, VBY,EBY, VOut, F> for Src
+    where F: Fn(&V)->VOut+'o,
+          Src: Observable<'o, NO, VBY, EBY>
+{}
+
+
+impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<Ref<V>, Src, F>
+    where F: Fn(&V)->VOut+'o,
+          Src: Observable<'o, NO, Ref<V>, EBY>
+{
+    fn sub(&self, next: impl for<'x> Act<NO, By<'x, Val<VOut>>>+'o, ec: impl for<'x> ActOnce<NO, Option<By<'x, EBY>>>+'o) -> Unsub<'o, NO> where Self: Sized
+    {
+        let f = self.f.clone();
+        self.src.sub(move |v:By<Ref<V>>| next.call(By::v(f(&*v))), move |e: Option<By<_>>| ec.call_once(e))
+    }
+
+    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Val<VOut>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, EBY>>> +'o>) -> Unsub<'o, NO>
+    { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
+}
+
+impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<Val<V>, Src, F>
+    where F: Fn(&V)->VOut+'o,
+          Src: Observable<'o, NO, Val<V>, EBY>
+{
+    fn sub(&self, next: impl for<'x> Act<NO, By<'x, Val<VOut>>>+'o, ec: impl for<'x> ActOnce<NO, Option<By<'x, EBY>>>+'o) -> Unsub<'o, NO> where Self: Sized
+    {
+        let f = self.f.clone();
+        self.src.sub(move |v:By<Val<V>>| next.call(By::v(f(&*v))), move |e: Option<By<_>>| ec.call_once(e))
+    }
+
+    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Val<VOut>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, EBY>>> +'o>) -> Unsub<'o, NO>
+    { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
+}
+
+#[cfg(test)]
+mod test
+{
+    use crate::*;
+    use std::cell::RefCell;
+    use std::cell::Cell;
+
+    #[test]
+    fn smoke()
+    {
+        let n = Cell::new(0);
+        let o = Of::value(123);
+        o.map(|v| v*2).sub(|v:By<_>| { n.replace(*v);}, ());
+        assert_eq!(n.get(), 246);
+
+        let o = Of::value("B".to_owned());
+        let mapped = o.map(|s| format!("A{}", s)).map(|s| format!("{}C", s));
+
+        let result = RefCell::new(String::new());
+        mapped.sub(|v:By<Val<String>>| result.borrow_mut().push_str(&*v), ());
+
+        assert_eq!(result.borrow().as_str(), "ABC");
+    }
+}

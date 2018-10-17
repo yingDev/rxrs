@@ -40,6 +40,11 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
         Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), to_drop: UnsafeCell::new(Vec::new()), state: UnsafeCell::new(state_ptr) })  }
     }
 
+    pub fn new_dyn() -> Box<Self>
+    {
+        box Subject::new()
+    }
+
     unsafe fn COMPLETE() -> *mut SubjectState<'o, SS, V, E>
     {
         static mut VAL: *const () = ::std::ptr::null();
@@ -135,7 +140,7 @@ impl<'s, 'o, V, E:Clone, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
     }
 }
 
-impl<'s:'o, 'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO, V, E>
+impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO, V, E>
 {
     fn sub_dyn(&self, next: Box<for<'x> FnNext<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> FnErrCompBox<NO, By<'x, Ref<E>>> +'o>) -> Unsub<'o, NO>
     {
@@ -263,6 +268,10 @@ mod tests
         assert_eq!(n.get(), 2);
 
         s.complete();
+
+        let n = Cell::new(0);
+        let ss = Subject::<NO, i32>::new_dyn();
+        ss.sub_dyn(box |v:By<_>| { n.replace(*v); }, box());
     }
 
     #[test]

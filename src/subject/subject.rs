@@ -9,7 +9,7 @@ use self::SubjectState::*;
 
 enum SubjectState<'o, SS:YesNo, V, E:Clone>
 {
-    Next(Vec<(Arc<for<'x> FnNext<SS, By<'x, Ref<V>>>+'o>, UnsafeCell<Option<Box<for<'x> FnErrCompBox<SS, By<'x, Ref<E>>> +'o>>>, Unsub<'o, SS>)>),
+    Next(Vec<(Arc<for<'x> Act<SS, By<'x, Ref<V>>>+'o>, UnsafeCell<Option<Box<for<'x> ActBox<SS, Option<By<'x, Ref<E>>>> +'o>>>, Unsub<'o, SS>)>),
     Error(E),
     Complete,
     Drop
@@ -62,7 +62,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
     }
 
     #[inline(never)]
-    fn sub_internal(&self, next: Arc<for<'x> FnNext<SS, By<'x,Ref<V>>>+'o>, ec: Box<for<'x> FnErrCompBox<SS, By<'x,Ref<E>> >+'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
+    fn sub_internal(&self, next: Arc<for<'x> Act<SS, By<'x,Ref<V>>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x,Ref<E>>>>+'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
         let recur = lock.enter();
@@ -90,7 +90,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
     }
 
     #[inline(never)]
-    fn unsub(state: Weak<Wrap<'o,SS,V,E>>, observer: Weak<for<'x> FnNext<SS, By<'x, Ref<V>>>+'o>)
+    fn unsub(state: Weak<Wrap<'o,SS,V,E>>, observer: Weak<for<'x> Act<SS, By<'x, Ref<V>>>+'o>)
     {
         if let Some(state) = state.upgrade() {
             if let Some(observer) = observer.upgrade() {
@@ -142,11 +142,22 @@ impl<'s, 'o, V, E:Clone, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
 
 impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO, V, E>
 {
-    fn sub_dyn(&self, next: Box<for<'x> FnNext<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> FnErrCompBox<NO, By<'x, Ref<E>>> +'o>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, Ref<E>>>> +'o>) -> Unsub<'o, NO>
     {
-        let next: Arc<for<'x> FnNext<NO, By<'x, Ref<V>>>+'o> = next.into();
+        let next: Arc<for<'x> Act<NO, By<'x, Ref<V>>>+'o> = next.into();
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
-        self.sub_internal(next, ec, move || Unsub::<NO>::with(move || Self::unsub(state, weak_next)))
+        self.sub_internal(next, ec, move || Unsub::<NO>::with(move |()| Self::unsub(state, weak_next)))
+    }
+}
+
+impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static> Observable<'static, YES, Ref<V>, Ref<E>> for Subject<'static, YES, V, E>
+{
+    fn sub_dyn(&self, next: Box<for<'x> Act<YES, By<'x, Ref<V>>>+'static>, ec: Box<for<'x> ActBox<YES, Option<By<'x, Ref<E>>>> +'static>) -> Unsub<'static, YES>
+    {
+        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+'static> = next.into();
+        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+'static+Send+Sync> = unsafe { ::std::mem::transmute(next) };
+        let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
+        self.sub_internal(next, ec, move || Unsub::<YES>::with(move |()| Self::unsub(state, weak_next)))
     }
 }
 
@@ -252,20 +263,21 @@ mod tests
     #[test]
     fn smoke()
     {
-        let n = Cell::new(0);
-        let s = Subject::<NO, i32, ()>::new();
+        let n = Arc::new(AtomicI32::new(0));
+        let s = Subject::<YES, i32>::new();
 
-        s.sub(|v:By<_>| { n.replace(*v); }, ());
+        let nn = n.clone();
+        s.sub(move |v:By<_>| { nn.store(*v, Ordering::SeqCst); }, ());
 
         //expects: `temp` does not live long enough
         //let temp = Cell::new(0);
         //s.sub(|v:By<_>| { temp.replace(*v); }, ());
 
         s.next(1);
-        assert_eq!(n.get(), 1);
+        assert_eq!(n.load(Ordering::SeqCst), 1);
 
         s.next(2);
-        assert_eq!(n.get(), 2);
+        assert_eq!(n.load(Ordering::SeqCst), 2);
 
         s.complete();
 
@@ -339,7 +351,7 @@ mod tests
 
         for i in 0..10{
             let nn = n.clone();
-            s.sub(|v:By<_>|{}, ()).add(Unsub::<NO>::with(move || { nn.replace(nn.get() + 1); }));
+            s.sub(|v:By<_>|{}, ()).add(Unsub::<NO>::with(move |()| { nn.replace(nn.get() + 1); }));
         }
 
         //s.complete();

@@ -4,13 +4,14 @@ use std::marker::PhantomData;
 use std::boxed::FnBox;
 use std::sync::{Arc, Once, ONCE_INIT};
 
-use crate::{YesNo, YES, NO, sync::{ReSpinLock}};
+use crate::*;
+use crate::sync::*;
 
 struct State<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
-    cb: UnsafeCell<Option<Box<FnBox() + 'a>>>,
+    cb: UnsafeCell<Option<Box<ActBox<SS, ()> + 'a>>>,
     cbs: UnsafeCell<Vec<Unsub<'a, SS>>>,
 }
 
@@ -34,7 +35,7 @@ impl<'a, SS:YesNo> State<'a, SS>
 
             unsafe{
                 if let Some(cb) = (&mut *self.cb.get()).take() {
-                    cb();
+                    cb.call_box(());
                 }
                 for cb in (&mut *self.cbs.get()).drain(..) {
                     cb.unsub();
@@ -95,6 +96,7 @@ unsafe impl Sync for Unsub<'static, YES> {}
 
 impl<'a, SS:YesNo> Unsub<'a, SS>
 {
+
     pub fn new() -> Unsub<'a, SS>
     {
         Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
@@ -160,18 +162,16 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
 
 impl<'a> Unsub<'a, NO>
 {
-    pub fn with<R>(cb: impl FnOnce()->R + 'a) -> Unsub<'a, NO>
+    pub fn with(cb: impl ActOnce<NO, ()> + 'a) -> Unsub<'a, NO>
     {
-        let cb = || {cb();};
         Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 }
 
 impl Unsub<'static, YES>
 {
-    pub fn with<R>(cb: impl FnOnce()->R + Send + Sync + 'static) -> Unsub<'static, YES>
+    pub fn with(cb: impl ActOnce<YES, ()> + 'static) -> Unsub<'static, YES>
     {
-        let cb = || {cb();};
         Unsub { state: Arc::new(State{ lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 }
@@ -187,7 +187,7 @@ mod test
     fn drop_should_unsub()
     {
         let n = Cell::new(0);
-        let a = Unsub::<NO>::with(|| { n.replace(1); });
+        let a = Unsub::<NO>::with(|()| { n.replace(1); });
 
         drop(a);
 

@@ -33,7 +33,7 @@ impl<'o, V, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     }
 
     #[inline(never)]
-    fn sub_internal(&self, next: Arc<for<'x> FnNext<NO, By<'x,Ref<V>>>+'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
+    fn sub_internal(&self, next: Arc<for<'x> Act<NO, By<'x,Ref<V>>>+'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
         self.lock.enter();
         let val = unsafe { &mut *self.val.get() };
@@ -52,14 +52,14 @@ impl<'o, V, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for  BehaviorSubject<'o, NO, V, E>
 {
-    fn sub(&self, next: impl for<'x> FnNext<NO, By<'x, Ref<V>>>+'o, ec: impl for<'x> FnErrComp<NO, By<'x, Ref<E>>>+'o) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl for<'x> Act<NO, By<'x, Ref<V>>>+'o, ec: impl for<'x> ActOnce<NO, Option<By<'x, Ref<E>>>>+'o) -> Unsub<'o, NO> where Self: Sized
     {
         self.sub_dyn(box next, box ec)
     }
 
-    fn sub_dyn(&self, next: Box<for<'x> FnNext<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> FnErrCompBox<NO, By<'x, Ref<E>>> +'o>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, Ref<E>>>>+'o>) -> Unsub<'o, NO>
     {
-        let next: Arc<for<'x> FnNext<NO, By<'x, Ref<V>>>+'o> = next.into();
+        let next: Arc<for<'x> Act<NO, By<'x, Ref<V>>>+'o> = next.into();
         self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
     }
 }

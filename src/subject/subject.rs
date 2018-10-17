@@ -264,10 +264,16 @@ mod tests
     fn smoke()
     {
         let n = Arc::new(AtomicI32::new(0));
-        let s = Subject::<YES, i32>::new();
+        let s = Arc::new(Subject::<YES, i32>::new());
 
         let nn = n.clone();
+        let ss = s.clone();
         s.sub(move |v:By<_>| { nn.store(*v, Ordering::SeqCst); }, ());
+
+        ::std::thread::spawn(move ||{
+            ss.next(123);
+        }).join();
+        assert_eq!(n.load(Ordering::SeqCst), 123);
 
         s.next(1);
         assert_eq!(n.load(Ordering::SeqCst), 1);

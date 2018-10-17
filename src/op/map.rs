@@ -88,7 +88,7 @@ mod test
         i.next(1);
         assert_eq!(n.get(), 2);
 
-        unsub.unsub();
+        unsub();
         i.next(2);
         assert_eq!(n.get(), 2);
     }

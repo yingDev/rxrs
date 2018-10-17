@@ -1,17 +1,9 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox, test, cell_update, box_syntax, specialization, trait_alias, option_replace, coerce_unsized, unsize)]
 #![allow(non_snake_case)]
 
-mod op;
-mod util;
-mod subject;
-mod unsub;
-mod fac;
-mod action;
-mod into_sendsync;
-
 pub mod sync;
 
-pub use crate::util::{*, alias::*};
+pub use crate::util::*;
 pub use crate::unsub::*;
 pub use crate::subject::*;
 pub use crate::fac::*;
@@ -46,4 +38,10 @@ unsafe impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O> IntoDyn<'o, SS, V
 
 
 
-
+mod op;
+mod util;
+mod subject;
+mod unsub;
+mod fac;
+mod action;
+mod into_sendsync;

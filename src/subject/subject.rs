@@ -182,6 +182,15 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> Subject<'o, SS, V,E>
         self.next_ref(&v);
     }
 
+    pub fn ec(&self, e: Option<E>)
+    {
+        if e.is_some() {
+            self.error(e.unwrap());
+        } else {
+            self.complete();
+        }
+    }
+
     pub fn next_ref(&self, v: &V)
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
@@ -370,10 +379,18 @@ mod tests
     }
 
     #[test]
-    fn deep_recurse()
+    fn as_observer()
     {
+        let src = Of::value(123);
 
+        let n = std::cell::Cell::new(0);
+        let s = Subject::<NO, i32>::new();
 
+        s.sub(|v:By<_>| { n.replace(*v); }, ());
+
+        src.sub(|v:By<_>| s.next(*v), |e: Option<By<_>>| { s.ec(e.map(|e| *e)) } );
+
+        assert_eq!(n.get(), 123);
     }
 
 }

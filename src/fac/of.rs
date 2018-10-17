@@ -4,8 +4,8 @@ pub struct Of<V>(V);
 
 impl<V> Of<V>
 {
-    fn value(v: V) -> Self { Of(v) }
-    fn value_dyn(v: V) -> Box<Self>  { box Of(v) }
+    pub fn value(v: V) -> Self { Of(v) }
+    pub fn value_dyn(v: V) -> Box<Self>  { box Of(v) }
 }
 
 impl<'o, V:'o> Observable<'o, NO, Ref<V>, Ref<()>> for Of<V>

@@ -23,7 +23,7 @@ impl<'o, V:'o> Observable<'o, NO, Ref<V>, Ref<()>> for Of<V>
     fn sub_dyn(&self,
                next: Box<for<'x> FnNext<NO, By<'x, Ref<V>>>+'o>,
                ec: Box<for<'x> FnErrCompBox<NO, By<'x, Ref<()>>> +'o>) -> Unsub<'o, NO>
-    { self.sub(move |v:By<_>| next.call(v), move |v: Option<By<_>>| ec.call_box(v)) }
+    { self.sub(#[inline(always)] move |v:By<_>| next.call(v), #[inline(always)] move |v: Option<By<_>>| ec.call_box(v)) }
 }
 
 

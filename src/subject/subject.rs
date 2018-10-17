@@ -252,6 +252,10 @@ mod tests
 
         s.sub(|v:By<_>| { n.replace(*v); }, ());
 
+        //expects: `temp` does not live long enough
+        //let temp = Cell::new(0);
+        //s.sub(|v:By<_>| { temp.replace(*v); }, ());
+
         s.next(1);
         assert_eq!(n.get(), 1);
 

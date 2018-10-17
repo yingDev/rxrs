@@ -59,6 +59,7 @@ mod test
     use crate::*;
     use std::cell::RefCell;
     use std::cell::Cell;
+    use std::rc::Rc;
 
     #[test]
     fn smoke()
@@ -69,11 +70,26 @@ mod test
         assert_eq!(n.get(), 246);
 
         let o = Of::value("B".to_owned());
-        let mapped = o.map(|s| format!("A{}", s)).map(|s| format!("{}C", s));
+        let mapped = o.map(|s| format!("A{}", s)).map(|s| format!("{}C", s)).into_dyn();
 
         let result = RefCell::new(String::new());
-        mapped.sub(|v:By<Val<String>>| result.borrow_mut().push_str(&*v), ());
+        mapped.sub_dyn(box |v:By<Val<String>>| result.borrow_mut().push_str(&*v), box());
 
         assert_eq!(result.borrow().as_str(), "ABC");
+    }
+
+    #[test]
+    fn unsub()
+    {
+        let n = Cell::new(0);
+        let (i,o) = Rc::new(Subject::<NO, i32>::new()).clones();
+        let unsub = o.map(|v| v+1).sub(|v:By<_>| { n.replace(*v); }, ());
+
+        i.next(1);
+        assert_eq!(n.get(), 2);
+
+        unsub.unsub();
+        i.next(2);
+        assert_eq!(n.get(), 2);
     }
 }

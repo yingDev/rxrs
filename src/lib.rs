@@ -10,6 +10,8 @@ pub use crate::fac::*;
 pub use crate::op::*;
 pub use crate::action::*;
 pub use crate::into_sendsync::*;
+use std::rc::Rc;
+use std::sync::Arc;
 
 pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
 {
@@ -37,6 +39,30 @@ unsafe impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O> IntoDyn<'o, SS, V
 {}
 
 
+
+impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> for Rc<O>
+    where O: Observable<'o, SS, VBy, EBy>
+{
+    #[inline(always)]
+    fn sub(&self, next: impl for<'x> Act<SS, By<'x, VBy>>+'o, ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+    { Rc::as_ref(self).sub(next, ec) }
+
+    #[inline(always)]
+    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    { Rc::as_ref(self).sub_dyn(next, ec) }
+}
+
+impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> for Arc<O>
+    where O: Observable<'o, SS, VBy, EBy>
+{
+    #[inline(always)]
+    fn sub(&self, next: impl for<'x> Act<SS, By<'x, VBy>>+'o, ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+    { Arc::as_ref(self).sub(next, ec) }
+
+    #[inline(always)]
+    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    { Arc::as_ref(self).sub_dyn(next, ec) }
+}
 
 mod op;
 mod util;

@@ -176,6 +176,15 @@ impl Unsub<'static, YES>
     }
 }
 
+impl<'o, SS: YesNo> FnOnce<()> for Unsub<'o, SS>
+{
+    type Output = ();
+    extern "rust-call" fn call_once(self, args: ())
+    {
+        self.unsub();
+    }
+}
+
 #[cfg(test)]
 mod test
 {

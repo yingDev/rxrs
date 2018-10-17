@@ -269,15 +269,18 @@ mod tests
         let nn = n.clone();
         s.sub(move |v:By<_>| { nn.store(*v, Ordering::SeqCst); }, ());
 
-        //expects: `temp` does not live long enough
-        //let temp = Cell::new(0);
-        //s.sub(|v:By<_>| { temp.replace(*v); }, ());
-
         s.next(1);
         assert_eq!(n.load(Ordering::SeqCst), 1);
 
         s.next(2);
         assert_eq!(n.load(Ordering::SeqCst), 2);
+
+        //expects: `temp` does not live long enough
+//        let s = Subject::<NO, i32>::new();
+//        let temp = Cell::new(0);
+//        s.sub(|v:By<_>| { temp.replace(*v); }, ());
+
+
 
         s.complete();
 

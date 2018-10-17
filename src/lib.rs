@@ -11,7 +11,7 @@ pub mod sync;
 
 pub use crate::util::{*, alias::*};
 pub use crate::unsub::*;
-//pub use crate::subject::*;
+pub use crate::subject::*;
 pub use crate::fac::*;
 pub use crate::op::*;
 

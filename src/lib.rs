@@ -6,7 +6,7 @@ mod util;
 mod subject;
 mod unsub;
 mod fac;
-mod action_traits;
+mod action;
 
 pub mod sync;
 
@@ -15,7 +15,7 @@ pub use crate::unsub::*;
 pub use crate::subject::*;
 pub use crate::fac::*;
 pub use crate::op::*;
-pub use crate::action_traits::*;
+pub use crate::action::*;
 
 pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
 {

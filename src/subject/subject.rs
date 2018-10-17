@@ -47,7 +47,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
 
     unsafe fn COMPLETE() -> *mut SubjectState<'o, SS, V, E>
     {
-        static mut VAL: *const () = ::std::ptr::null();
+        static mut VAL: *const u8 = ::std::ptr::null();
         static INIT: Once = ONCE_INIT;
         INIT.call_once(|| VAL = ::std::mem::transmute(Box::leak(box (Complete as SubjectState<'o, SS, V, E>))));
         ::std::mem::transmute(VAL)
@@ -55,7 +55,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
 
     unsafe fn DROP() -> *mut SubjectState<'o, SS, V, E>
     {
-        static mut VAL: *const () = ::std::ptr::null();
+        static mut VAL: *const u8 = ::std::ptr::null();
         static INIT: Once = ONCE_INIT;
         INIT.call_once(|| VAL = ::std::mem::transmute(Box::leak(box (Drop as SubjectState<'o, SS, V, E>))));
         ::std::mem::transmute(VAL)

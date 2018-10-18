@@ -31,6 +31,7 @@ impl<'a, V> By<'a, Val<V>>
 {
     #[inline(always)]
     pub fn v(v: V) -> By<'a, Val<V>> { By{ t: Val(v), PhantomData } }
+    pub fn val(self) -> V { self.t.0 }
 }
 
 impl<'a, V> Deref for By<'a, Ref<V>>

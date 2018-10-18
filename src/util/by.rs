@@ -2,7 +2,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use crate::*;
 
-pub unsafe trait RefOrVal{}
+pub unsafe trait RefOrVal {}
+
 
 pub struct Ref<V>(*const V);
 pub struct Val<V>(V);

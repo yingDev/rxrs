@@ -12,7 +12,7 @@ impl<'o, V:'o> Observable<'o, NO, Ref<V>, Ref<()>> for Of<V>
 {
     fn sub(&self,
            next: impl ActNext<'o, NO, Ref<V>>,
-           ec: impl for<'x> ActOnce<NO, Option<By<'x, Ref<()>>>>+'o) -> Unsub<'o, NO> where Self: Sized
+           ec: impl ActEc<'o, NO, Ref<()>>+'o) -> Unsub<'o, NO> where Self: Sized
     {
         next.call(By::r(&self.0));
         ec.call_once(None);

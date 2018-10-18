@@ -11,28 +11,21 @@ pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
 
 pub trait ObservableMapOp<SS:YesNo, V, VBY: RefOrVal, EBY: RefOrVal, VOut, F: Fn(&V)->VOut> : Sized
 {
-    fn map(self, f: F) -> MapOp<SS, VBY, Self, F>;
+    fn map(self, f: F) -> MapOp<SS, VBY, Self, F>
+    {
+        MapOp{ f: Arc::new(f), src: self, PhantomData}
+    }
 }
 
 impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<NO, V, VBY,EBY, VOut, F> for Src
     where F: Fn(&V)->VOut+'o,
           Src: Observable<'o, NO, VBY, EBY>
-{
-    fn map(self, f: F) -> MapOp<NO, VBY, Self, F>
-    {
-        { MapOp{ f: Arc::new(f), src: self, PhantomData} }
-    }
-}
+{}
 
 impl<V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<YES, V, VBY,EBY, VOut, F> for Src
     where F: Fn(&V)->VOut+Send+Sync+'static,
           Src: Observable<'static, YES, VBY, EBY>
-{
-    fn map(self, f: F) -> MapOp<YES, VBY, Self, F>
-    {
-        { MapOp{ f: Arc::new(f), src: self, PhantomData} }
-    }
-}
+{}
 
 impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<NO, Ref<V>, Src, F>
     where F: Fn(&V)->VOut+'o,
@@ -134,7 +127,7 @@ mod test
         let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
 
         let o: Box<Observable<NO, Val<i32>>> = o.map(|v| v+1).into_dyn();
-        o.sub(|v:By<Val<i32>>| println!("v={}", *v), ());
+        o.sub(|v:By<_>| println!("v={}", *v), ());
     }
 
     #[test]

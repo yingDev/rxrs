@@ -19,8 +19,6 @@ impl YesNo for NO
     const VALUE: bool = false;
 }
 
-pub unsafe auto trait Yes{}
 pub unsafe auto trait No {}
 
-impl !Yes for NO {}
 impl !No for YES {}

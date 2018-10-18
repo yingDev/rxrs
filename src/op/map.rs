@@ -2,14 +2,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 
-pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
+pub struct MapOp<SS, VBY, Src, F>
 {
     f: Arc<F>,
     src: Src,
     PhantomData: PhantomData<(SS, VBY)>
 }
 
-pub trait ObservableMapOp<SS:YesNo, VBY: RefOrVal, EBY: RefOrVal, VOut, F: Fn(By<VBY>)->VOut> : Sized
+pub trait ObservableMapOp<SS, VBY, EBY, VOut, F: Fn(By<VBY>)->VOut> : Sized
 {
     fn map(self, f: F) -> MapOp<SS, VBY, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
 }

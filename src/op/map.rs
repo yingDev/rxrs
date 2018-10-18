@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
+use std::cell::UnsafeCell;
 
 pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
 {
@@ -55,10 +56,16 @@ impl<V:Send+Sync+'static, VOut:Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static
     where F: Fn(&V)->VOut+'static+Send+Sync,
           Src: Observable<'static, YES, Ref<V>, EBY>
 {
+    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBY>) -> Unsub<'static, YES> where Self: Sized
+    {
+        let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
+        self.src.sub(move |v:By<_>| next.call(By::v(f(&*v))), ec)
+    }
+
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
     {
-        let (f, next, ec) = (self.f.clone(), next.into_ss(), ec.into_ss());
-        self.src.sub_dyn(box move |v:By<_>| next.call(By::v(f(&*v))), ec)
+        let (next, ec) = (next.into_ss(), ec.into_ss());
+        self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
     }
 }
 
@@ -66,10 +73,16 @@ impl<V:Send+Sync+'static, VOut:Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static
     where F: Fn(&V)->VOut+'static+Send+Sync,
           Src: Observable<'static, YES, Val<V>, EBY>
 {
+    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBY>) -> Unsub<'static, YES> where Self: Sized
+    {
+        let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
+        self.src.sub(move |v:By<_>| next.call(By::v(f(&*v))), ec)
+    }
+
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
     {
-        let (f, next, ec) = (self.f.clone(), next.into_ss(), ec.into_ss());
-        self.src.sub_dyn(box move |v:By<_>| next.call(By::v(f(&*v))), ec)
+        let (next, ec) = (next.into_ss(), ec.into_ss());
+        self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
     }
 }
 

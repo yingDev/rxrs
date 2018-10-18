@@ -13,22 +13,16 @@ pub use crate::into_sendsync::*;
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub trait ActNext<'o, SS:YesNo, BY: RefOrVal> : for<'x> Act<SS, By<'x, BY>>+'o {}
-pub trait ActEc<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
-pub trait ActEcBox<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActBox<SS, Option<By<'x, BY>>>+'o {}
+pub trait ActNext <'o, SS:YesNo, BY: RefOrVal> : for<'x> Act    <SS, By<'x, BY>>+'o {}
+pub trait ActEc   <'o, SS:YesNo, BY: RefOrVal> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
+pub trait ActEcBox<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActBox <SS, Option<By<'x, BY>>>+'o {}
 
 pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
 {
-    fn sub(&self,
-           next: impl ActNext<'o, SS, VBy>,
-           ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
-    {
-        self.sub_dyn(box next, box ec)
-    }
+    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    { self.sub_dyn(box next, box ec) }
 
-    fn sub_dyn(&self,
-               next: Box<ActNext<'o, SS, VBy>>,
-               ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
 
 pub unsafe trait IntoDyn<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal>

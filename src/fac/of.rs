@@ -11,7 +11,7 @@ impl<V> Of<V>
 impl<'o, V:'o> Observable<'o, NO, Ref<V>, Ref<()>> for Of<V>
 {
     fn sub(&self,
-           next: impl for<'x> Act<NO, By<'x, Ref<V>>>+'o,
+           next: impl ActNext<'o, NO, Ref<V>>,
            ec: impl for<'x> ActOnce<NO, Option<By<'x, Ref<()>>>>+'o) -> Unsub<'o, NO> where Self: Sized
     {
         next.call(By::r(&self.0));
@@ -21,8 +21,8 @@ impl<'o, V:'o> Observable<'o, NO, Ref<V>, Ref<()>> for Of<V>
     }
 
     fn sub_dyn(&self,
-               next: Box<for<'x> Act<NO, By<'x, Ref<V>>>+'o>,
-               ec: Box<for<'x> ActBox<NO, Option<By<'x, Ref<()>>>> +'o>) -> Unsub<'o, NO>
+               next: Box<ActNext<'o, NO, Ref<V>>>,
+               ec: Box<ActEcBox<'o,NO, Ref<()>>>) -> Unsub<'o, NO>
     { self.sub(#[inline(always)] move |v:By<_>| next.call(v), #[inline(always)] move |v: Option<By<_>>| ec.call_box(v)) }
 }
 

@@ -33,7 +33,7 @@ impl<'o, V, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     }
 
     #[inline(never)]
-    fn sub_internal(&self, next: Arc<for<'x> Act<SS, By<'x,Ref<V>>>+'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
+    fn sub_internal(&self, next: Arc<ActNext<'o, SS, Ref<V>>>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
         self.lock.enter();
         let val = unsafe { &mut *self.val.get() };
@@ -52,28 +52,28 @@ impl<'o, V, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for  BehaviorSubject<'o, NO, V, E>
 {
-    fn sub(&self, next: impl for<'x> Act<NO, By<'x, Ref<V>>>+'o, ec: impl for<'x> ActOnce<NO, Option<By<'x, Ref<E>>>>+'o) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<E>>) -> Unsub<'o, NO> where Self: Sized
     {
         self.sub_dyn(box next, box ec)
     }
 
-    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, Ref<E>>>>+'o>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO, Ref<E>>>) -> Unsub<'o, NO>
     {
-        let next: Arc<for<'x> Act<NO, By<'x, Ref<V>>>+'o> = next.into();
+        let next: Arc<ActNext<'o, NO, Ref<V>>> = next.into();
         self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
     }
 }
 
 impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, YES, Ref<V>, Ref<E>> for  BehaviorSubject<'static, YES, V, E>
 {
-    fn sub(&self, next: impl for<'x> Act<YES, By<'x, Ref<V>>>+'static, ec: impl for<'x> ActOnce<YES, Option<By<'x, Ref<E>>>>+'static) -> Unsub<'static, YES> where Self: Sized
+    fn sub(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES, Ref<E>>) -> Unsub<'static, YES> where Self: Sized
     {
         self.sub_dyn(box next, box ec)
     }
 
-    fn sub_dyn(&self, next: Box<for<'x> Act<YES, By<'x, Ref<V>>>+'static>, ec: Box<for<'x> ActBox<YES, Option<By<'x, Ref<E>>>>+'static>) -> Unsub<'static, YES>
+    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
-        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+Send+Sync> = next.into_sendsync().into();
+        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into_sendsync().into();
         self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
     }
 }

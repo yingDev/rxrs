@@ -26,13 +26,13 @@ impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, E
     where F: Fn(&V)->VOut+'o,
           Src: Observable<'o, NO, Ref<V>, EBY>
 {
-    fn sub(&self, next: impl for<'x> Act<NO, By<'x, Val<VOut>>>+'o, ec: impl for<'x> ActOnce<NO, Option<By<'x, EBY>>>+'o) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBY>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
         self.src.sub(move |v:By<Ref<V>>| next.call(By::v(f(&*v))), move |e: Option<By<_>>| ec.call_once(e))
     }
 
-    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Val<VOut>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, EBY>>> +'o>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBY>>) -> Unsub<'o, NO>
     { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
 }
 
@@ -40,13 +40,13 @@ impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, E
     where F: Fn(&V)->VOut+'o,
           Src: Observable<'o, NO, Val<V>, EBY>
 {
-    fn sub(&self, next: impl for<'x> Act<NO, By<'x, Val<VOut>>>+'o, ec: impl for<'x> ActOnce<NO, Option<By<'x, EBY>>>+'o) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBY>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
         self.src.sub(move |v:By<Val<V>>| next.call(By::v(f(&*v))), move |e: Option<By<_>>| ec.call_once(e))
     }
 
-    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Val<VOut>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, EBY>>> +'o>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBY>>) -> Unsub<'o, NO>
     { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
 }
 

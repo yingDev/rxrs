@@ -7,20 +7,14 @@ pub unsafe trait IntoSendSync
     fn into_sendsync(self) -> Self::Output;
 }
 
-unsafe impl<BY: RefOrVal> IntoSendSync for Arc<for<'x> Act<YES, By<'x, BY>>>
+unsafe impl<BY: RefOrVal> IntoSendSync for Arc<ActNext<'static, YES, BY>>
 {
-    type Output = Arc<for<'x> Act<YES, By<'x, BY>> + Send+Sync>;
+    type Output = Arc<ActNext<'static, YES, BY> + Send+Sync>;
     fn into_sendsync(self) -> Self::Output { unsafe{ ::std::mem::transmute( self )} }
 }
 
-unsafe impl<BY: RefOrVal> IntoSendSync for Box<for<'x> Act<YES, By<'x, BY>>>
+unsafe impl<BY: RefOrVal> IntoSendSync for Box<ActNext<'static, YES, BY>>
 {
-    type Output = Box<for<'x> Act<YES, By<'x, BY>> + Send+Sync>;
-    fn into_sendsync(self) -> Self::Output { unsafe{ ::std::mem::transmute( self )} }
-}
-
-unsafe impl<BY: RefOrVal> IntoSendSync for Box<for<'x> ActBox<YES, By<'x, BY>>>
-{
-    type Output = Box<for<'x> ActBox<YES, By<'x, BY>> + Send+Sync>;
+    type Output = Box<ActNext<'static, YES, BY> + Send+Sync>;
     fn into_sendsync(self) -> Self::Output { unsafe{ ::std::mem::transmute( self )} }
 }

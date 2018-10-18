@@ -13,18 +13,22 @@ pub use crate::into_sendsync::*;
 use std::rc::Rc;
 use std::sync::Arc;
 
+pub trait ActNext<'o, SS:YesNo, BY: RefOrVal> : for<'x> Act<SS, By<'x, BY>>+'o {}
+pub trait ActEc<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
+pub trait ActEcBox<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActBox<SS, Option<By<'x, BY>>>+'o {}
+
 pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
 {
     fn sub(&self,
-           next: impl for<'x> Act<SS, By<'x, VBy>>+'o,
-           ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+           next: impl ActNext<'o, SS, VBy>,
+           ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
         self.sub_dyn(box next, box ec)
     }
 
     fn sub_dyn(&self,
-               next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>,
-               ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>;
+               next: Box<ActNext<'o, SS, VBy>>,
+               ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
 
 pub unsafe trait IntoDyn<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal>
@@ -39,16 +43,19 @@ unsafe impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O> IntoDyn<'o, SS, V
 {}
 
 
+impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> Act<SS, By<'x, BY>>+'o> ActNext<'o, SS, BY> for A {}
+impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o> ActEc<'o, SS, BY> for A {}
+impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActBox<SS, Option<By<'x, BY>>>+'o> ActEcBox<'o, SS, BY> for A {}
 
 impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> for Rc<O>
     where O: Observable<'o, SS, VBy, EBy>
 {
     #[inline(always)]
-    fn sub(&self, next: impl for<'x> Act<SS, By<'x, VBy>>+'o, ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     { Rc::as_ref(self).sub(next, ec) }
 
     #[inline(always)]
-    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { Rc::as_ref(self).sub_dyn(next, ec) }
 }
 
@@ -56,11 +63,11 @@ impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> 
     where O: Observable<'o, SS, VBy, EBy>
 {
     #[inline(always)]
-    fn sub(&self, next: impl for<'x> Act<SS, By<'x, VBy>>+'o, ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     { Arc::as_ref(self).sub(next, ec) }
 
     #[inline(always)]
-    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { Arc::as_ref(self).sub_dyn(next, ec) }
 }
 
@@ -69,18 +76,18 @@ impl<'o, O, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> 
     where O: Observable<'o, SS, VBy, EBy>
 {
     #[inline(always)]
-    fn sub(&self, next: impl for<'x> Act<SS, By<'x, VBy>>+'o, ec: impl for<'x> ActOnce<SS, Option<By<'x, EBy>>>+'o) -> Unsub<'o, SS> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     { Box::as_ref(self).sub(next, ec) }
 
     #[inline(always)]
-    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { Box::as_ref(self).sub_dyn(next, ec) }
 }
 
 impl<'o, SS:YesNo, VBy:RefOrVal, EBy: RefOrVal> Observable<'o, SS, VBy, EBy> for Box<dyn Observable<'o, SS, VBy, EBy>>
 {
     #[inline(always)]
-    fn sub_dyn(&self, next: Box<for<'x> Act<SS, By<'x, VBy>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x, EBy>>> +'o>) -> Unsub<'o, SS>
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { Box::as_ref(self).sub_dyn(next, ec) }
 }
 

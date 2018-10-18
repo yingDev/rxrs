@@ -9,7 +9,7 @@ use self::SubjectState::*;
 
 enum SubjectState<'o, SS:YesNo, V, E:Clone>
 {
-    Next(Vec<(Arc<for<'x> Act<SS, By<'x, Ref<V>>>+'o>, UnsafeCell<Option<Box<for<'x> ActBox<SS, Option<By<'x, Ref<E>>>> +'o>>>, Unsub<'o, SS>)>),
+    Next(Vec<(Arc<ActNext<'o, SS, Ref<V>>>, UnsafeCell<Option<Box<ActEcBox<'o, SS, Ref<E>>>>>, Unsub<'o, SS>)>),
     Error(E),
     Complete,
     Drop
@@ -62,7 +62,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
     }
 
     #[inline(never)]
-    fn sub_internal(&self, next: Arc<for<'x> Act<SS, By<'x,Ref<V>>>+'o>, ec: Box<for<'x> ActBox<SS, Option<By<'x,Ref<E>>>>+'o>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
+    fn sub_internal(&self, next: Arc<ActNext<'o,SS, Ref<V>>>, ec: Box<ActEcBox<'o, SS, Ref<E>>>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
         let recur = lock.enter();
@@ -90,7 +90,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
     }
 
     #[inline(never)]
-    fn unsub(state: Weak<Wrap<'o,SS,V,E>>, observer: Weak<for<'x> Act<SS, By<'x, Ref<V>>>+'o>)
+    fn unsub(state: Weak<Wrap<'o,SS,V,E>>, observer: Weak<ActNext<'o, SS, Ref<V>>>)
     {
         if let Some(state) = state.upgrade() {
             if let Some(observer) = observer.upgrade() {
@@ -142,9 +142,9 @@ impl<'s, 'o, V, E:Clone, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
 
 impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO, V, E>
 {
-    fn sub_dyn(&self, next: Box<for<'x> Act<NO, By<'x, Ref<V>>>+'o>, ec: Box<for<'x> ActBox<NO, Option<By<'x, Ref<E>>>> +'o>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO, Ref<E>>>) -> Unsub<'o, NO>
     {
-        let next: Arc<for<'x> Act<NO, By<'x, Ref<V>>>+'o> = next.into();
+        let next: Arc<ActNext<'o, NO, Ref<V>>>= next.into();
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
         self.sub_internal(next, ec, move || Unsub::<NO>::with(move |()| Self::unsub(state, weak_next)))
     }
@@ -152,9 +152,9 @@ impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO
 
 impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static> Observable<'static, YES, Ref<V>, Ref<E>> for Subject<'static, YES, V, E>
 {
-    fn sub_dyn(&self, next: Box<for<'x> Act<YES, By<'x, Ref<V>>>>, ec: Box<for<'x> ActBox<YES, Option<By<'x, Ref<E>>>>>) -> Unsub<'static, YES>
+    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
-        let next: Arc<for<'x> Act<YES, By<'x, Ref<V>>>+Send+Sync> = next.into_sendsync().into();
+        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into_sendsync().into();
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
         self.sub_internal(next, ec, move || Unsub::<YES>::with(move |()| Self::unsub(state, weak_next)))
     }

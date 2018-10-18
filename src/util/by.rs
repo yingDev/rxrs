@@ -20,6 +20,10 @@ pub struct By<'a, T: RefOrVal>
     PhantomData:PhantomData<&'a ()>
 }
 
+//ok?
+unsafe impl<'a, V: Send> Send for Ref<V>{}
+unsafe impl<'a, V: Sync> Sync for Ref<V>{}
+
 impl<'a, V> By<'a, Ref<V>>
 {
     #[inline(always)]

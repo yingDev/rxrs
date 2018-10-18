@@ -2,27 +2,39 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 
-pub struct MapOp<VBY: RefOrVal, Src, F>
+pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
 {
     f: Arc<F>,
     src: Src,
-    PhantomData: PhantomData<VBY>
+    PhantomData: PhantomData<(SS, VBY)>
 }
 
-pub trait ObservableMapOp<V, VBY: RefOrVal, EBY: RefOrVal, VOut, F> : Sized
-    where F: Fn(&V)->VOut
+pub trait ObservableMapOp<SS:YesNo, V, VBY: RefOrVal, EBY: RefOrVal, VOut, F> : Sized
 {
-    fn map(self, f: F) -> MapOp<VBY, Self, F>
-    { MapOp{ f: Arc::new(f), src: self, PhantomData} }
+    fn map(self, f: F) -> MapOp<SS, VBY, Self, F>;
 }
 
-impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<V, VBY,EBY, VOut, F> for Src
+impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<NO, V, VBY,EBY, VOut, F> for Src
     where F: Fn(&V)->VOut+'o,
           Src: Observable<'o, NO, VBY, EBY>
-{}
+{
+    fn map(self, f: F) -> MapOp<NO, VBY, Self, F>
+    {
+        { MapOp{ f: Arc::new(f), src: self, PhantomData} }
+    }
+}
 
+impl<V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<YES, V, VBY,EBY, VOut, F> for Src
+    where F: Fn(&V)->VOut+Send+Sync+'static,
+          Src: Observable<'static, YES, VBY, EBY>
+{
+    fn map(self, f: F) -> MapOp<YES, VBY, Self, F>
+    {
+        { MapOp{ f: Arc::new(f), src: self, PhantomData} }
+    }
+}
 
-impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<Ref<V>, Src, F>
+impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<NO, Ref<V>, Src, F>
     where F: Fn(&V)->VOut+'o,
           Src: Observable<'o, NO, Ref<V>, EBY>
 {
@@ -36,7 +48,7 @@ impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, E
     { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
 }
 
-impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<Val<V>, Src, F>
+impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<NO, Val<V>, Src, F>
     where F: Fn(&V)->VOut+'o,
           Src: Observable<'o, NO, Val<V>, EBY>
 {
@@ -52,7 +64,7 @@ impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, E
 
 //=====
 
-impl<V:'static, VOut:'static, EBY:RefOrVal+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<Ref<V>, Src, F>
+impl<V:Send+Sync+'static, VOut:Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<YES, Ref<V>, Src, F>
     where F: Fn(&V)->VOut+'static+Send+Sync,
           Src: Observable<'static, YES, Ref<V>, EBY>
 {
@@ -63,7 +75,7 @@ impl<V:'static, VOut:'static, EBY:RefOrVal+'static, Src, F> Observable<'static, 
     }
 }
 
-impl<V:'static, VOut:'static, EBY:RefOrVal+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<Val<V>, Src, F>
+impl<V:Send+Sync+'static, VOut:Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<YES, Val<V>, Src, F>
     where F: Fn(&V)->VOut+'static+Send+Sync,
           Src: Observable<'static, YES, Val<V>, EBY>
 {
@@ -81,17 +93,19 @@ mod test
     use std::cell::RefCell;
     use std::cell::Cell;
     use std::rc::Rc;
+    use std::sync::Arc;
+    use std::sync::atomic::*;
 
     #[test]
     fn smoke()
     {
         let n = Cell::new(0);
         let o = Of::value(123);
-        o.map(|v| v*2).sub(|v:By<_>| { n.replace(*v);}, ());
+        o.map(|v: &i32| v*2).sub(|v:By<_>| { n.replace(*v);}, ());
         assert_eq!(n.get(), 246);
 
         let o = Of::value("B".to_owned());
-        let mapped = o.map(|s| format!("A{}", s)).map(|s| format!("{}C", s)).into_dyn();
+        let mapped = o.map(|s: &String| format!("A{}", s)).map(|s: &String| format!("{}C", s)).into_dyn();
 
         let result = RefCell::new(String::new());
         mapped.sub_dyn(box |v:By<Val<String>>| result.borrow_mut().push_str(&*v), box());
@@ -104,7 +118,7 @@ mod test
     {
         let n = Cell::new(0);
         let (i,o) = Rc::new(Subject::<NO, i32>::new()).clones();
-        let unsub = o.map(|v| v+1).sub(|v:By<_>| { n.replace(*v); }, ());
+        let unsub = o.map(|v:&i32| v+1).sub(|v:By<_>| { n.replace(*v); }, ());
 
         i.next(1);
         assert_eq!(n.get(), 2);
@@ -119,7 +133,24 @@ mod test
     {
         let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
 
-        let o: Box<Observable<NO, Val<i32>>> = o.map(|v| v+1).into_dyn();
+        let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&i32| v+1).into_dyn();
         o.sub(|v:By<Val<i32>>| println!("v={}", *v), ());
+    }
+
+    #[test]
+    fn thread()
+    {
+        let (n, n1) = Arc::new(AtomicI32::new(0)).clones();
+        let (i, o) = Arc::new(Subject::<YES, i32>::new()).clones();
+
+        o.sub(|v: By<_>|{}, ());
+
+        o.map(|v:&i32| v+1).sub(move |v: By<Val<i32>>| { n.store(*v, Ordering::SeqCst); }, ());
+
+        ::std::thread::spawn(move ||{
+            i.next(123);
+        }).join();
+
+        assert_eq!(n1.load(Ordering::SeqCst), 124);
     }
 }

@@ -11,21 +11,15 @@ pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
 
 pub trait ObservableMapOp<SS:YesNo, V, VBY: RefOrVal, EBY: RefOrVal, VOut, F: Fn(&V)->VOut> : Sized
 {
-    fn map(self, f: F) -> MapOp<SS, VBY, Self, F>
-    {
-        MapOp{ f: Arc::new(f), src: self, PhantomData}
-    }
+    fn map(self, f: F) -> MapOp<SS, VBY, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<NO, V, VBY,EBY, VOut, F> for Src
+impl<'o, V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F, SS:YesNo> ObservableMapOp<SS, V, VBY,EBY, VOut, F> for Src
     where F: Fn(&V)->VOut+'o,
-          Src: Observable<'o, NO, VBY, EBY>
+          Src: Observable<'o, SS, VBY, EBY>
 {}
 
-impl<V, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F> ObservableMapOp<YES, V, VBY,EBY, VOut, F> for Src
-    where F: Fn(&V)->VOut+Send+Sync+'static,
-          Src: Observable<'static, YES, VBY, EBY>
-{}
+//=====
 
 impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<NO, Ref<V>, Src, F>
     where F: Fn(&V)->VOut+'o,
@@ -138,7 +132,7 @@ mod test
 
         o.sub(|v: By<_>|{}, ());
 
-        o.map(|v| v+1).sub(move |v: By<Val<i32>>| { n.store(*v, Ordering::SeqCst); }, ());
+        o.map(|v| v+1).sub(move |v: By<Val<i32>>| {n.store(*v, Ordering::SeqCst); }, ());
 
         ::std::thread::spawn(move ||{
             i.next(123);

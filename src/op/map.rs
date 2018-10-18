@@ -57,7 +57,7 @@ impl<V:Send+Sync+'static, VOut:Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static
 {
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
     {
-        let (f, next, ec) = (self.f.clone(), next.into_sendsync(), ec.into_sendsync());
+        let (f, next, ec) = (self.f.clone(), next.into_ss(), ec.into_ss());
         self.src.sub_dyn(box move |v:By<_>| next.call(By::v(f(&*v))), ec)
     }
 }
@@ -68,7 +68,7 @@ impl<V:Send+Sync+'static, VOut:Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static
 {
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
     {
-        let (f, next, ec) = (self.f.clone(), next.into_sendsync(), ec.into_sendsync());
+        let (f, next, ec) = (self.f.clone(), next.into_ss(), ec.into_ss());
         self.src.sub_dyn(box move |v:By<_>| next.call(By::v(f(&*v))), ec)
     }
 }

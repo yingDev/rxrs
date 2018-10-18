@@ -9,7 +9,7 @@ pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
     PhantomData: PhantomData<(SS, VBY)>
 }
 
-pub trait ObservableMapOp<SS:YesNo, V, VBY: RefOrVal, EBY: RefOrVal, VOut, F> : Sized
+pub trait ObservableMapOp<SS:YesNo, V, VBY: RefOrVal, EBY: RefOrVal, VOut, F: Fn(&V)->VOut> : Sized
 {
     fn map(self, f: F) -> MapOp<SS, VBY, Self, F>;
 }
@@ -101,11 +101,11 @@ mod test
     {
         let n = Cell::new(0);
         let o = Of::value(123);
-        o.map(|v: &i32| v*2).sub(|v:By<_>| { n.replace(*v);}, ());
+        o.map(|v| v*2).sub(|v:By<_>| { n.replace(*v);}, ());
         assert_eq!(n.get(), 246);
 
         let o = Of::value("B".to_owned());
-        let mapped = o.map(|s: &String| format!("A{}", s)).map(|s: &String| format!("{}C", s)).into_dyn();
+        let mapped = o.map(|s| format!("A{}", s)).map(|s| format!("{}C", s)).into_dyn();
 
         let result = RefCell::new(String::new());
         mapped.sub_dyn(box |v:By<Val<String>>| result.borrow_mut().push_str(&*v), box());
@@ -133,7 +133,7 @@ mod test
     {
         let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
 
-        let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&i32| v+1).into_dyn();
+        let o: Box<Observable<NO, Val<i32>>> = o.map(|v| v+1).into_dyn();
         o.sub(|v:By<Val<i32>>| println!("v={}", *v), ());
     }
 
@@ -145,7 +145,7 @@ mod test
 
         o.sub(|v: By<_>|{}, ());
 
-        o.map(|v:&i32| v+1).sub(move |v: By<Val<i32>>| { n.store(*v, Ordering::SeqCst); }, ());
+        o.map(|v| v+1).sub(move |v: By<Val<i32>>| { n.store(*v, Ordering::SeqCst); }, ());
 
         ::std::thread::spawn(move ||{
             i.next(123);

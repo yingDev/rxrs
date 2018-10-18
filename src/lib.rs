@@ -21,16 +21,17 @@ pub trait Observable<'o, SS:YesNo, VBy: RefOrVal=Ref<()>, EBy: RefOrVal=Ref<()>>
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
 
+pub trait IntoDyn<'o, SS, VBy, EBy> : Sized
+{
+    #[inline(always)]
+    fn into_dyn(self) -> Box<Self>  { box self }
+}
+
 pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : for<'x> Act    <SS, By<'x, BY>>+'o {}
 pub unsafe trait ActEc   <'o, SS:YesNo, BY: RefOrVal> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
 pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActBox <SS, Option<By<'x, BY>>>+'o {}
 
-pub unsafe trait IntoDyn<'o, SS, VBy, EBy> : Sized
-{
-    #[inline(always)] fn into_dyn(self) -> Box<Self>  { box self }
-}
-
-unsafe impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, VBy, EBy>> IntoDyn<'o, SS, VBy, EBy> for O {}
+impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, VBy, EBy>> IntoDyn<'o, SS, VBy, EBy> for O {}
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> Act    <SS, By<'x, BY>>+'o>         ActNext<'o, SS, BY>  for A {}
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o> ActEc<'o, SS, BY>    for A {}
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActBox <SS, Option<By<'x, BY>>>+'o> ActEcBox<'o, SS, BY> for A {}

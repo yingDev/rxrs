@@ -2,49 +2,49 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 
-pub struct MapOp<SS, VBY, Src, F>
+pub struct MapOp<SS, VBy, Src, F>
 {
     f: Arc<F>,
     src: Src,
-    PhantomData: PhantomData<(SS, VBY)>
+    PhantomData: PhantomData<(SS, VBy)>
 }
 
-pub trait ObservableMapOp<SS, VBY, EBY, VOut, F: Fn(By<VBY>)->VOut> : Sized
+pub trait ObservableMapOp<SS, VBy, EBy, VOut, F: Fn(By<VBy>)->VOut> : Sized
 {
-    fn map(self, f: F) -> MapOp<SS, VBY, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
+    fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, VBY: RefOrVal, EBY: RefOrVal, VOut, Src, F, SS:YesNo> ObservableMapOp<SS, VBY,EBY, VOut, F> for Src
-    where F: Fn(By<VBY>)->VOut+'o,
-          Src: Observable<'o, SS, VBY, EBY>
+impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src, F, SS:YesNo> ObservableMapOp<SS, VBy,EBy, VOut, F> for Src
+    where F: Fn(By<VBy>)->VOut+'o,
+          Src: Observable<'o, SS, VBy, EBy>
 {}
 
 
-impl<'o, VOut:'o, VBY: RefOrVal+'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBY> for MapOp<NO, VBY, Src, F>
-    where F: Fn(By<VBY>)->VOut+'o,
-          Src: Observable<'o, NO, VBY, EBY>
+impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBy> for MapOp<NO, VBy, Src, F>
+    where F: Fn(By<VBy>)->VOut+'o,
+          Src: Observable<'o, NO, VBy, EBy>
 {
-    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBY>) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
         self.src.sub(move |v:By<_>| next.call(By::v(f(v))), ec)
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBY>>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
     { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
 }
 
-impl<VOut:Send+Sync+'static, VBY: RefOrVal+Send+Sync+'static, EBY:RefOrVal+Send+Sync+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<YES, VBY, Src, F>
-    where F: Fn(By<VBY>)->VOut+'static+Send+Sync,
-          Src: Observable<'static, YES, VBY, EBY>
+impl<VOut:Send+Sync+'static, VBy: RefOrVal+Send+Sync+'static, EBy:RefOrVal+Send+Sync+'static, Src, F> Observable<'static, YES, Val<VOut>, EBy> for MapOp<YES, VBy, Src, F>
+    where F: Fn(By<VBy>)->VOut+'static+Send+Sync,
+          Src: Observable<'static, YES, VBy, EBy>
 {
-    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBY>) -> Unsub<'static, YES> where Self: Sized
+    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
         let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
         self.src.sub(move |v:By<_>| next.call(By::v(f(v))), ec)
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
+    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
     {
         let (next, ec) = (next.into_ss(), ec.into_ss());
         self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))

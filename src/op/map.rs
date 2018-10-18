@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
-use std::cell::UnsafeCell;
 
 pub struct MapOp<SS:YesNo, VBY: RefOrVal, Src, F>
 {
@@ -110,13 +109,13 @@ mod test
         let (n, n1) = Arc::new(AtomicI32::new(0)).clones();
         let (i, o) = Arc::new(Subject::<YES, i32>::new()).clones();
 
-        o.sub(|v: By<_>|{}, ());
+        o.sub(|_: By<_>|{}, ());
 
         o.map(|v| *v+1).sub(move |v: By<Val<i32>>| {n.store(*v, Ordering::SeqCst); }, ());
 
         ::std::thread::spawn(move ||{
             i.next(123);
-        }).join();
+        }).join().ok();
 
         assert_eq!(n1.load(Ordering::SeqCst), 124);
     }

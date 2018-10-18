@@ -3,7 +3,7 @@ use std::cell::UnsafeCell;
 
 use crate::*;
 use crate::sync::ReSpinLock;
-use crate::util::{alias::{SSs}, *};
+use crate::util::{alias::{SSs}};
 
 use self::SubjectState::*;
 
@@ -129,7 +129,7 @@ impl<'s, 'o, V, E:Clone, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
     fn drop(&mut self)
     {
         let Wrap{lock, to_drop, state} = self.state.as_ref();
-        let recur = lock.enter();
+        let _ = lock.enter();
 
         if let Next(vec) = unsafe { &**state.get() } {
             unsafe { Self::change_state(to_drop, state, Self::DROP()); }
@@ -196,7 +196,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> Subject<'o, SS, V,E>
         let recur = lock.enter();
 
         if let Next(vec) = unsafe { &**state.get() } {
-            for (n,ec,sub) in vec {
+            for (n,_,sub) in vec {
                 if ! sub.is_done() { n.call(By::r(v),); }
             }
 
@@ -242,7 +242,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> Subject<'o, SS, V,E>
         if let Next(vec) = unsafe { &*old } {
             unsafe { Self::change_state(to_drop, state, Self::COMPLETE()); }
 
-            for (n, ec, sub) in vec.iter() {
+            for (_, ec, sub) in vec.iter() {
                 if sub.is_done() { continue; }
                 sub.unsub();
                 unsafe{ &mut *ec.get() }.take().map(|ec| ec.call_box(None));
@@ -280,7 +280,7 @@ mod tests
 
         ::std::thread::spawn(move ||{
             ss.next(123);
-        }).join();
+        }).join().ok();
         assert_eq!(n.load(Ordering::SeqCst), 123);
 
         s.next(1);
@@ -307,7 +307,7 @@ mod tests
     fn next_after_complete()
     {
         let s = Subject::<NO, i32>::new();
-        s.sub(|v:By<_>| assert!(false, "shouldn't call"), ());
+        s.sub(|_:By<_>| assert!(false, "shouldn't call"), ());
 
         s.complete();
         s.next(1);
@@ -366,9 +366,9 @@ mod tests
         let n = Rc::new(Cell::new(0));
         let s = Subject::<NO, i32>::new();
 
-        for i in 0..10{
+        for _ in 0..10{
             let nn = n.clone();
-            s.sub(|v:By<_>|{}, ()).add(Unsub::<NO>::with(move |()| { nn.replace(nn.get() + 1); }));
+            s.sub(|_:By<_>|{}, ()).add(Unsub::<NO>::with(move |()| { nn.replace(nn.get() + 1); }));
         }
 
         //s.complete();

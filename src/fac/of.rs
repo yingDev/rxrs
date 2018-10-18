@@ -48,11 +48,6 @@ mod test
 
         o.sub_dyn(box |v:By<_>| { n.replace(*v + 1); }, box());
 
-        fn get<'o, 'a>() -> Box<dyn Observable<'o, NO, Ref<i32>>+'a>
-        {
-            box Of::value(123)
-        }
-
         Of::value_dyn(123).sub_dyn(box |v:By<_>| { n.replace(*v + 1); }, box());
 
         assert_eq!(n.get(), 124);

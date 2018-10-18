@@ -1,7 +1,7 @@
 use std::sync::atomic::*;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
-use crate::{YesNo, YES, NO};
+use crate::{YesNo, YES};
 
 /// Recursive SpinLock
 pub struct ReSpinLock<SS: YesNo>

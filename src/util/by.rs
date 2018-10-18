@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 use std::ops::Deref;
-use crate::*;
 
 pub unsafe trait RefOrVal {}
 

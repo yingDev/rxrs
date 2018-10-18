@@ -1,9 +1,4 @@
 use crate::*;
-use std::sync::Arc;
-use std::ops::Deref;
-use std::marker::PhantomData;
-use std::ops::CoerceUnsized;
-use std::marker::Unsize;
 
 pub unsafe trait ActOnce<SS:YesNo, A>
 {
@@ -47,11 +42,11 @@ unsafe impl<SS:YesNo, A, F: ActOnce<SS, A>> ActBox<SS, A> for F
 
 unsafe impl<SS:YesNo, A> Act<SS, A> for ()
 {
-    #[inline(always)] fn call(&self, v: A) {  }
+    #[inline(always)] fn call(&self, _: A) {  }
 }
 
 unsafe impl<SS:YesNo, A> ActOnce<SS, A> for ()
 {
-    #[inline(always)] fn call_once(self, v: A) {  }
+    #[inline(always)] fn call_once(self, _: A) {  }
 }
 

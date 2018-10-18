@@ -100,14 +100,12 @@ mod test
     fn compiles()
     {
         let x = 1;
-        let (a,b) = x.clones();
-        let (c,d,e) = x.clones();
+        let (_,b) = x.clones();
+        let (c,_,_) = x.clones();
 
         let rc = Rc::new(0);
 
-        let mut x = 1;
-
-        let cb = hello((|rc,b,c| ||{
+        let _ = hello((|_,_,_| ||{
             println!("ok?");
         })(rc.weak(),b,c));
 

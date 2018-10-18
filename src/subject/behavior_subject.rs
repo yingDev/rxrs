@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
 use crate::*;
@@ -95,7 +94,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     pub fn error(&self, e:E)
     {
         self.lock.enter();
-        let old = if unsafe { &mut *self.val.get() }.is_some() {
+        let _ = if unsafe { &mut *self.val.get() }.is_some() {
             unsafe { &mut *self.val.get() }.take()
         } else { None };
         self.lock.exit();
@@ -106,7 +105,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     pub fn complete(&self)
     {
         self.lock.enter();
-        let old = if unsafe { &mut *self.val.get() }.is_some() {
+        let _ = if unsafe { &mut *self.val.get() }.is_some() {
             unsafe { &mut *self.val.get()}.take()
         }else { None };
         self.lock.exit();
@@ -121,7 +120,6 @@ mod test
 {
 
     use std::cell::Cell;
-    use std::sync::Arc;
     use crate::*;
 
     #[test]

@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 
 pub trait YesNo : Send+Sync+Clone+ 'static
 {

@@ -1,11 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::cell::UnsafeCell;
-use std::marker::PhantomData;
-use std::boxed::FnBox;
-use std::sync::{Arc, Once, ONCE_INIT};
-
 use crate::*;
 use crate::sync::*;
+use std::cell::UnsafeCell;
+use std::sync::{Arc, Once, ONCE_INIT};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 struct State<'a, SS:YesNo>
 {
@@ -179,7 +176,7 @@ impl Unsub<'static, YES>
 impl<'o, SS: YesNo> FnOnce<()> for Unsub<'o, SS>
 {
     type Output = ();
-    extern "rust-call" fn call_once(self, args: ())
+    extern "rust-call" fn call_once(self, _: ())
     {
         self.unsub();
     }
@@ -188,9 +185,9 @@ impl<'o, SS: YesNo> FnOnce<()> for Unsub<'o, SS>
 #[cfg(test)]
 mod test
 {
+    use crate::*;
     use std::cell::Cell;
     use std::sync::Arc;
-    use crate::*;
 
     #[test]
     fn drop_should_unsub()
@@ -211,7 +208,7 @@ mod test
         {
             //let n = Cell::new(123);
             //a.add(Unsub::<NO>::with(|| println!("n={}", n.get())));
-            let weak = Arc::downgrade(&r);
+            let _ = Arc::downgrade(&r);
 
             //let mksub = || Unsub::<NO>::with(|| weak.upgrade());
             //a.add(mksub());

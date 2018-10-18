@@ -29,7 +29,7 @@ impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, E
     fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBY>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
-        self.src.sub(move |v:By<Ref<V>>| next.call(By::v(f(&*v))), move |e: Option<By<_>>| ec.call_once(e))
+        self.src.sub(move |v:By<Ref<V>>| next.call(By::v(f(&*v))), ec)
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBY>>) -> Unsub<'o, NO>
@@ -43,11 +43,35 @@ impl<'o, V:'o, VOut:'o, EBY:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, E
     fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBY>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
-        self.src.sub(move |v:By<Val<V>>| next.call(By::v(f(&*v))), move |e: Option<By<_>>| ec.call_once(e))
+        self.src.sub(move |v:By<Val<V>>| next.call(By::v(f(&*v))), ec)
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBY>>) -> Unsub<'o, NO>
     { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
+}
+
+//=====
+
+impl<V:'static, VOut:'static, EBY:RefOrVal+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<Ref<V>, Src, F>
+    where F: Fn(&V)->VOut+'static+Send+Sync,
+          Src: Observable<'static, YES, Ref<V>, EBY>
+{
+    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
+    {
+        let (f, next, ec) = (self.f.clone(), next.into_sendsync(), ec.into_sendsync());
+        self.src.sub_dyn(box move |v:By<_>| next.call(By::v(f(&*v))), ec)
+    }
+}
+
+impl<V:'static, VOut:'static, EBY:RefOrVal+'static, Src, F> Observable<'static, YES, Val<VOut>, EBY> for MapOp<Val<V>, Src, F>
+    where F: Fn(&V)->VOut+'static+Send+Sync,
+          Src: Observable<'static, YES, Val<V>, EBY>
+{
+    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBY>>) -> Unsub<'static, YES>
+    {
+        let (f, next, ec) = (self.f.clone(), next.into_sendsync(), ec.into_sendsync());
+        self.src.sub_dyn(box move |v:By<_>| next.call(By::v(f(&*v))), ec)
+    }
 }
 
 #[cfg(test)]

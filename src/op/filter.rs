@@ -32,9 +32,7 @@ for FilterOp<NO, Src, F>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    {
-        self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
-    }
+    { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
 }
 
 impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(&By<VBy>)->bool+'static+Send+Sync>
@@ -50,9 +48,7 @@ for FilterOp<YES, Src, F>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-    {
-        self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec))
-    }
+    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
 }
 
 

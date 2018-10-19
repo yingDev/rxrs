@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
+use crate::util::alias::SSs;
 
 pub struct MapOp<SS, VBy, Src, F>
 {
@@ -31,10 +32,12 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    { self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e)) }
+    {
+        self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
+    }
 }
 
-impl<VOut:Send+Sync+'static, VBy: RefOrVal+Send+Sync+'static, EBy:RefOrVal+Send+Sync+'static, Src, F> Observable<'static, YES, Val<VOut>, EBy> for MapOp<YES, VBy, Src, F>
+impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, YES, Val<VOut>, EBy> for MapOp<YES, VBy, Src, F>
     where F: Fn(By<VBy>)->VOut+'static+Send+Sync,
           Src: Observable<'static, YES, VBy, EBy>
 {

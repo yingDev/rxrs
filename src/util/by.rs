@@ -3,6 +3,8 @@ use std::ops::Deref;
 
 pub unsafe trait RefOrVal {}
 
+pub trait RefOrValSSs: RefOrVal+Send+Sync+'static {}
+impl<T: RefOrVal+Send+Sync+'static> RefOrValSSs for T {}
 
 pub struct Ref<V>(*const V);
 pub struct Val<V>(V);

@@ -26,6 +26,7 @@ impl<'a, V> By<'a, Ref<V>>
 {
     #[inline(always)]
     pub fn r(r: &'a V) -> By<'a, Ref<V>> { By{ t: Ref(r), PhantomData } }
+    pub fn as_ref(&self) -> &V { &*self }
 }
 
 impl<'a, V> By<'a, Val<V>>
@@ -34,6 +35,7 @@ impl<'a, V> By<'a, Val<V>>
     pub fn v(v: V) -> By<'a, Val<V>> { By{ t: Val(v), PhantomData } }
     #[inline(always)]
     pub fn val(self) -> V { self.t.0 }
+    pub fn as_ref(&self) -> &V { &*self }
 }
 
 impl<'a, V> Deref for By<'a, Ref<V>>

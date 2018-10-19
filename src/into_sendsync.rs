@@ -19,6 +19,8 @@ impl<T, BY: RefOrVal> ActSendSync<T, BY>
 {
     pub fn wrap_next(act: T) -> ActSendSync<T, BY> where T : ActNext<'static, YES, BY> { ActSendSync { act, PhantomData } }
     pub fn wrap_ec(act: T) -> ActSendSync<T, BY> where T : ActEc<'static, YES, BY> { ActSendSync { act, PhantomData } }
+
+    pub fn into_inner(self) -> T { self.act }
 }
 
 

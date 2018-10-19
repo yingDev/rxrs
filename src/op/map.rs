@@ -2,6 +2,10 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 use crate::util::alias::SSs;
+use std::rc::Rc;
+use std::cell::Cell;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 pub struct MapOp<SS, VBy, Src, F>
 {
@@ -28,7 +32,15 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
     fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
-        self.src.sub(move |v:By<_>| next.call(By::v(f(v))), ec)
+        let (done_in, done_out) = Rc::new(Cell::new(false)).clones();
+
+        self.src.sub(
+            move |v:By<_>| if !done_in.get() {
+                let v = f(v);
+                if !done_in.get() { next.call(By::v(v)); }
+            } ,
+            move |e: Option<By<_>>| if !done_out.replace(true) { ec.call_once(e) }
+        )
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
@@ -43,8 +55,18 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
 {
     fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
-        self.src.sub(move |v:By<_>| next.call(By::v(f(v))), ec)
+        let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
+        let (done_in, done_out) = Arc::new(AtomicBool::new(false)).clones();
+
+        self.src.sub(
+            move |v: By<_>| if !done_in.load(Ordering::Acquire) {
+                let v = f(v);
+                if !done_in.load(Ordering::Relaxed) {
+                    next.call(By::v(v));
+                }
+            },
+            move |e: Option<By<_>>| if !done_out.swap(true, Ordering::Release)  { ec.into_inner().call_once(e) }
+        )
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>

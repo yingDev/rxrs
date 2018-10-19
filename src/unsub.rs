@@ -121,7 +121,7 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
         self.state.unsub_then(||{});
     }
 
-    pub fn unsub_then(&self, f: impl Fn())
+    pub fn unsub_then(&self, f: impl FnOnce())
     {
         self.state.unsub_then(f);
     }
@@ -145,6 +145,10 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
 
     pub fn add_each(&self, b: &Unsub<'a, SS>) -> &Self
     {
+        if b.is_done() {
+            self.unsub();
+            return self;
+        }
         self.add(b.clone());
         b.add(self.clone());
         self

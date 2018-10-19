@@ -2,10 +2,6 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 use crate::util::alias::SSs;
-use std::rc::Rc;
-use std::cell::Cell;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 
 pub struct MapOp<SS, VBy, Src, F>
 {
@@ -32,15 +28,15 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
     fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
-        let (done_in, done_out) = Rc::new(Cell::new(false)).clones();
+        let (s1, s2, s3) = Unsub::new().clones();
 
-        self.src.sub(
-            move |v:By<_>| if !done_in.get() {
+        s1.added_each(&self.src.sub(
+            move |v:By<_>| if !s2.is_done() {
                 let v = f(v);
-                if !done_in.get() { next.call(By::v(v)); }
+                if !s2.is_done() { next.call(By::v(v)); }
             } ,
-            move |e: Option<By<_>>| if !done_out.replace(true) { ec.call_once(e) }
-        )
+            move |e: Option<By<_>>| s3.unsub_then(|| ec.call_once(e))
+        ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
@@ -56,17 +52,15 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
     fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
         let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
-        let (done_in, done_out) = Arc::new(AtomicBool::new(false)).clones();
+        let (s1, s2, s3) = Unsub::new().clones();
 
-        self.src.sub(
-            move |v: By<_>| if !done_in.load(Ordering::Acquire) {
+        s1.added_each(&self.src.sub(
+            move |v:By<_>| if !s2.is_done() {
                 let v = f(v);
-                if !done_in.load(Ordering::Relaxed) {
-                    next.call(By::v(v));
-                }
+                s2.if_not_done(|| next.call(By::v(v)));
             },
-            move |e: Option<By<_>>| if !done_out.swap(true, Ordering::Release)  { ec.into_inner().call_once(e) }
-        )
+            move |e: Option<By<_>>| s3.unsub_then(|| ec.into_inner().call_once(e))
+        ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>

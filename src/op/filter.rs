@@ -44,7 +44,7 @@ impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, YES, VBy, E
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
+        let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
         let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(move |v:By<_>| if f(&v) { s2.if_not_done(|| next.call(v)); }, ec))

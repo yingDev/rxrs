@@ -30,13 +30,10 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
         let f = self.f.clone();
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(
-            move |v:By<_>| {
-                let v = f(v);
-                if !s2.is_done() { next.call(By::v(v)); }
-            } ,
-            ec
-        ))
+        s1.added_each(self.src.sub(move |v:By<_>| {
+            let v = f(v);
+            if !s2.is_done() { next.call(By::v(v)); }
+        } , ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
@@ -51,16 +48,13 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
 {
     fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
+        let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(
-            move |v:By<_>| {
-                let v = f(v);
-                s2.if_not_done(|| next.call(By::v(v)));
-            },
-            ec
-        ))
+        s1.added_each(self.src.sub(move |v:By<_>| {
+            let v = f(v);
+            s2.if_not_done(|| next.call(By::v(v)));
+        }, ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>

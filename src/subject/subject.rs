@@ -154,7 +154,7 @@ impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static> Observable<'static, YES, Re
 {
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
-        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into_ss().into();
+        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
         self.sub_internal(next, ec, move || Unsub::<YES>::with(move |()| Self::unsub(state, weak_next)))
     }

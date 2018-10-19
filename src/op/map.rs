@@ -37,7 +37,7 @@ for MapOp<NO, VBy, Src, F>
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
     {
-        self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
+        self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec))
     }
 }
 
@@ -47,7 +47,7 @@ for MapOp<YES, VBy, Src, F>
 {
     fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (f, next) = (self.f.clone(), ActSendSync::wrap_next(next));
+        let (f, next) = (self.f.clone(), sendsync_next(next));
         let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(move |v:By<_>| {
@@ -58,8 +58,7 @@ for MapOp<YES, VBy, Src, F>
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
     {
-        let (next, ec) = (next.into_ss(), ec.into_ss());
-        self.sub(move |v:By<_>| next.call(v), move |e: Option<By<_>>| ec.call_box(e))
+        self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec))
     }
 }
 

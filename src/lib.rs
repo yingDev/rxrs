@@ -32,7 +32,7 @@ pub use crate::subject::*;
 pub use crate::fac::*;
 pub use crate::op::*;
 pub use crate::act::*;
-pub use crate::into_sendsync::*;
+pub use crate::act_helpers::*;
 pub use crate::observables::*;
 mod observables;
 mod op;
@@ -41,7 +41,7 @@ mod subject;
 mod unsub;
 mod fac;
 mod act;
-mod into_sendsync;
+mod act_helpers;
 
 
 impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, VBy, EBy>+'a> IntoDyn<'o, SS, VBy, EBy> for O {}

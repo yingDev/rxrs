@@ -72,7 +72,7 @@ impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, Y
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
-        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into_ss().into();
+        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
         self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
     }
 }

@@ -31,7 +31,7 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
         let (s1, s2, s3) = Unsub::new().clones();
 
         s1.added_each(&self.src.sub(
-            move |v:By<_>| if !s2.is_done() {
+            move |v:By<_>| {
                 let v = f(v);
                 if !s2.is_done() { next.call(By::v(v)); }
             } ,
@@ -55,7 +55,7 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
         let (s1, s2, s3) = Unsub::new().clones();
 
         s1.added_each(&self.src.sub(
-            move |v:By<_>| if !s2.is_done() {
+            move |v:By<_>| {
                 let v = f(v);
                 s2.if_not_done(|| next.call(By::v(v)));
             },
@@ -148,7 +148,7 @@ mod test
 
         let o = Of::value(123);
 
-        o.map(move |v| Rc::strong_count(&r1)).sub((), ());
+        o.map(move |_| Rc::strong_count(&r1)).sub((), ());
 
         assert_eq!(Rc::strong_count(&r), 1);
     }

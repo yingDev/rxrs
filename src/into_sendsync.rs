@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use crate::*;
-use std::marker::PhantomData;
 use std::ops::Deref;
 
 pub unsafe trait IntoSendSync<BY>

@@ -28,14 +28,14 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
     fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
-        let (s1, s2, s3) = Unsub::new().clones();
+        let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
             move |v:By<_>| {
                 let v = f(v);
                 if !s2.is_done() { next.call(By::v(v)); }
             } ,
-            move |e: Option<By<_>>| s3.unsub_then(|| ec.call_once(e))
+            ec
         ))
     }
 
@@ -52,14 +52,14 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
     fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
         let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
-        let (s1, s2, s3) = Unsub::new().clones();
+        let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
             move |v:By<_>| {
                 let v = f(v);
                 s2.if_not_done(|| next.call(By::v(v)));
             },
-            move |e: Option<By<_>>| s3.unsub_then(|| ec.into_inner().call_once(e))
+            move |e: Option<By<_>>| ec.into_inner().call_once(e)
         ))
     }
 
@@ -151,5 +151,25 @@ mod test
         o.map(move |_| Rc::strong_count(&r1)).sub((), ());
 
         assert_eq!(Rc::strong_count(&r), 1);
+    }
+
+    #[test]
+    fn should_complete()
+    {
+        let (n1, n2, n3) = Rc::new(Cell::new(0)).clones();
+        let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
+
+        output.map(move |v| *v).sub(
+            move |v:By<_>        | {  n1.replace(n1.get() + *v); },
+            move |_:Option<By<_>>| {  n2.replace(n2.get() + 1);  });
+
+        input.next(1);
+        input.next(2);
+
+        assert_eq!(n3.get(), 3);
+
+        input.complete();
+
+        assert_eq!(n3.get(), 4);
     }
 }

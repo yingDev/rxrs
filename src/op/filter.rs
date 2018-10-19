@@ -27,11 +27,11 @@ impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, VBy, EBy>
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
         let f = self.f.clone();
-        let (s1, s2, s3) = Unsub::new().clones();
+        let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
-            move |v:By<_>         | if f(&v) && !s2.is_done() { next.call(v); },
-            move |e: Option<By<_>>| s3.unsub_then(|| ec.call_once(e))
+            move |v:By<_>| if f(&v) && !s2.is_done() { next.call(v); },
+            ec
         ))
     }
 
@@ -48,11 +48,11 @@ impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, YES, VBy, E
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
         let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
-        let (s1, s2, s3) = Unsub::new().clones();
+        let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
             move |v:By<_>         | if f(&v) { s2.if_not_done(|| next.call(v)); },
-            move |e: Option<By<_>>| s3.unsub_then(|| ec.into_inner().call_once(e))
+            move |e:Option<By<_>> | ec.into_inner().call_once(e)
         ))
     }
 
@@ -102,5 +102,25 @@ mod test
         }
 
         assert_eq!(n.get(), 0);
+    }
+
+    #[test]
+    fn should_complete()
+    {
+        let (n1, n2, n3) = Rc::new(Cell::new(0)).clones();
+        let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
+
+        output.filter(move |_| true).sub(
+            move |v:By<_>        | {  n1.replace(n1.get() + *v); },
+            move |_:Option<By<_>>| {  n2.replace(n2.get() + 1);  });
+
+        input.next(1);
+        input.next(2);
+
+        assert_eq!(n3.get(), 3);
+
+        input.complete();
+
+        assert_eq!(n3.get(), 4);
     }
 }

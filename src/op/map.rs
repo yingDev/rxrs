@@ -138,4 +138,18 @@ mod test
 
         assert_eq!(n1.load(Ordering::SeqCst), 124);
     }
+
+    #[test]
+    fn drops_closure()
+    {
+        let (r, r1) = Rc::new(0).clones();
+
+        assert_eq!(Rc::strong_count(&r), 2);
+
+        let o = Of::value(123);
+
+        o.map(move |v| Rc::strong_count(&r1)).sub((), ());
+
+        assert_eq!(Rc::strong_count(&r), 1);
+    }
 }

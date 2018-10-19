@@ -36,9 +36,7 @@ for MapOp<NO, VBy, Src, F>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    {
-        self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec))
-    }
+    { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
 }
 
 impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(By<VBy>)->VOut+'static+Send+Sync>
@@ -57,9 +55,7 @@ for MapOp<YES, VBy, Src, F>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-    {
-        self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec))
-    }
+    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
 }
 
 

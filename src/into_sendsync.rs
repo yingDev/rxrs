@@ -9,29 +9,37 @@ pub unsafe trait IntoSendSync<BY>
     fn into_ss(self) -> Self::Output;
 }
 
-pub struct ActSendSync<T, BY: RefOrVal>
+pub struct ActSendSync<T>
 {
-    act: T,
-    PhantomData: PhantomData<BY>
+    act: T
 }
 
-impl<T, BY: RefOrVal> ActSendSync<T, BY>
+unsafe impl<T : ActOnce<YES, A>, A> ActOnce<YES, A> for ActSendSync<T>
 {
-    pub fn wrap_next(act: T) -> ActSendSync<T, BY> where T : ActNext<'static, YES, BY> { ActSendSync { act, PhantomData } }
-    pub fn wrap_ec(act: T) -> ActSendSync<T, BY> where T : ActEc<'static, YES, BY> { ActSendSync { act, PhantomData } }
+    fn call_once(self, e: A) { self.act.call_once(e) }
+}
 
+unsafe impl<T : Act<YES, A>, A> Act<YES, A> for ActSendSync<T>
+{
+    fn call(&self, v: A) { self.act.call(v) }
+}
+
+impl<T> ActSendSync<T>
+{
+    pub fn wrap_next<BY: RefOrVal>(act: T) -> ActSendSync<T> where T : ActNext<'static, YES, BY> { ActSendSync { act } }
+    pub fn wrap_ec<BY: RefOrVal>(act: T) -> ActSendSync<T> where T : ActEc<'static, YES, BY> { ActSendSync { act } }
     pub fn into_inner(self) -> T { self.act }
 }
 
 
-impl<T, BY: RefOrVal> Deref for ActSendSync<T, BY>
+impl<T> Deref for ActSendSync<T>
 {
     type Target = T;
     fn deref(&self) -> &T { &self.act }
 }
 
-unsafe impl<T, BY: RefOrVal> Send for ActSendSync<T, BY> {}
-unsafe impl<T, BY: RefOrVal> Sync for ActSendSync<T, BY> {}
+unsafe impl<T> Send for ActSendSync<T> {}
+unsafe impl<T> Sync for ActSendSync<T> {}
 
 unsafe impl<BY: RefOrVal> IntoSendSync<BY> for Arc<ActNext<'static, YES, BY>>
 {

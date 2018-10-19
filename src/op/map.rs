@@ -59,7 +59,7 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
                 let v = f(v);
                 s2.if_not_done(|| next.call(By::v(v)));
             },
-            move |e: Option<By<_>>| ec.into_inner().call_once(e)
+            ec
         ))
     }
 

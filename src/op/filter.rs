@@ -52,7 +52,7 @@ impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, YES, VBy, E
 
         s1.added_each(self.src.sub(
             move |v:By<_>         | if f(&v) { s2.if_not_done(|| next.call(v)); },
-            move |e:Option<By<_>> | ec.into_inner().call_once(e)
+            ec
         ))
     }
 

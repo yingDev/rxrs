@@ -15,15 +15,14 @@ pub trait ObservableMapOp<SS, VBy, EBy, VOut, F: Fn(By<VBy>)->VOut> : Sized
     fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src, F, SS:YesNo> ObservableMapOp<SS, VBy,EBy, VOut, F> for Src
-    where F: Fn(By<VBy>)->VOut+'o,
-          Src: Observable<'o, SS, VBy, EBy>
-{}
+impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src: Observable<'o, SS, VBy, EBy>, F: Fn(By<VBy>)->VOut+'o, SS:YesNo>
+ObservableMapOp<SS, VBy,EBy, VOut, F>
+for Src {}
 
 
-impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, Val<VOut>, EBy> for MapOp<NO, VBy, Src, F>
-    where F: Fn(By<VBy>)->VOut+'o,
-          Src: Observable<'o, NO, VBy, EBy>
+impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Fn(By<VBy>)->VOut+'o>
+Observable<'o, NO, Val<VOut>, EBy>
+for MapOp<NO, VBy, Src, F>
 {
     fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
@@ -42,9 +41,9 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
     }
 }
 
-impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, YES, Val<VOut>, EBy> for MapOp<YES, VBy, Src, F>
-    where F: Fn(By<VBy>)->VOut+'static+Send+Sync,
-          Src: Observable<'static, YES, VBy, EBy>
+impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(By<VBy>)->VOut+'static+Send+Sync>
+Observable<'static, YES, Val<VOut>, EBy>
+for MapOp<YES, VBy, Src, F>
 {
     fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {

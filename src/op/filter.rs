@@ -14,15 +14,14 @@ pub trait ObservableFilterOp<SS, VBy, EBy, F: Fn(&By<VBy>)->bool> : Sized
     fn filter(self, f: F) -> FilterOp<SS, Self, F> { FilterOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src, F, SS:YesNo> ObservableFilterOp<SS, VBy,EBy, F> for Src
-    where F: Fn(&By<VBy>)->bool+'o,
-          Src: Observable<'o, SS, VBy, EBy>
-{}
+impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Fn(&By<VBy>)->bool+'o, SS:YesNo>
+ObservableFilterOp<SS, VBy,EBy, F>
+for Src {}
 
 
-impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, VBy, EBy> for FilterOp<NO, Src, F>
-    where F: Fn(&By<VBy>)->bool+'o,
-          Src: Observable<'o, NO, VBy, EBy>
+impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Fn(&By<VBy>)->bool+'o>
+Observable<'o, NO, VBy, EBy>
+for FilterOp<NO, Src, F>
 {
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
@@ -38,9 +37,9 @@ impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, VBy, EBy>
     }
 }
 
-impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, YES, VBy, EBy> for FilterOp<YES, Src, F>
-    where F: Fn(&By<VBy>)->bool+'static+Send+Sync,
-          Src: Observable<'static, YES, VBy, EBy>
+impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(&By<VBy>)->bool+'static+Send+Sync>
+Observable<'static, YES, VBy, EBy>
+for FilterOp<YES, Src, F>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {

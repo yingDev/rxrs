@@ -143,18 +143,12 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
         self
     }
 
-    pub fn add_each(&self, b: &Unsub<'a, SS>) -> &Self
+    pub fn add_each(&self, b: Unsub<'a, SS>) -> &Self
     {
-        if b.is_done() {
-            self.unsub();
-            return self;
-        }
-        self.add(b.clone());
-        b.add(self.clone());
-        self
+        self.add(b.added(self.clone()))
     }
 
-    pub fn added_each(self, b: &Unsub<'a, SS>) -> Self
+    pub fn added_each(self, b: Unsub<'a, SS>) -> Self
     {
         self.add_each(b);
         self

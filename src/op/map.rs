@@ -30,7 +30,7 @@ impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src, F> Observable<'o, NO, 
         let f = self.f.clone();
         let (s1, s2, s3) = Unsub::new().clones();
 
-        s1.added_each(&self.src.sub(
+        s1.added_each(self.src.sub(
             move |v:By<_>| {
                 let v = f(v);
                 if !s2.is_done() { next.call(By::v(v)); }
@@ -54,7 +54,7 @@ impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src, F> Observable<'static, Y
         let (f, next, ec) = (self.f.clone(), ActSendSync::wrap_next(next), ActSendSync::wrap_ec(ec));
         let (s1, s2, s3) = Unsub::new().clones();
 
-        s1.added_each(&self.src.sub(
+        s1.added_each(self.src.sub(
             move |v:By<_>| {
                 let v = f(v);
                 s2.if_not_done(|| next.call(By::v(v)));

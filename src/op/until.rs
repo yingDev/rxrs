@@ -36,11 +36,11 @@ for UntilOp<Src, Sig>
             move |_: Option<By<_>>| s3.unsub()
         ));
 
-        if s4.is_done() { s4 } else {
-            s4.added_each(self.src.sub(
-                next,
-                move |e:Option<By<_>>| ec2.borrow_mut().take().map_or((), |ec| ec.call_once(e)) ))
-        }
+        if s4.is_done() { return s4; }
+        s4.added_each(self.src.sub(
+            next,
+            move |e: Option<By<_>>| ec2.borrow_mut().take().map_or((), |ec| ec.call_once(e))
+        ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
@@ -62,11 +62,11 @@ for UntilOp<Src, Sig>
             move |_: Option<By<_>>| s3.unsub()
         ));
 
-        if s4.is_done() { s4 } else {
-            s4.added_each(self.src.sub(
-                move |v : By<_>| s5.if_not_done(|| next.call(v)),
-                move |e:Option<By<_>>| ec2.lock().unwrap().take().map_or((), |ec| ec.call_once(e)) ))
-        }
+        if s4.is_done() { return s4; }
+        s4.added_each(self.src.sub(
+            move |v: By<_>        | s5.if_not_done(|| next.call(v)),
+            move |e: Option<By<_>>| ec2.lock().unwrap().take().map_or((), |ec| ec.call_once(e))
+        ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>

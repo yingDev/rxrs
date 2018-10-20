@@ -7,6 +7,7 @@
 
 ### 🌱 WIP: rewriting everything ...
 
+```bash
 src
 ├── act.rs
 ├── act_helpers.rs
@@ -34,3 +35,4 @@ src
     ├── clones.rs
     ├── mod.rs
     └── yesno.rs
+```

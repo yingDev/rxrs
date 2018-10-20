@@ -114,4 +114,16 @@ mod test
         sig1.next(1);
         assert_eq!(n.get(), 3);
     }
+
+    #[test]
+    fn cycle()
+    {
+        let n = Cell::new(0);
+        let (s1, s2, s3) = Rc::new(Subject::<NO, i32>::new()).clones();
+
+        s1.until(s2).sub(|_: By<_>| { n.replace(n.get()+1); }, |_:Option<By<_>>| { n.replace(n.get()+100); });
+
+        s3.next(1);
+        assert_eq!(n.get(), 100);
+    }
 }

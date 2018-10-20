@@ -123,7 +123,7 @@ mod test
         let s = send.map(|v| *v * *v);
         ::std::thread::spawn(move ||{
             i.next(123);
-            s.sub(|v:By<_>|{}, ());
+            s.sub(|_:By<_>|{}, ());
         }).join().ok();
 
         assert_eq!(n1.load(Ordering::SeqCst), 124);

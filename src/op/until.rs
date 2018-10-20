@@ -52,7 +52,7 @@ for UntilOp<Src, Sig>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (s1, s2, s3, s4) = Unsub::new().clones();
+        let (s1, s2, s3, s4, s5) = Unsub::new().clones();
         let (ec1, ec2) = Arc::new(AnySendSync(UnsafeCell::new(Some(sendsync_ec(ec))))).clones();
         let next = sendsync_next(next);
 
@@ -63,7 +63,7 @@ for UntilOp<Src, Sig>
         if s3.is_done() { return s3; }
         s3.added_each(self.src.sub(
             move |v: By<_>        | s4.if_not_done(|| next.call(v)),
-            move |e: Option<By<_>>| unsafe{ &mut *ec2.0.get() }.take().map_or((), |ec| ec.call_once(e))
+            move |e: Option<By<_>>| s5.if_not_done(||unsafe{ &mut *ec2.0.get() }.take().map_or((), |ec| ec.call_once(e)))
         ))
     }
 

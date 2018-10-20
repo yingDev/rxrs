@@ -125,5 +125,8 @@ mod test
 
         s3.next(1);
         assert_eq!(n.get(), 100);
+
+        s3.complete();
+        assert_eq!(n.get(), 100);
     }
 }

@@ -1,22 +1,25 @@
 use crate::*;
 
+struct AnySendSync<T>(T);
+unsafe impl<T> Send for AnySendSync<T>{}
+unsafe impl<T> Sync for AnySendSync<T>{}
 
-pub fn sendsync_next<'o, BY: RefOrVal>(act: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
+//todo
+pub fn sendsync_act<'o, A>(act: impl Act<YES, A>+'o) -> impl Act<YES, A>+'o + Send + Sync
 {
-    struct AnySendSync<T>(T);
-    unsafe impl<T> Send for AnySendSync<T>{}
-    unsafe impl<T> Sync for AnySendSync<T>{}
-
     let a = AnySendSync(act);
+    move |v:A| a.0.call(v)
+}
+
+
+pub fn sendsync_next<'o, BY: RefOrVal>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
+{
+    let a = AnySendSync(next);
     move |v:By<BY>| a.0.call(v)
 }
 
 pub fn sendsync_ec<'o, BY: RefOrVal>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
 {
-    struct AnySendSync<T>(T);
-    unsafe impl<T> Send for AnySendSync<T>{}
-    unsafe impl<T> Sync for AnySendSync<T>{}
-
     let a = AnySendSync(act);
     move |e:Option<By<BY>>| a.0.call_once(e)
 }

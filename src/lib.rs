@@ -1,5 +1,6 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox,
-    test, cell_update, box_syntax, specialization, trait_alias, option_replace, coerce_unsized, unsize,impl_trait_in_bindings
+    test, cell_update, box_syntax, specialization, trait_alias, option_replace, coerce_unsized, unsize,impl_trait_in_bindings,
+    generic_associated_types
 )]
 #![allow(non_snake_case)]
 
@@ -20,9 +21,16 @@ pub trait IntoDyn<'o, SS, VBy, EBy> : Sized
     fn into_dyn(self) -> Box<Self>  { box self }
 }
 
+
+pub trait Scheduler
+{
+    type SS: YesNo;
+}
+
+
 pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : for<'x> Act    <SS, By<'x, BY>>+'o {}
-pub unsafe trait ActEc   <'o, SS:YesNo, BY: RefOrVal> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
-pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal> : for<'x> ActBox <SS, Option<By<'x, BY>>>+'o {}
+pub unsafe trait ActEc   <'o, SS:YesNo, BY: RefOrVal=Ref<()>> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
+pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : for<'x> ActBox <SS, Option<By<'x, BY>>>+'o {}
 
 pub mod sync;
 

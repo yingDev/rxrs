@@ -28,16 +28,15 @@ for UntilOp<Src, Sig>
 {
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
-        let (s1, s2, s3, s4) = Unsub::new().clones();
+        let (s1, s2, s3) = Unsub::new().clones();
         let (ec1, ec2) = Rc::new(RefCell::new(Some(ec))).clones();
 
         s1.add_each(self.sig.sub(
-            move |_: By<_>        | s2.unsub_then(|| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None))),
-            move |_: Option<By<_>>| s3.unsub()
+            move |_: By<_>| s2.unsub_then(|| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None))), ()
         ));
 
-        if s4.is_done() { return s4; }
-        s4.added_each(self.src.sub(
+        if s3.is_done() { return s3; }
+        s3.added_each(self.src.sub(
             next,
             move |e: Option<By<_>>| ec2.borrow_mut().take().map_or((), |ec| ec.call_once(e))
         ))
@@ -53,18 +52,17 @@ for UntilOp<Src, Sig>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (s1, s2, s3, s4, s5) = Unsub::new().clones();
+        let (s1, s2, s3, s4) = Unsub::new().clones();
         let (ec1, ec2) = Arc::new(Mutex::new(Some(sendsync_ec(ec)))).clones();
         let next = sendsync_next(next);
 
         s1.add_each(self.sig.sub(
-            move |_: By<_>        | s2.unsub_then(|| ec1.lock().unwrap().take().map_or((), |ec| ec.call_once(None))),
-            move |_: Option<By<_>>| s3.unsub()
+            move |_: By<_>| s2.unsub_then(|| ec1.lock().unwrap().take().map_or((), |ec| ec.call_once(None))), ()
         ));
 
-        if s4.is_done() { return s4; }
-        s4.added_each(self.src.sub(
-            move |v: By<_>        | s5.if_not_done(|| next.call(v)),
+        if s3.is_done() { return s3; }
+        s3.added_each(self.src.sub(
+            move |v: By<_>        | s4.if_not_done(|| next.call(v)),
             move |e: Option<By<_>>| ec2.lock().unwrap().take().map_or((), |ec| ec.call_once(e))
         ))
     }

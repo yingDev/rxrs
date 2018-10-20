@@ -53,7 +53,8 @@ for UntilOp<Src, Sig>
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
         let (s1, s2, s3, s4, s5) = Unsub::new().clones();
-        let (ec1, ec2) = Arc::new(AnySendSync(UnsafeCell::new(Some(sendsync_ec(ec))))).clones();
+        //no mutex here because access is protected by Unsub's internal lock
+        let (ec1, ec2) = Arc::new(AnySendSync(UnsafeCell::new(Some(ec)))).clones();
         let next = sendsync_next(next);
 
         s1.add_each(self.sig.sub(

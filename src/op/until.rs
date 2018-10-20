@@ -2,7 +2,7 @@ use crate::*;
 use std::sync::Arc;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::sync::Mutex;
+use std::cell::UnsafeCell;
 
 pub struct UntilOp<Src, Sig>
 {
@@ -53,23 +53,27 @@ for UntilOp<Src, Sig>
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
         let (s1, s2, s3, s4) = Unsub::new().clones();
-        let (ec1, ec2) = Arc::new(Mutex::new(Some(sendsync_ec(ec)))).clones();
+        let (ec1, ec2) = Arc::new(AnySendSync(UnsafeCell::new(Some(sendsync_ec(ec))))).clones();
         let next = sendsync_next(next);
 
         s1.add_each(self.sig.sub(
-            move |_: By<_>| s2.unsub_then(|| ec1.lock().unwrap().take().map_or((), |ec| ec.call_once(None))), ()
+            move |_: By<_>| s2.unsub_then(|| unsafe{ &mut *ec1.0.get() }.take().map_or((), |ec| ec.call_once(None))), ()
         ));
 
         if s3.is_done() { return s3; }
         s3.added_each(self.src.sub(
             move |v: By<_>        | s4.if_not_done(|| next.call(v)),
-            move |e: Option<By<_>>| ec2.lock().unwrap().take().map_or((), |ec| ec.call_once(e))
+            move |e: Option<By<_>>| unsafe{ &mut *ec2.0.get() }.take().map_or((), |ec| ec.call_once(e))
         ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
     { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
 }
+
+struct AnySendSync<T>(UnsafeCell<T>);
+unsafe impl<T> Send for AnySendSync<T>{}
+unsafe impl<T> Sync for AnySendSync<T>{}
 
 #[cfg(test)]
 mod test

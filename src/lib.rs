@@ -1,6 +1,5 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox,
     test, cell_update, box_syntax, specialization, trait_alias, option_replace, coerce_unsized, unsize,impl_trait_in_bindings,
-    generic_associated_types
 )]
 #![allow(non_snake_case)]
 

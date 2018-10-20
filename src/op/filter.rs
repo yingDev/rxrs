@@ -9,13 +9,13 @@ pub struct FilterOp<SS, Src, F>
     PhantomData: PhantomData<(SS)>
 }
 
-pub trait ObservableFilterOp<SS, VBy, EBy, F: Fn(&By<VBy>)->bool> : Sized
+pub trait ObsFilterOp<SS, VBy, EBy, F: Fn(&By<VBy>)->bool> : Sized
 {
     fn filter(self, f: F) -> FilterOp<SS, Self, F> { FilterOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
 impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Fn(&By<VBy>)->bool+'o, SS:YesNo>
-ObservableFilterOp<SS, VBy,EBy, F>
+ObsFilterOp<SS, VBy,EBy, F>
 for Src {}
 
 

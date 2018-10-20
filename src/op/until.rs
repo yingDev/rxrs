@@ -1,0 +1,76 @@
+use crate::*;
+use std::sync::Arc;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+///unsub on sig error / complete, complete on sig.next
+pub struct UntilOp<Src, Sig>
+{
+    src: Src,
+    sig: Arc<Sig>,
+}
+
+pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, Sig: Observable<'o, SS, VBy, EBy>> : Sized
+{
+    fn until(self, signal: Sig) -> UntilOp<Self, Sig>
+    {
+        UntilOp{ src: self, sig: Arc::new(signal) }
+    }
+}
+
+impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, VBy, EBy>>
+ObsUntilOp<'o, SS, VBy, EBy, Sig>
+for Src {}
+
+impl<'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, Sig: Observable<'o, NO, VBy, EBy>>
+Observable<'o, NO, VBy, EBy>
+for UntilOp<Src, Sig>
+{
+    fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
+    {
+        let (s1, s2, s3, s4) = Unsub::new().clones();
+        let (ec1, ec2) = Rc::new(RefCell::new(Some(ec))).clones();
+
+        s1.add_each(self.sig.sub(
+            move |v: By<_>        | s2.unsub_then(|| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None))),
+            move |e: Option<By<_>>| s3.unsub() ));
+
+        if s4.is_done() { s4 } else {
+            s4.added_each(self.src.sub(
+                next,
+                move |e:Option<By<_>>| ec2.borrow_mut().take().map_or((), |ec| ec.call_once(e)) ))
+        }
+    }
+
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
+    { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
+}
+
+#[cfg(test)]
+mod test
+{
+    use crate::*;
+    use std::rc::Rc;
+    use std::cell::Cell;
+
+    #[test]
+    fn smoke()
+    {
+        let n = Cell::new(0);
+
+        let (o, o2) = Rc::new(Of::value(123)).clones();
+        let (sig, sig2) = Rc::new(Subject::<NO, i32>::new()).clones();
+
+        o.until(sig).sub(|v: By<_>| { n.replace(n.get()+1); }, |e: Option<By<_>>| { n.replace(n.get()+1); } );
+        assert_eq!(n.get(), 2);
+
+        n.replace(0);
+        sig2.complete();
+        o2.until(sig2).sub(|v: By<_>| { n.replace(n.get()+1); }, |e: Option<By<_>>| { n.replace(n.get()+1); } );
+        assert_eq!(n.get(), 0);
+
+        Of::value(123).until(Of::value(456)).sub(|v: By<_>| { n.replace(n.get()+1); }, |e: Option<By<_>>| { n.replace(n.get()+1); } );
+        assert_eq!(n.get(), 1);
+
+    }
+}

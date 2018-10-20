@@ -10,13 +10,13 @@ pub struct MapOp<SS, VBy, Src, F>
     PhantomData: PhantomData<(SS, VBy)>
 }
 
-pub trait ObservableMapOp<SS, VBy, EBy, VOut, F: Fn(By<VBy>)->VOut> : Sized
+pub trait ObsMapOp<SS, VBy, EBy, VOut, F: Fn(By<VBy>)->VOut> : Sized
 {
     fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
 impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src: Observable<'o, SS, VBy, EBy>, F: Fn(By<VBy>)->VOut+'o, SS:YesNo>
-ObservableMapOp<SS, VBy,EBy, VOut, F>
+ObsMapOp<SS, VBy,EBy, VOut, F>
 for Src {}
 
 
@@ -114,14 +114,16 @@ mod test
     fn thread()
     {
         let (n, n1) = Arc::new(AtomicI32::new(0)).clones();
-        let (i, o) = Arc::new(Subject::<YES, i32>::new()).clones();
+        let (i, o, send) = Arc::new(Subject::<YES, i32>::new()).clones();
 
         o.sub(|_: By<_>|{}, ());
 
         o.map(|v| *v+1).sub(move |v: By<Val<i32>>| {n.store(*v, Ordering::SeqCst); }, ());
 
+        let s = send.map(|v| *v * *v);
         ::std::thread::spawn(move ||{
             i.next(123);
+            s.sub(|v:By<_>|{}, ());
         }).join().ok();
 
         assert_eq!(n1.load(Ordering::SeqCst), 124);

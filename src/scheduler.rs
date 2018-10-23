@@ -104,7 +104,10 @@ impl State
         let mut ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>> = Vec::new();
 
         loop {
-            let mut queue = state.noti.wait(state.queue.lock().unwrap()).unwrap();
+            let mut queue = state.queue.lock().unwrap();
+            if queue.ready.len() == 0 && queue.timers.len() == 0 {
+                queue = state.noti.wait(queue).unwrap();
+            }
             ready.clear();
             ready.extend(queue.ready.drain(..));
 
@@ -213,5 +216,16 @@ mod test
         }
 
         let sch = EventLoopScheduler::new(Fac);
+        sch.schedule(None, |s: &Scheduler<YES>| {
+            println!("ok?");
+            Unsub::done()
+        });
+
+        sch.schedule(Some(::std::time::Duration::from_millis(500)), |s: &Scheduler<YES>| {
+            println!("later...");
+            Unsub::done()
+        });
+
+        ::std::thread::sleep_ms(1000);
     }
 }

@@ -21,10 +21,6 @@ pub trait IntoDyn<'o, SS, VBy, EBy> : Sized
 }
 
 
-pub trait Scheduler
-{
-    type SS: YesNo;
-}
 
 
 pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : for<'x> Act    <SS, By<'x, BY>>+'o {}
@@ -41,6 +37,7 @@ pub use crate::op::*;
 pub use crate::act::*;
 pub use crate::act_helpers::*;
 pub use crate::observables::*;
+pub use crate::scheduler::*;
 mod observables;
 mod op;
 mod util;
@@ -49,6 +46,7 @@ mod unsub;
 mod fac;
 mod act;
 mod act_helpers;
+mod scheduler;
 
 
 impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, VBy, EBy>+'a> IntoDyn<'o, SS, VBy, EBy> for O {}

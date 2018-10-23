@@ -10,7 +10,12 @@ pub fn sendsync_act<'o, A>(act: impl Act<YES, A>+'o) -> impl Act<YES, A>+'o + Se
     let a = AnySendSync(act);
     move |v:A| a.0.call(v)
 }
-
+//todo
+pub fn sendsync_actonce<'o, A>(act: impl ActOnce<YES, A>+'o) -> impl ActOnce<YES, A>+'o + Send + Sync
+{
+    let a = AnySendSync(act);
+    move |v:A| a.0.call_once(v)
+}
 
 pub fn sendsync_next<'o, BY: RefOrVal>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
 {

@@ -11,9 +11,10 @@ use std::sync::Arc;
 use std::sync::Condvar;
 use std::sync::MutexGuard;
 use std::cell::UnsafeCell;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::*;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::Weak;
+use std::mem::forget;
 
 pub trait SchActPeriodic<SS:YesNo, S> : for<'x> Act<SS, &'x S, S> + 'static {}
 pub trait SchActOnce<SS:YesNo> : for<'x> ActOnce<SS, &'x Scheduler<SS>, Unsub<'static, SS>> + 'static {}
@@ -59,13 +60,16 @@ impl PartialOrd<ActItem> for ActItem
 {
     fn partial_cmp(&self, other: &ActItem) -> Option<::std::cmp::Ordering>
     {
-        Some(self.due.cmp(&other.due))
+        Some(other.due.cmp(&self.due))
     }
 }
 
 impl Ord for ActItem
 {
-    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering { self.due.cmp(&other.due) }
+    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering
+    {
+        other.due.cmp(&self.due)
+    }
 }
 
 struct ActQueue
@@ -75,18 +79,21 @@ struct ActQueue
 }
 
 
-struct State
+struct Inner
 {
     queue: Mutex<ActQueue>,
 
     has_thread: AtomicBool,
+    disposed: AtomicBool,
+    exit_if_empty: bool,
+
     noti: Condvar,
     fac: Box<ThreadFactory+Send+Sync>
 }
 
 pub struct EventLoopScheduler
 {
-    state: Arc<State>
+    state: Arc<Inner>
 }
 
 pub trait ThreadFactory
@@ -95,9 +102,9 @@ pub trait ThreadFactory
     fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>);
 }
 
-impl State
+impl Inner
 {
-    fn run(state: Arc<State>)
+    fn run(state: Arc<Inner>)
     {
         let selv = Arc::as_ref(&state);
 
@@ -106,8 +113,17 @@ impl State
         loop {
             let mut queue = state.queue.lock().unwrap();
             if queue.ready.len() == 0 && queue.timers.len() == 0 {
+                if state.exit_if_empty {
+                    state.disposed.store(true, Ordering::Release);
+                    break;
+                }
                 queue = state.noti.wait(queue).unwrap();
             }
+
+            if state.disposed.load(Ordering::Acquire) {
+                break;
+            }
+
             ready.clear();
             ready.extend(queue.ready.drain(..));
 
@@ -138,7 +154,12 @@ impl State
     fn ensure_thread(&self)
     {
         if ! self.has_thread.swap(true, Ordering::Release) {
-            let selv = unsafe{ Arc::from_raw(self) }.clone();
+            let selv = unsafe{
+                let arc = Arc::from_raw(self);
+                let ret = arc.clone();
+                forget(arc);
+                ret
+            };
             self.fac.start_dyn(box move || Self::run(selv));
         }
     }
@@ -148,7 +169,7 @@ struct AnySendSync<T>(T);
 unsafe impl<T> Send for AnySendSync<T>{}
 unsafe impl<T> Sync for AnySendSync<T>{}
 
-impl Scheduler<YES> for State
+impl Scheduler<YES> for Inner
 {
     fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
     {
@@ -180,15 +201,18 @@ impl Scheduler<YES> for EventLoopScheduler
     }
 }
 
+//todo: drop
 impl EventLoopScheduler
 {
-    pub fn new(spawn: impl ThreadFactory+Send+Sync+'static) -> Arc<EventLoopScheduler>
+    pub fn new(fac: impl ThreadFactory+Send+Sync+'static, exit_if_empty: bool) -> Arc<EventLoopScheduler>
     {
-        let state = Arc::new(State{
+        let state = Arc::new(Inner {
             queue: Mutex::new(ActQueue{ timers: BinaryHeap::new(), ready: Vec::new() }),
             has_thread: AtomicBool::new(false),
+            disposed: AtomicBool::new(false),
+            exit_if_empty,
             noti: Condvar::new(),
-            fac: box spawn
+            fac: box fac
         });
 
         Arc::new(EventLoopScheduler{ state })
@@ -215,14 +239,28 @@ mod test
             }
         }
 
-        let sch = EventLoopScheduler::new(Fac);
+        let sch = EventLoopScheduler::new(Fac, true);
         sch.schedule(None, |s: &Scheduler<YES>| {
             println!("ok?");
             Unsub::done()
         });
 
         sch.schedule(Some(::std::time::Duration::from_millis(500)), |s: &Scheduler<YES>| {
-            println!("later...");
+            println!("later...500");
+            Unsub::done()
+        });
+
+
+        sch.schedule(Some(::std::time::Duration::from_millis(200)), |s: &Scheduler<YES>| {
+            println!("later...200");
+            Unsub::done()
+        });
+        sch.schedule(Some(::std::time::Duration::from_millis(540)), |s: &Scheduler<YES>| {
+            println!("later... 540");
+            Unsub::done()
+        });
+        sch.schedule(Some(::std::time::Duration::from_millis(50)), |s: &Scheduler<YES>| {
+            println!("later... 50");
             Unsub::done()
         });
 

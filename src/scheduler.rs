@@ -43,33 +43,15 @@ pub trait SchedulerPeriodic<SS:YesNo> : Scheduler<SS>
     fn schedule_periodic<S>(&self, period: Duration, act: impl SchActPeriodic<SS, S>) -> Unsub<'static, SS> where Self: Sized;
 }
 
+pub struct EventLoopScheduler
+{
+    state: Arc<Inner>
+}
+
 struct ActItem
 {
     due: Instant,
     act: Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>
-}
-
-impl PartialEq<ActItem> for ActItem
-{
-    fn eq(&self, other: &ActItem) -> bool { self.due == other.due }
-}
-
-impl Eq for ActItem {}
-
-impl PartialOrd<ActItem> for ActItem
-{
-    fn partial_cmp(&self, other: &ActItem) -> Option<::std::cmp::Ordering>
-    {
-        Some(other.due.cmp(&self.due))
-    }
-}
-
-impl Ord for ActItem
-{
-    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering
-    {
-        other.due.cmp(&self.due)
-    }
 }
 
 struct ActQueue
@@ -77,7 +59,6 @@ struct ActQueue
     timers: BinaryHeap<ActItem>,
     ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>>
 }
-
 
 struct Inner
 {
@@ -91,10 +72,7 @@ struct Inner
     fac: Box<ThreadFactory+Send+Sync>
 }
 
-pub struct EventLoopScheduler
-{
-    state: Arc<Inner>
-}
+
 
 pub trait ThreadFactory
 {
@@ -219,6 +197,22 @@ impl EventLoopScheduler
     }
 }
 
+impl PartialEq<ActItem> for ActItem
+{
+    fn eq(&self, other: &ActItem) -> bool { self.due == other.due }
+}
+
+impl Eq for ActItem {}
+
+impl PartialOrd<ActItem> for ActItem
+{
+    fn partial_cmp(&self, other: &ActItem) -> Option<::std::cmp::Ordering> { Some(other.due.cmp(&self.due)) }
+}
+
+impl Ord for ActItem
+{
+    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering { other.due.cmp(&self.due) }
+}
 
 #[cfg(test)]
 mod test
@@ -241,10 +235,16 @@ mod test
 
         let sch = EventLoopScheduler::new(Fac, true);
         sch.schedule(None, |s: &Scheduler<YES>| {
-            println!("ok?");
+            println!("ok? a");
             Unsub::done()
         });
-
+        sch.schedule(None, |s: &Scheduler<YES>| {
+            println!("ok? b");
+            Unsub::done()
+        });        sch.schedule(None, |s: &Scheduler<YES>| {
+        println!("ok? c");
+        Unsub::done()
+    });
         sch.schedule(Some(::std::time::Duration::from_millis(500)), |s: &Scheduler<YES>| {
             println!("later...500");
             Unsub::done()

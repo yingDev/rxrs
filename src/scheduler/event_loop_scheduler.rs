@@ -15,22 +15,11 @@ use std::sync::atomic::*;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::Weak;
 use std::mem::forget;
+use crate::any_send_sync::AnySendSync;
 
 pub struct EventLoopScheduler
 {
     state: Arc<Inner>
-}
-
-struct ActItem
-{
-    due: Instant,
-    act: Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>
-}
-
-struct ActQueue
-{
-    timers: BinaryHeap<ActItem>,
-    ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>>
 }
 
 struct Inner
@@ -45,8 +34,19 @@ struct Inner
     fac: Box<ThreadFactory+Send+Sync>
 }
 
+struct ActQueue
+{
+    timers: BinaryHeap<ActItem>,
+    ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>>
+}
 
+struct ActItem
+{
+    due: Instant,
+    act: Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>
+}
 
+//todo: extract
 pub trait ThreadFactory
 {
     fn start(&self, main: impl FnOnce()+Send+Sync+'static) where Self: Sized{ self.start_dyn(box main) }
@@ -65,7 +65,7 @@ impl Inner
             let mut queue = state.queue.lock().unwrap();
             if queue.ready.len() == 0 && queue.timers.len() == 0 {
                 if state.exit_if_empty {
-                    state.disposed.store(true, Ordering::Release);
+                    state.has_thread.store(false, Ordering::Release);
                     break;
                 }
                 queue = state.noti.wait(queue).unwrap();
@@ -97,7 +97,6 @@ impl Inner
                     state.noti.wait_timeout(queue, next_tick - now);
                 }
             }
-
         }
 
     }
@@ -116,29 +115,23 @@ impl Inner
     }
 }
 
-struct AnySendSync<T>(T);
-unsafe impl<T> Send for AnySendSync<T>{}
-unsafe impl<T> Sync for AnySendSync<T>{}
-
 impl Scheduler<YES> for Inner
 {
     fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (act1, act2) = Arc::new(AnySendSync(UnsafeCell::new(Some(act)))).clones();
-        let (unsub1, unsub2) = Unsub::<YES>::with(move |()| unsafe{ (&mut *act1.0.get()).take();}).clones();
-        let act = box move |sch: &Scheduler<YES>| unsub1.if_not_done(|| unsafe{ &mut *act2.0.get()}.take().map_or((), |act| { unsub1.add_each(act.call_once(sch)); }));
+        let (act1, act2) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) }).clones();
+        let (unsub1, unsub2) = Unsub::<YES>::with(move |()| unsafe{ (&mut *act1.get()).take();}).clones();
+        let act = box move |sch: &Scheduler<YES>| unsub1.if_not_done(|| unsafe{ &mut *act2.get()}.take().map_or((), |act| { unsub1.add_each(act.call_once(sch)); }));
 
-        {
-            let mut queues = self.queue.lock().unwrap();
-            if let Some(due) = due {
-                queues.timers.push(ActItem{ due: Instant::now() + due, act });
-            } else {
-                queues.ready.push(act);
-            }
-
-            self.noti.notify_one();
-            self.ensure_thread();
+        let mut queues = self.queue.lock().unwrap();
+        if let Some(due) = due {
+            queues.timers.push(ActItem{ due: Instant::now() + due, act });
+        } else {
+            queues.ready.push(act);
         }
+
+        self.noti.notify_one();
+        self.ensure_thread();
 
         unsub2
     }

@@ -1,34 +1,31 @@
 use crate::*;
+use crate::any_send_sync::AnySendSync;
 use std::ops::Deref;
 use std::cell::UnsafeCell;
-
-struct AnySendSync<T>(T);
-unsafe impl<T> Send for AnySendSync<T>{}
-unsafe impl<T> Sync for AnySendSync<T>{}
 
 //todo
 pub fn sendsync_act<'o, A>(act: impl Act<YES, A>+'o) -> impl Act<YES, A>+'o + Send + Sync
 {
-    let a = AnySendSync(act);
-    move |v:A| a.0.call(v)
+    let a = unsafe{ AnySendSync::new(act) };
+    move |v:A| a.call(v)
 }
 //todo
 pub fn sendsync_actonce<'o, A>(act: impl ActOnce<YES, A>+'o) -> impl ActOnce<YES, A>+'o + Send + Sync
 {
-    let a = AnySendSync(act);
-    move |v:A| a.0.call_once(v)
+    let a = unsafe{ AnySendSync::new(act) };
+    move |v:A| a.into_inner().call_once(v)
 }
 
 pub fn sendsync_next<'o, BY: RefOrVal>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
 {
-    let a = AnySendSync(next);
-    move |v:By<BY>| a.0.call(v)
+    let a = unsafe{ AnySendSync::new(next) };
+    move |v:By<BY>| a.call(v)
 }
 
 pub fn sendsync_ec<'o, BY: RefOrVal>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
 {
-    let a = AnySendSync(act);
-    move |e:Option<By<BY>>| a.0.call_once(e)
+    let a = unsafe{ AnySendSync::new(act) };
+    move |e:Option<By<BY>>| a.into_inner().call_once(e)
 }
 
 pub fn sendsync_next_box<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> Box<ActNext<'o, YES, BY>+Send+Sync>

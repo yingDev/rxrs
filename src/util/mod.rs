@@ -2,6 +2,7 @@ mod by;
 mod yesno;
 mod clones;
 
+pub mod any_send_sync;
 pub mod alias;
 
 pub use self::by::*;

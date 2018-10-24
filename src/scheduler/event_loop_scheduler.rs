@@ -149,7 +149,9 @@ impl Inner
 
     fn get_arc_self(&self) -> Arc<Self>
     {
-        unsafe{ arc_from_self(self) }
+        let (arc, ret) = unsafe{ Arc::from_raw(self) }.clones();
+        forget(arc);
+        ret
     }
 
     fn schedule_internal(&self, due: Duration, period: Option<Duration>, act: ArcActFn, sub: Unsub<'static, YES>) -> Unsub<'static, YES>
@@ -170,13 +172,6 @@ impl Inner
 
         sub
     }
-}
-
-unsafe fn arc_from_self<T>(selv: &T) -> Arc<T>
-{
-    let (arc, ret) = Arc::from_raw(selv).clones();
-    forget(arc);
-    ret
 }
 
 impl Scheduler<YES> for EventLoopScheduler

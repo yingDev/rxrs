@@ -74,12 +74,12 @@ impl Inner
     fn run(state: Arc<Inner>)
     {
         let mut ready: Vec<ActItem> = Vec::new();
-        let mut re_schedules: BinaryHeap<ActItem> = BinaryHeap::new();
+        let mut re_schedules: Vec<ActItem> = Vec::new();
         let mut queue = state.queue.lock().unwrap();
 
         while ! state.disposed.load(Ordering::Relaxed) {
 
-            if queue.ready.len() == 0 && queue.timers.len() == 0 {
+            if ready.len() == 0 && queue.ready.len() == 0 && queue.timers.len() == 0 {
                 if state.exit_if_empty {
                     state.has_thread.store(false, Ordering::Relaxed);
                     break;
@@ -104,6 +104,7 @@ impl Inner
             for mut act in ready.drain(..) {
                 if ! act.unsub.is_done() {
                     act.act.call((Arc::as_ref(&state) as &Scheduler<YES>, ));
+                    if act.unsub.is_done() { continue; }
 
                     if let Some(period) = act.period {
                         act.due += period;
@@ -113,7 +114,14 @@ impl Inner
             }
 
             queue = state.queue.lock().unwrap();
-            queue.timers.append(&mut re_schedules);
+            let now = Instant::now();
+            for a in re_schedules.drain(..) {
+                if a.due <= now || a.unsub.is_done() {
+                    ready.push(a);
+                } else {
+                    queue.timers.push(a);
+                }
+            }
         }
 
     }
@@ -260,7 +268,7 @@ mod test
 
         let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
         ::std::thread::spawn(move ||{
-            ::std::thread::sleep_ms(133);
+            ::std::thread::sleep_ms(700);
             sub.unsub();
         });
 
@@ -284,17 +292,22 @@ mod test
 
         sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
             println!("later...3");
+            ::std::thread::sleep_ms(200);
             Unsub::done()
         });
         sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
             println!("later... 2");
+            ::std::thread::sleep_ms(200);
+
             Unsub::done()
         });
         sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
             println!("later... 1");
+            ::std::thread::sleep_ms(200);
+
             Unsub::done()
         });
 
-        ::std::thread::sleep_ms(1000);
+        ::std::thread::sleep_ms(2000);
     }
 }

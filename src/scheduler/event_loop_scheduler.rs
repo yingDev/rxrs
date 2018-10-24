@@ -1,21 +1,15 @@
-use std::time::Duration;
 use crate::*;
-use std::thread::*;
-use std::sync::Mutex;
-use std::collections::VecDeque;
-use std::time::SystemTime;
-use std::time::Instant;
-use std::collections::BinaryHeap;
-use std::boxed::FnBox;
-use std::sync::Arc;
-use std::sync::Condvar;
-use std::sync::MutexGuard;
-use std::cell::UnsafeCell;
-use std::sync::atomic::*;
-use std::sync::mpsc::{channel, Sender, Receiver};
-use std::sync::Weak;
-use std::mem::forget;
 use crate::any_send_sync::AnySendSync;
+use std::boxed::FnBox;
+use std::cell::UnsafeCell;
+use std::collections::BinaryHeap;
+use std::mem::forget;
+use std::sync::Arc;
+use std::sync::atomic::*;
+use std::sync::Condvar;
+use std::sync::Mutex;
+use std::time::Duration;
+use std::time::Instant;
 
 pub struct EventLoopScheduler
 {
@@ -90,7 +84,7 @@ impl Inner
                 }
             } else {
                 if let Some(next_tick) = queue.timers.peek().map(|item| item.due) {
-                    state.noti.wait_timeout(queue, next_tick - now);
+                    state.noti.wait_timeout(queue, next_tick - now).ok();
                 }
             }
         }
@@ -111,13 +105,22 @@ impl Inner
     }
 }
 
+impl Drop for Inner
+{
+    fn drop(&mut self)
+    {
+        self.disposed.store(true, Ordering::Release);
+        self.noti.notify_one();
+    }
+}
+
 impl Scheduler<YES> for Inner
 {
     fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
     {
         let (act1, act2) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) }).clones();
-        let (unsub1, unsub2) = Unsub::<YES>::with(move |()| unsafe{ (&mut *act1.get()).take();}).clones();
-        let act = box move |sch: &Scheduler<YES>| unsub1.if_not_done(|| unsafe{ &mut *act2.get()}.take().map_or((), |act| { unsub1.add_each(act.call_once(sch)); }));
+        let (sub1, sub2) = Unsub::<YES>::with(move |()| unsafe{ (&mut *act1.get()).take(); }).clones();
+        let act = box move |sch: &Scheduler<YES>| sub1.if_not_done(|| unsafe{ &mut *act2.get()}.take().map_or((), |act| { sub1.add_each(act.call_once(sch)); }));
 
         let mut queues = self.queue.lock().unwrap();
         if let Some(due) = due {
@@ -129,7 +132,7 @@ impl Scheduler<YES> for Inner
         self.noti.notify_one();
         self.ensure_thread();
 
-        unsub2
+        sub2
     }
 }
 
@@ -179,8 +182,8 @@ impl Ord for ActItem
 #[cfg(test)]
 mod test
 {
-    use crate::*;
     use ::std::boxed::FnBox;
+    use crate::*;
 
     #[test]
     fn smoke()

@@ -47,7 +47,7 @@ impl Inner
     fn run(state: Arc<Inner>)
     {
         let mut ready: Vec<ActItem> = Vec::new();
-        let mut periods: Vec<ActItem> = Vec::new();
+        let mut re_schedules: BinaryHeap<ActItem> = BinaryHeap::new();
         let mut queue = state.queue.lock().unwrap();
 
         while ! state.disposed.load(Ordering::Relaxed) {
@@ -77,18 +77,16 @@ impl Inner
             for mut act in ready.drain(..) {
                 if ! act.unsub.is_done() {
                     act.act.call((Arc::as_ref(&state) as &Scheduler<YES>, ));
+
                     if let Some(period) = act.period {
                         act.due += period;
-                        periods.push(act);
+                        re_schedules.push(act);
                     }
                 }
             }
+
             queue = state.queue.lock().unwrap();
-            for act in periods.drain(..) {
-                if ! act.unsub.is_done() {
-                    queue.timers.push(act);
-                }
-            }
+            queue.timers.append(&mut re_schedules);
         }
 
     }
@@ -101,9 +99,9 @@ impl Inner
         }
     }
 
-    fn remove(&self, act: &Arc<Fn(&Scheduler<YES>)+Send+Sync+'static>)
+    fn remove(&self, act: &ArcActFn)
     {
-        //sine there is no `remove` method for the BinaryHeap, we use a O(n) way to remove the target item
+        //sine BinaryHeap has no `remove()`, we use a ~O(n) way to remove the target item
         let mut queue = self.queue.lock().unwrap();
         let mut tmp = queue.tmp_for_remove.take().unwrap();
 
@@ -153,16 +151,13 @@ impl Scheduler<YES> for Inner
 {
     fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
     {
-        if self.disposed.load(Ordering::Acquire) {
-            return Unsub::done();
-        }
+        if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
 
         let (sub, sub1) = Unsub::new().clones();
         let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
-        let act: ArcActFn = Arc::new(move |sch: &Scheduler<YES>| {
-            sub1.if_not_done(|| unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(sch)); }))
-        });
-        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, act, sub)
+        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, Arc::new(move |sch: &Scheduler<YES>|
+            unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(sch)); })
+        ), sub)
     }
 }
 
@@ -181,10 +176,9 @@ impl SchedulerPeriodic<YES> for Inner
 
         let (sub, sub1) = Unsub::new().clones();
         let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
-        let act: ArcActFn = Arc::new(move |sch: &Scheduler<YES>| {
-            sub1.if_not_done(|| unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(())));
-        });
-        self.schedule_internal(period, Some(period), act, sub)
+        self.schedule_internal(period, Some(period), Arc::new(move |sch: &Scheduler<YES>|
+            unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(()))
+        ), sub)
     }
 }
 
@@ -260,7 +254,11 @@ mod test
 
         let sch = EventLoopScheduler::new(Fac, true);
 
-        sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
+        let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
+        ::std::thread::spawn(move ||{
+            ::std::thread::sleep_ms(133);
+            sub.unsub();
+        });
 
 
         sch.schedule(None, |s: &Scheduler<YES>| {

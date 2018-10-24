@@ -52,41 +52,36 @@ impl Inner
     fn run(state: Arc<Inner>)
     {
         let mut ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>> = Vec::new();
+        let mut queue = state.queue.lock().unwrap();
 
-        loop {
-            let mut queue = state.queue.lock().unwrap();
+        while ! state.disposed.load(Ordering::Relaxed) {
+
             if queue.ready.len() == 0 && queue.timers.len() == 0 {
                 if state.exit_if_empty {
-                    state.has_thread.store(false, Ordering::Release);
+                    state.has_thread.store(false, Ordering::Relaxed);
                     break;
                 }
                 queue = state.noti.wait(queue).unwrap();
             }
 
-            if state.disposed.load(Ordering::Acquire) {
-                break;
-            }
-
             ready.extend(queue.ready.drain(..));
-
             let now = Instant::now();
-            loop {
-                if queue.timers.peek().filter(|item| item.due <= now).is_some() {
-                    ready.push(queue.timers.pop().unwrap().act);
-                } else { break; }
+            while queue.timers.peek().filter(|item| item.due <= now).is_some() {
+                ready.push(queue.timers.pop().unwrap().act);
             }
 
-            if ready.len() > 0 {
-                drop(queue);
-
-                for act in ready.drain(..) {
-                    act.call_box((Arc::as_ref(&state) as &Scheduler<YES>, ));
-                }
-            } else {
+            if ready.len() == 0 {
                 if let Some(next_tick) = queue.timers.peek().map(|item| item.due) {
-                    state.noti.wait_timeout(queue, next_tick - now).ok();
+                    queue = state.noti.wait_timeout(queue, next_tick - now).unwrap().0;
                 }
+                continue;
             }
+
+            drop(queue);
+            for act in ready.drain(..) {
+                act.call_box((Arc::as_ref(&state) as &Scheduler<YES>, ));
+            }
+            queue = state.queue.lock().unwrap();
         }
 
     }
@@ -109,7 +104,11 @@ impl Drop for Inner
 {
     fn drop(&mut self)
     {
+        let mut queue = self.queue.lock().unwrap();
         self.disposed.store(true, Ordering::Release);
+        queue.timers.clear();
+        queue.ready.clear();
+
         self.noti.notify_one();
     }
 }
@@ -118,6 +117,10 @@ impl Scheduler<YES> for Inner
 {
     fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
     {
+        if self.disposed.load(Ordering::Acquire) {
+            return Unsub::done();
+        }
+
         let (act1, act2) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) }).clones();
         let (sub1, sub2) = Unsub::<YES>::with(move |()| unsafe{ (&mut *act1.get()).take(); }).clones();
         let act = box move |sch: &Scheduler<YES>| sub1.if_not_done(|| unsafe{ &mut *act2.get()}.take().map_or((), |act| { sub1.add_each(act.call_once(sch)); }));
@@ -210,22 +213,22 @@ mod test
         println!("ok? c");
         Unsub::done()
     });
-        sch.schedule(Some(::std::time::Duration::from_millis(500)), |s: &Scheduler<YES>| {
-            println!("later...500");
+        sch.schedule(Some(::std::time::Duration::from_millis(4)), |s: &Scheduler<YES>| {
+            println!("later...4");
             Unsub::done()
         });
 
 
-        sch.schedule(Some(::std::time::Duration::from_millis(200)), |s: &Scheduler<YES>| {
-            println!("later...200");
+        sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
+            println!("later...3");
             Unsub::done()
         });
-        sch.schedule(Some(::std::time::Duration::from_millis(540)), |s: &Scheduler<YES>| {
-            println!("later... 540");
+        sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
+            println!("later... 2");
             Unsub::done()
         });
-        sch.schedule(Some(::std::time::Duration::from_millis(50)), |s: &Scheduler<YES>| {
-            println!("later... 50");
+        sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
+            println!("later... 1");
             Unsub::done()
         });
 

@@ -101,15 +101,13 @@ impl Inner
             }
 
             drop(queue);
-            for mut act in ready.drain(..) {
-                if ! act.unsub.is_done() {
-                    act.act.call((Arc::as_ref(&state) as &Scheduler<YES>, ));
-                    if act.unsub.is_done() { continue; }
+            for mut act in ready.drain(..).filter(|a| !a.unsub.is_done()) {
+                act.act.call((Arc::as_ref(&state) as &Scheduler<YES>, ));
+                if act.unsub.is_done() { continue; }
 
-                    if let Some(period) = act.period {
-                        act.due += period;
-                        re_schedules.push(act);
-                    }
+                if let Some(period) = act.period {
+                    act.due += period;
+                    re_schedules.push(act);
                 }
             }
 

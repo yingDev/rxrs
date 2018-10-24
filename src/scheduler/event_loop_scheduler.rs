@@ -162,26 +162,13 @@ impl Inner
             queues.timers.push(item);
         }
 
-        let selv = self.get_arc_self();
-        sub.add(Unsub::<YES>::with(move |()| selv.remove(&act) ));
+        let selv = Arc::downgrade(&self.get_arc_self());
+        sub.add(Unsub::<YES>::with(move |()| selv.upgrade().map_or((), |arc| arc.remove(&act) )));
 
         self.noti.notify_one();
         self.ensure_thread();
 
         sub
-    }
-}
-
-impl Drop for Inner
-{
-    fn drop(&mut self)
-    {
-        let mut queue = self.queue.lock().unwrap();
-        self.disposed.store(true, Ordering::Release);
-        queue.timers.clear();
-        queue.ready.clear();
-
-        self.noti.notify_one();
     }
 }
 
@@ -205,6 +192,15 @@ impl SchedulerPeriodic<YES> for EventLoopScheduler
     fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
     {
         self.state.schedule_periodic(period, act)
+    }
+}
+
+impl Drop for EventLoopScheduler
+{
+    fn drop(&mut self)
+    {
+        self.state.disposed.store(true, Ordering::Release);
+        self.state.noti.notify_one();
     }
 }
 
@@ -248,11 +244,11 @@ mod test
     use ::std::boxed::FnBox;
     use crate::*;
     use ::std::time::Duration;
+    use std::sync::Arc;
 
     #[test]
     fn smoke()
     {
-
         struct Fac;
         impl ThreadFactory for Fac
         {
@@ -262,50 +258,54 @@ mod test
             }
         }
 
-        let sch = EventLoopScheduler::new(Fac, true);
+        //let sch = EventLoopScheduler::new(Fac, true);
+        //println!("strong={:}", Arc::strong_count(&sch));
+//
+//        let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
+//        ::std::thread::spawn(move ||{
+//            ::std::thread::sleep_ms(700);
+//            sub.unsub();
+//        });
+//
+//
+//        sch.schedule(None, |s: &Scheduler<YES>| {
+//            println!("ok? a");
+//            Unsub::done()
+//        });
+//        sch.schedule(None, |s: &Scheduler<YES>| {
+//            println!("ok? b");
+//            Unsub::done()
+//        });
+//
+//        sch.schedule(None, |s: &Scheduler<YES>| {
+//            println!("ok? c");
+//            Unsub::done()
+//        });
+//
+//        sch.schedule(Some(::std::time::Duration::from_millis(4)), |s: &Scheduler<YES>| {
+//            println!("later...4");
+//            Unsub::done()
+//        });
+//
+//
+//        sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
+//            println!("later...3");
+//            ::std::thread::sleep_ms(200);
+//            Unsub::done()
+//        });
+//        sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
+//            println!("later... 2");
+//            ::std::thread::sleep_ms(200);
+//
+//            Unsub::done()
+//        });
+//        sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
+//            println!("later... 1");
+//            ::std::thread::sleep_ms(200);
+//
+//            Unsub::done()
+//        });
 
-        let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
-        ::std::thread::spawn(move ||{
-            ::std::thread::sleep_ms(700);
-            sub.unsub();
-        });
-
-
-        sch.schedule(None, |s: &Scheduler<YES>| {
-            println!("ok? a");
-            Unsub::done()
-        });
-        sch.schedule(None, |s: &Scheduler<YES>| {
-            println!("ok? b");
-            Unsub::done()
-        });        sch.schedule(None, |s: &Scheduler<YES>| {
-        println!("ok? c");
-        Unsub::done()
-    });
-        sch.schedule(Some(::std::time::Duration::from_millis(4)), |s: &Scheduler<YES>| {
-            println!("later...4");
-            Unsub::done()
-        });
-
-
-        sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
-            println!("later...3");
-            ::std::thread::sleep_ms(200);
-            Unsub::done()
-        });
-        sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
-            println!("later... 2");
-            ::std::thread::sleep_ms(200);
-
-            Unsub::done()
-        });
-        sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
-            println!("later... 1");
-            ::std::thread::sleep_ms(200);
-
-            Unsub::done()
-        });
-
-        ::std::thread::sleep_ms(2000);
+        //::std::thread::sleep_ms(2000);
     }
 }

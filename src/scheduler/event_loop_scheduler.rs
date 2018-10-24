@@ -1,4 +1,3 @@
-use std::boxed::FnBox;
 use std::cell::UnsafeCell;
 use std::collections::BinaryHeap;
 use std::mem::forget;
@@ -40,6 +39,34 @@ struct ActItem
     period: Option<Duration>,
     unsub: Unsub<'static, YES>,
     act: ArcActFn
+}
+
+impl Scheduler<YES> for Inner
+{
+    fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
+    {
+        if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
+
+        let (sub, sub1) = Unsub::new().clones();
+        let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
+        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, Arc::new(move |sch: &Scheduler<YES>|
+            unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(sch)); })
+        ), sub)
+    }
+}
+
+impl SchedulerPeriodic<YES> for Inner
+{
+    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
+    {
+        if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
+
+        let (sub, sub1) = Unsub::new().clones();
+        let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
+        self.schedule_internal(period, Some(period), Arc::new(move |_: &Scheduler<YES>|
+            unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(()))
+        ), sub)
+    }
 }
 
 impl Inner
@@ -119,7 +146,7 @@ impl Inner
         unsafe{ arc_from_self(self) }
     }
 
-    fn schedule_internal(&self, due: Duration, period: Option<Duration>, act: ArcActFn, sub: Unsub<'static, YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule_internal(&self, due: Duration, period: Option<Duration>, act: ArcActFn, sub: Unsub<'static, YES>) -> Unsub<'static, YES>
     {
         let mut queues = self.queue.lock().unwrap();
         queues.timers.push(ActItem{ due: Instant::now() + due, act: act.clone(), period, unsub:  sub.clone()});
@@ -147,39 +174,11 @@ impl Drop for Inner
     }
 }
 
-impl Scheduler<YES> for Inner
-{
-    fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
-    {
-        if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
-
-        let (sub, sub1) = Unsub::new().clones();
-        let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
-        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, Arc::new(move |sch: &Scheduler<YES>|
-            unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(sch)); })
-        ), sub)
-    }
-}
-
 unsafe fn arc_from_self<T>(selv: &T) -> Arc<T>
 {
     let (arc, ret) = Arc::from_raw(selv).clones();
     forget(arc);
     ret
-}
-
-impl SchedulerPeriodic<YES> for Inner
-{
-    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
-    {
-        if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
-
-        let (sub, sub1) = Unsub::new().clones();
-        let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
-        self.schedule_internal(period, Some(period), Arc::new(move |sch: &Scheduler<YES>|
-            unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(()))
-        ), sub)
-    }
 }
 
 impl Scheduler<YES> for EventLoopScheduler

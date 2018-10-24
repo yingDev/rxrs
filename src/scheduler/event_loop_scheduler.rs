@@ -149,7 +149,12 @@ impl Inner
     fn schedule_internal(&self, due: Duration, period: Option<Duration>, act: ArcActFn, sub: Unsub<'static, YES>) -> Unsub<'static, YES>
     {
         let mut queues = self.queue.lock().unwrap();
-        queues.timers.push(ActItem{ due: Instant::now() + due, act: act.clone(), period, unsub:  sub.clone()});
+        let item = ActItem{ due: Instant::now() + due, act: act.clone(), period, unsub:  sub.clone()};
+        if due == Duration::new(0, 0) {
+            queues.ready.push(item);
+        } else {
+            queues.timers.push(item);
+        }
 
         let selv = self.get_arc_self();
         sub.add(Unsub::<YES>::with(move |()| selv.remove(&act) ));

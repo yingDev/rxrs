@@ -258,54 +258,53 @@ mod test
             }
         }
 
-        //let sch = EventLoopScheduler::new(Fac, true);
-        //println!("strong={:}", Arc::strong_count(&sch));
-//
-//        let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
-//        ::std::thread::spawn(move ||{
-//            ::std::thread::sleep_ms(700);
-//            sub.unsub();
-//        });
-//
-//
-//        sch.schedule(None, |s: &Scheduler<YES>| {
-//            println!("ok? a");
-//            Unsub::done()
-//        });
-//        sch.schedule(None, |s: &Scheduler<YES>| {
-//            println!("ok? b");
-//            Unsub::done()
-//        });
-//
-//        sch.schedule(None, |s: &Scheduler<YES>| {
-//            println!("ok? c");
-//            Unsub::done()
-//        });
-//
-//        sch.schedule(Some(::std::time::Duration::from_millis(4)), |s: &Scheduler<YES>| {
-//            println!("later...4");
-//            Unsub::done()
-//        });
-//
-//
-//        sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
-//            println!("later...3");
-//            ::std::thread::sleep_ms(200);
-//            Unsub::done()
-//        });
-//        sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
-//            println!("later... 2");
-//            ::std::thread::sleep_ms(200);
-//
-//            Unsub::done()
-//        });
-//        sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
-//            println!("later... 1");
-//            ::std::thread::sleep_ms(200);
-//
-//            Unsub::done()
-//        });
+        let sch = EventLoopScheduler::new(Fac, true);
 
-        //::std::thread::sleep_ms(2000);
+        let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
+        ::std::thread::spawn(move ||{
+            ::std::thread::sleep_ms(700);
+            sub.unsub();
+        });
+
+
+        sch.schedule(None, |s: &Scheduler<YES>| {
+            println!("ok? a");
+            Unsub::done()
+        });
+        sch.schedule(None, |s: &Scheduler<YES>| {
+            println!("ok? b");
+            Unsub::done()
+        });
+
+        sch.schedule(None, |s: &Scheduler<YES>| {
+            println!("ok? c");
+            Unsub::done()
+        });
+
+        sch.schedule(Some(::std::time::Duration::from_millis(4)), |s: &Scheduler<YES>| {
+            println!("later...4");
+            Unsub::done()
+        });
+
+
+        sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
+            println!("later...3");
+            ::std::thread::sleep_ms(200);
+            Unsub::done()
+        });
+        sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
+            println!("later... 2");
+            ::std::thread::sleep_ms(200);
+
+            Unsub::done()
+        });
+        sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
+            println!("later... 1");
+            ::std::thread::sleep_ms(200);
+
+            Unsub::done()
+        });
+
+        ::std::thread::sleep_ms(2000);
     }
 }

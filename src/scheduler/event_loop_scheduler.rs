@@ -16,33 +16,6 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::Weak;
 use std::mem::forget;
 
-pub trait SchActPeriodic<SS:YesNo, S> : for<'x> Act<SS, &'x S, S> + 'static {}
-pub trait SchActOnce<SS:YesNo> : for<'x> ActOnce<SS, &'x Scheduler<SS>, Unsub<'static, SS>> + 'static {}
-pub trait SchActBox<SS:YesNo> : for<'x> ActBox<SS, &'x Scheduler<SS>, Unsub<'static, SS>> + 'static {}
-
-
-impl<SS:YesNo, S, A: for<'x> Act<SS, &'x S, S>+'static>
-SchActPeriodic<SS, S>
-for A{}
-
-impl<SS:YesNo, A: for<'x> ActOnce<SS, &'x Scheduler<SS>, Unsub<'static, SS>>+'static>
-SchActOnce<SS>
-for A{}
-
-impl<SS:YesNo, A: for<'x> ActBox<SS, &'x Scheduler<SS>, Unsub<'static, SS>>+'static>
-SchActBox<SS>
-for A{}
-
-pub trait Scheduler<SS:YesNo>
-{
-   fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<SS>) -> Unsub<'static, SS> where Self: Sized;
-}
-
-pub trait SchedulerPeriodic<SS:YesNo> : Scheduler<SS>
-{
-    fn schedule_periodic<S>(&self, period: Duration, act: impl SchActPeriodic<SS, S>) -> Unsub<'static, SS> where Self: Sized;
-}
-
 pub struct EventLoopScheduler
 {
     state: Arc<Inner>

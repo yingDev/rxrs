@@ -1,15 +1,11 @@
-use crate::*;
-use crate::any_send_sync::AnySendSync;
 use std::boxed::FnBox;
 use std::cell::UnsafeCell;
 use std::collections::BinaryHeap;
 use std::mem::forget;
-use std::sync::Arc;
-use std::sync::atomic::*;
-use std::sync::Condvar;
-use std::sync::Mutex;
-use std::time::Duration;
-use std::time::Instant;
+use std::sync::{Condvar, Mutex, Arc, atomic::*};
+use std::time::{Duration, Instant};
+use crate::*;
+use crate::any_send_sync::AnySendSync;
 
 pub struct EventLoopScheduler
 {
@@ -38,13 +34,6 @@ struct ActItem
 {
     due: Instant,
     act: Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>
-}
-
-//todo: extract
-pub trait ThreadFactory
-{
-    fn start(&self, main: impl FnOnce()+Send+Sync+'static) where Self: Sized{ self.start_dyn(box main) }
-    fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>);
 }
 
 impl Inner
@@ -147,7 +136,6 @@ impl Scheduler<YES> for EventLoopScheduler
     }
 }
 
-//todo: drop
 impl EventLoopScheduler
 {
     pub fn new(fac: impl ThreadFactory+Send+Sync+'static, exit_if_empty: bool) -> Arc<EventLoopScheduler>

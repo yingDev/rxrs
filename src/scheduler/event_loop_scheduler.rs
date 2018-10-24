@@ -57,8 +57,6 @@ impl Inner
 {
     fn run(state: Arc<Inner>)
     {
-        let selv = Arc::as_ref(&state);
-
         let mut ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>> = Vec::new();
 
         loop {
@@ -75,11 +73,9 @@ impl Inner
                 break;
             }
 
-            ready.clear();
             ready.extend(queue.ready.drain(..));
 
             let now = Instant::now();
-
             loop {
                 if queue.timers.peek().filter(|item| item.due <= now).is_some() {
                     ready.push(queue.timers.pop().unwrap().act);
@@ -90,7 +86,7 @@ impl Inner
                 drop(queue);
 
                 for act in ready.drain(..) {
-                    act.call_box((selv as &Scheduler<YES>, ));
+                    act.call_box((Arc::as_ref(&state) as &Scheduler<YES>, ));
                 }
             } else {
                 if let Some(next_tick) = queue.timers.peek().map(|item| item.due) {

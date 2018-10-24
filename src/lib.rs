@@ -64,8 +64,8 @@ unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActBox <SS, Option<By<'x, BY>
 ActEcBox<'o, SS, BY>
 for A {}
 
-unsafe impl<SS:YesNo, S, A: for<'x> Act<SS, &'x S, S>+'static>
-SchActPeriodic<SS, S>
+unsafe impl<SS:YesNo, A: for<'x> Act<SS>+'static>
+SchActPeriodic<SS>
 for A{}
 
 unsafe impl<SS:YesNo, A: for<'x> ActOnce<SS, &'x Scheduler<SS>, Unsub<'static, SS>>+'static>

@@ -27,20 +27,27 @@ struct Inner
 struct ActQueue
 {
     timers: BinaryHeap<ActItem>,
-    ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>>
+    ready: Vec<ActItem>,
+
+    tmp_for_remove: Option<BinaryHeap<ActItem>>
 }
+
+type ArcActFn = Arc<Fn(&Scheduler<YES>)+Send+Sync+'static>;
 
 struct ActItem
 {
     due: Instant,
-    act: Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>
+    period: Option<Duration>,
+    unsub: Unsub<'static, YES>,
+    act: ArcActFn
 }
 
 impl Inner
 {
     fn run(state: Arc<Inner>)
     {
-        let mut ready: Vec<Box<FnBox(&Scheduler<YES>)+Send+Sync+'static>> = Vec::new();
+        let mut ready: Vec<ActItem> = Vec::new();
+        let mut periods: Vec<ActItem> = Vec::new();
         let mut queue = state.queue.lock().unwrap();
 
         while ! state.disposed.load(Ordering::Relaxed) {
@@ -56,7 +63,7 @@ impl Inner
             ready.extend(queue.ready.drain(..));
             let now = Instant::now();
             while queue.timers.peek().filter(|item| item.due <= now).is_some() {
-                ready.push(queue.timers.pop().unwrap().act);
+                ready.push(queue.timers.pop().unwrap());
             }
 
             if ready.len() == 0 {
@@ -67,10 +74,21 @@ impl Inner
             }
 
             drop(queue);
-            for act in ready.drain(..) {
-                act.call_box((Arc::as_ref(&state) as &Scheduler<YES>, ));
+            for mut act in ready.drain(..) {
+                if ! act.unsub.is_done() {
+                    act.act.call((Arc::as_ref(&state) as &Scheduler<YES>, ));
+                    if let Some(period) = act.period {
+                        act.due += period;
+                        periods.push(act);
+                    }
+                }
             }
             queue = state.queue.lock().unwrap();
+            for act in periods.drain(..) {
+                if ! act.unsub.is_done() {
+                    queue.timers.push(act);
+                }
+            }
         }
 
     }
@@ -78,14 +96,43 @@ impl Inner
     fn ensure_thread(&self)
     {
         if ! self.has_thread.swap(true, Ordering::Release) {
-            let selv = unsafe{
-                let arc = Arc::from_raw(self);
-                let ret = arc.clone();
-                forget(arc);
-                ret
-            };
+            let selv = self.get_arc_self();
             self.fac.start_dyn(box move || Self::run(selv));
         }
+    }
+
+    fn remove(&self, act: &Arc<Fn(&Scheduler<YES>)+Send+Sync+'static>)
+    {
+        //sine there is no `remove` method for the BinaryHeap, we use a O(n) way to remove the target item
+        let mut queue = self.queue.lock().unwrap();
+        let mut tmp = queue.tmp_for_remove.take().unwrap();
+
+        tmp.append(&mut queue.timers);
+        for a in tmp.drain() {
+            if ! Arc::ptr_eq(act, &a.act) {
+                queue.timers.push(a);
+            }
+        }
+        queue.tmp_for_remove.replace(tmp);
+    }
+
+    fn get_arc_self(&self) -> Arc<Self>
+    {
+        unsafe{ arc_from_self(self) }
+    }
+
+    fn schedule_internal(&self, due: Duration, period: Option<Duration>, act: ArcActFn, sub: Unsub<'static, YES>) -> Unsub<'static, YES> where Self: Sized
+    {
+        let mut queues = self.queue.lock().unwrap();
+        queues.timers.push(ActItem{ due: Instant::now() + due, act: act.clone(), period, unsub:  sub.clone()});
+
+        let selv = self.get_arc_self();
+        sub.add(Unsub::<YES>::with(move |()| selv.remove(&act) ));
+
+        self.noti.notify_one();
+        self.ensure_thread();
+
+        sub
     }
 }
 
@@ -110,21 +157,34 @@ impl Scheduler<YES> for Inner
             return Unsub::done();
         }
 
-        let (act1, act2) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) }).clones();
-        let (sub1, sub2) = Unsub::<YES>::with(move |()| unsafe{ (&mut *act1.get()).take(); }).clones();
-        let act = box move |sch: &Scheduler<YES>| sub1.if_not_done(|| unsafe{ &mut *act2.get()}.take().map_or((), |act| { sub1.add_each(act.call_once(sch)); }));
+        let (sub, sub1) = Unsub::new().clones();
+        let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
+        let act: ArcActFn = Arc::new(move |sch: &Scheduler<YES>| {
+            sub1.if_not_done(|| unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(sch)); }))
+        });
+        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, act, sub)
+    }
+}
 
-        let mut queues = self.queue.lock().unwrap();
-        if let Some(due) = due {
-            queues.timers.push(ActItem{ due: Instant::now() + due, act });
-        } else {
-            queues.ready.push(act);
-        }
+unsafe fn arc_from_self<T>(selv: &T) -> Arc<T>
+{
+    let (arc, ret) = Arc::from_raw(selv).clones();
+    forget(arc);
+    ret
+}
 
-        self.noti.notify_one();
-        self.ensure_thread();
+impl SchedulerPeriodic<YES> for Inner
+{
+    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
+    {
+        if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
 
-        sub2
+        let (sub, sub1) = Unsub::new().clones();
+        let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
+        let act: ArcActFn = Arc::new(move |sch: &Scheduler<YES>| {
+            sub1.if_not_done(|| unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(())));
+        });
+        self.schedule_internal(period, Some(period), act, sub)
     }
 }
 
@@ -136,12 +196,20 @@ impl Scheduler<YES> for EventLoopScheduler
     }
 }
 
+impl SchedulerPeriodic<YES> for EventLoopScheduler
+{
+    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
+    {
+        self.state.schedule_periodic(period, act)
+    }
+}
+
 impl EventLoopScheduler
 {
     pub fn new(fac: impl ThreadFactory+Send+Sync+'static, exit_if_empty: bool) -> Arc<EventLoopScheduler>
     {
         let state = Arc::new(Inner {
-            queue: Mutex::new(ActQueue{ timers: BinaryHeap::new(), ready: Vec::new() }),
+            queue: Mutex::new(ActQueue{ timers: BinaryHeap::new(), tmp_for_remove: Some(BinaryHeap::new()), ready: Vec::new() }),
             has_thread: AtomicBool::new(false),
             disposed: AtomicBool::new(false),
             exit_if_empty,
@@ -175,6 +243,7 @@ mod test
 {
     use ::std::boxed::FnBox;
     use crate::*;
+    use ::std::time::Duration;
 
     #[test]
     fn smoke()
@@ -190,6 +259,10 @@ mod test
         }
 
         let sch = EventLoopScheduler::new(Fac, true);
+
+        sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
+
+
         sch.schedule(None, |s: &Scheduler<YES>| {
             println!("ok? a");
             Unsub::done()

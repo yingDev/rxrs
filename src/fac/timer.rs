@@ -2,6 +2,7 @@ use std::time::Duration;
 use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::sync::atomic::*;
 
 //todo:
 
@@ -28,11 +29,14 @@ for Timer<YES, Sch>
 {
     fn sub(&self, next: impl ActNext<'static, YES, Val<usize>>, ec: impl ActEc<'static, YES>) -> Unsub<'static, YES>
     {
-        Unsub::done()
+        let next = sendsync_next(next);
+        let count = AtomicUsize::new(0);
+        self.scheduler.schedule_periodic(self.period, move |()|{
+            next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+        })
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<usize>>>, ec: Box<ActEcBox<'static, YES>>) -> Unsub<'static, YES>
-    {
-        Unsub::done()
-    }
+    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
+
 }

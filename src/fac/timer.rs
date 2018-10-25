@@ -126,5 +126,8 @@ mod test
 
         ::std::thread::sleep_ms(150);
         assert_eq!(*n.lock().unwrap(), 106);
+
+        ::std::thread::sleep_ms(150);
+        assert_eq!(*n.lock().unwrap(), 106);
     }
 }

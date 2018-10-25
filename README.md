@@ -7,6 +7,27 @@
 
 ### 🌱 WIP: rewriting everything ...
 
+
+```rust
+    #[test]
+    fn ops()
+    {
+        let (out, out1, out3) = Arc::new(Mutex::new(String::new())).clones();
+        let t = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+
+        t.filter(|v| **v % 2 == 0 ).take(5).map(|v| format!("{}", *v)).sub(
+            move |v: By<Val<String>>| { out.lock().unwrap().push_str(&*v); },
+            move |e: Option<By<_>>| out3.lock().unwrap().push_str("ok")
+        );
+
+        ::std::thread::sleep_ms(1000);
+
+        assert_eq!(out1.lock().unwrap().as_str(), "02468ok");
+    }
+
+```
+
+
 ```bash
 src
 ├── act.rs

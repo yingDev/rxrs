@@ -92,10 +92,39 @@ mod test
         for i in 0..5 {
             let (n1, n2) = n.clone().clones();
             let t = t.clone();
-            t.take(1).sub(move |v: By<_>| *n1.lock().unwrap() += i, move |e:Option<By<_>>| *n2.lock().unwrap() += 1 );
+            t.take(1).sub(
+                move |v: By<_>| *n1.lock().unwrap() += i,
+                move |e:Option<By<_>>| *n2.lock().unwrap() += 1
+            );
         }
 
         ::std::thread::sleep_ms(500);
         assert_eq!(*n.lock().unwrap(), 10 + 5);
+    }
+
+    #[test]
+    fn as_until_sig()
+    {
+        let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
+        let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
+        let t = Arc::new(Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac))));
+
+        s.until(t).sub(
+            move |v:By<_>| *n1.lock().unwrap() += *v ,
+            move |e: Option<By<_>>| *n2.lock().unwrap() += 100
+        );
+
+        s1.next(1);
+        assert_eq!(*n.lock().unwrap(), 1);
+
+        s1.next(2);
+        assert_eq!(*n.lock().unwrap(), 3);
+
+        ::std::thread::sleep_ms(10);
+        s1.next(3);
+        assert_eq!(*n.lock().unwrap(), 6);
+
+        ::std::thread::sleep_ms(150);
+        assert_eq!(*n.lock().unwrap(), 106);
     }
 }

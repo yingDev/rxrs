@@ -3,28 +3,30 @@ use std::sync::Arc;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::cell::UnsafeCell;
+use std::marker::PhantomData;
 
-pub struct UntilOp<Src, Sig>
+pub struct UntilOp<Src, SVBy, SEBy, Sig>
 {
     src: Src,
     sig: Arc<Sig>,
+    PhantomData: PhantomData<(SEBy, SVBy)>
 }
 
-pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, Sig: Observable<'o, SS, VBy, EBy>> : Sized
+pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal, Sig: Observable<'o, SS, SVBy, SEBy>> : Sized
 {
-    fn until(self, signal: Sig) -> UntilOp<Self, Sig>
+    fn until(self, signal: Sig) -> UntilOp<Self, SVBy, SEBy, Sig>
     {
-        UntilOp{ src: self, sig: Arc::new(signal) }
+        UntilOp{ src: self, sig: Arc::new(signal), PhantomData }
     }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, VBy, EBy>>
-ObsUntilOp<'o, SS, VBy, EBy, Sig>
+impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, SVBy, SEBy>>
+ObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy, Sig>
 for Src {}
 
-impl<'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, Sig: Observable<'o, NO, VBy, EBy>>
+impl<'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, Sig: Observable<'o, NO, SVBy, SEBy>>
 Observable<'o, NO, VBy, EBy>
-for UntilOp<Src, Sig>
+for UntilOp<Src, SVBy, SEBy, Sig>
 {
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
@@ -46,9 +48,9 @@ for UntilOp<Src, Sig>
     { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
 }
 
-impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, Sig: Observable<'static, YES, VBy, EBy>>
+impl<VBy: RefOrValSSs, EBy: RefOrValSSs,  SVBy: RefOrValSSs, SEBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, Sig: Observable<'static, YES, SVBy, SEBy>>
 Observable<'static, YES, VBy, EBy>
-for UntilOp<Src, Sig>
+for UntilOp<Src, SVBy, SEBy, Sig>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {

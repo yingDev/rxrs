@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::*;
 use crate::*;
-use std::cmp::min;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -120,7 +119,15 @@ mod test
 
         s1.complete();
         assert_eq!(n2.get(), 103);
+    }
 
+    #[test]
+    fn of()
+    {
+        let n = Cell::new(0);
+        Of::value(123).take(100).sub(|v:By<_>| { n.replace(*v); }, |e:Option<By<_>>| { n.replace(n.get() + 100); });
+
+        assert_eq!(n.get(), 223);
     }
 
 }

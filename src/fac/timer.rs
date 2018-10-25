@@ -40,3 +40,9 @@ for Timer<YES, Sch>
     { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
 
 }
+
+#[cfg(test)]
+mod test
+{
+
+}

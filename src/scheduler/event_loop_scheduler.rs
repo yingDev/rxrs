@@ -20,7 +20,7 @@ struct Inner
     exit_if_empty: bool,
 
     noti: Condvar,
-    fac: Box<ThreadFactory+Send+Sync>
+    fac: Arc<ThreadFactory+Send+Sync+'static>
 }
 
 struct ActQueue
@@ -201,7 +201,7 @@ impl Drop for EventLoopScheduler
 
 impl EventLoopScheduler
 {
-    pub fn new(fac: impl ThreadFactory+Send+Sync+'static, exit_if_empty: bool) -> Arc<EventLoopScheduler>
+    pub fn new(fac: Arc<ThreadFactory+Send+Sync+'static>, exit_if_empty: bool) -> EventLoopScheduler
     {
         let state = Arc::new(Inner {
             queue: Mutex::new(ActQueue{ timers: BinaryHeap::new(), tmp_for_remove: Some(BinaryHeap::new()), ready: Vec::new() }),
@@ -209,10 +209,10 @@ impl EventLoopScheduler
             disposed: AtomicBool::new(false),
             exit_if_empty,
             noti: Condvar::new(),
-            fac: box fac
+            fac
         });
 
-        Arc::new(EventLoopScheduler{ state })
+        EventLoopScheduler{ state }
     }
 }
 
@@ -244,16 +244,7 @@ mod test
     #[test]
     fn smoke()
     {
-        struct Fac;
-        impl ThreadFactory for Fac
-        {
-            fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>)
-            {
-                ::std::thread::spawn(move || main.call_box(()));
-            }
-        }
-
-        let sch = EventLoopScheduler::new(Fac, true);
+        let sch = EventLoopScheduler::new(Arc::new(DefaultThreadFac), true);
 
         let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
         ::std::thread::spawn(move ||{

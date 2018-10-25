@@ -21,6 +21,15 @@ pub unsafe trait SchActPeriodic<SS:YesNo> : for<'x> Act<SS> + 'static {}
 pub unsafe trait SchActOnce<SS:YesNo> : for<'x> ActOnce<SS, &'x Scheduler<SS>, Unsub<'static, SS>> + 'static {}
 pub unsafe trait SchActBox<SS:YesNo> : for<'x> ActBox<SS, &'x Scheduler<SS>, Unsub<'static, SS>> + 'static {}
 
+pub struct DefaultThreadFac;
+impl ThreadFactory for DefaultThreadFac
+{
+    fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>)
+    {
+        ::std::thread::spawn(move || main.call_box(()));
+    }
+}
+
 pub use self::event_loop_scheduler::*;
 pub use self::new_thread_scheduler::*;
 mod event_loop_scheduler;

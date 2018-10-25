@@ -107,7 +107,7 @@ mod test
     {
         let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
         let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
-        let t = Arc::new(Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac))));
+        let t = Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
 
         s.until(t).sub(
             move |v:By<_>| *n1.lock().unwrap() += *v ,

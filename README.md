@@ -13,14 +13,20 @@ src
 ├── act_helpers.rs
 ├── fac
 │   ├── mod.rs
-│   └── of.rs
+│   ├── of.rs
+│   └── timer.rs
 ├── lib.rs
 ├── observables.rs
 ├── op
 │   ├── filter.rs
 │   ├── map.rs
 │   ├── mod.rs
+│   ├── take.rs
 │   └── until.rs
+├── scheduler
+│   ├── event_loop_scheduler.rs
+│   ├── mod.rs
+│   └── new_thread_scheduler.rs
 ├── subject
 │   ├── behavior_subject.rs
 │   ├── mod.rs
@@ -31,8 +37,10 @@ src
 ├── unsub.rs
 └── util
     ├── alias.rs
+    ├── any_send_sync.rs
     ├── by.rs
     ├── clones.rs
     ├── mod.rs
     └── yesno.rs
+
 ```

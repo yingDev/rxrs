@@ -1,5 +1,5 @@
 use crate::*;
-use std::boxed::FnBox;
+
 pub unsafe trait ActOnce<SS:YesNo, A=(), R=()>
 {
     fn call_once(self, e: A) -> R;

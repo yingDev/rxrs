@@ -16,13 +16,14 @@ pub fn sendsync_actonce<'o, A>(act: impl ActOnce<YES, A>+'o) -> impl ActOnce<YES
     move |v:A| a.into_inner().call_once(v)
 }
 
-pub fn sendsync_next<'o, BY: RefOrVal>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
+pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
 {
-    let a = unsafe{ AnySendSync::new(next) };
-    move |v:By<BY>| a.call(v)
+    //let a = unsafe{ AnySendSync::new(next) };
+    ForwardNext::new(next, |n,v| n.call(v), |s|s)
+    //move |v:By<BY>| a.call(v)
 }
 
-pub fn sendsync_ec<'o, BY: RefOrVal>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
+pub fn sendsync_ec<'o, BY: RefOrValSSs>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
 {
     let a = unsafe{ AnySendSync::new(act) };
     move |e:Option<By<BY>>| a.into_inner().call_once(e)

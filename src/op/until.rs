@@ -30,11 +30,11 @@ for UntilOp<Src, SVBy, SEBy, Sig>
 {
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
-        let (s1, s2, s3) = Unsub::new().clones();
+        let (s1, s2, s3, s4) = Unsub::new().clones();
         let (ec1, ec2) = Rc::new(RefCell::new(Some(ec))).clones();
 
         s1.add_each(self.sig.sub(
-            move |_: By<_>| s2.unsub_then(|| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None))), ()
+            (move |v:By<_>| s2.unsub_then(|| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None))), move|()| s4.is_done()), ()
         ));
 
         if s3.is_done() { return s3; }
@@ -54,13 +54,13 @@ for UntilOp<Src, SVBy, SEBy, Sig>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (s1, s2, s3, s4, s5) = Unsub::new().clones();
+        let (s1, s2, s3, s4, s5, s6) = Unsub::new().clones();
         //no mutex here because access is protected by Unsub's internal lock
         let (ec1, ec2) = Arc::new(AnySendSync(UnsafeCell::new(Some(ec)))).clones();
         let next = sendsync_next(next);
 
         s1.add_each(self.sig.sub(
-            move |_: By<_>| s2.unsub_then(|| unsafe{ &mut *ec1.0.get() }.take().map_or((), |ec| ec.call_once(None))), ()
+            (move |_: By<_>| s2.unsub_then(|| unsafe{ &mut *ec1.0.get() }.take().map_or((), |ec| ec.call_once(None))), move |()| s6.is_done()), ()
         ));
 
         if s3.is_done() { return s3; }

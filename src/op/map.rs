@@ -29,10 +29,10 @@ for MapOp<NO, VBy, Src, F>
         let f = self.f.clone();
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(move |v:By<_>| {
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v| {
             let v = f(v);
             if !s2.is_done() { next.call(By::v(v)); }
-        } , ec))
+        }, |s| s) , ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
@@ -48,10 +48,10 @@ for MapOp<YES, VBy, Src, F>
         let (f, next) = (self.f.clone(), sendsync_next(next));
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(move |v:By<_>| {
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v| {
             let v = f(v);
             s2.if_not_done(|| next.call(By::v(v)));
-        }, ec))
+        }, |s|s), ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>

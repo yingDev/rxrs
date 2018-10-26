@@ -111,30 +111,29 @@ for () {
 
 
 
-pub struct ForwardNext<'o, SS:YesNo, BY:RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)+'o, S: Fn(bool)->bool+'o>
+pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, By<FBY>)+'o, S: Fn(bool)->bool+'o>
 {
     old: N,
     next: F,
     stop: S,
-    PhantomData: PhantomData<&'o(SS, BY)>
+    PhantomData: PhantomData<&'o(SS, NBY, FBY)>
 }
 
-impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, BY, N, F, S>
+unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, By<FBY>)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Send for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
+unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, By<FBY>)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Sync for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
+
+impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, By<FBY>)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
-    pub fn new(old: N, next: F, stop: S) -> Self
+    #[inline(always)] pub fn new(old: N, next: F, stop: S) -> Self
     {
         ForwardNext{ old, next, stop, PhantomData }
     }
 }
 
-unsafe impl<'o, SS:YesNo, BY:RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)+'o, S: Fn(bool)->bool+'o> ActNext<'o, SS, BY> for ForwardNext<'o, SS, BY, N, F, S>
+unsafe impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, By<FBY>)+'o, S: Fn(bool)->bool+'o> ActNext<'o, SS, FBY> for ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
-    fn call(&self, by: By<BY>)
-    {
-        self.next.call((&self.old, by))
-    }
-
-    fn stopped(&self) -> bool
+    #[inline(always)]fn call(&self, by: By<FBY>) { self.next.call((&self.old, by)) }
+    #[inline(always)]fn stopped(&self) -> bool
     {
         self.stop.call((self.old.stopped(),))
     }
@@ -142,24 +141,19 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)
 
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)
 {
-    fn call(&self, v: By<BY>) {
-        self.0.call(v);
-    }
-
-    fn stopped(&self) -> bool {
-        self.1.call(())
-    }
+    #[inline(always)]fn call(&self, v: By<BY>) { self.0.call(v); }
+    #[inline(always)]fn stopped(&self) -> bool {self.1.call(()) }
 }
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActNext<'o, SS, BY> for Box<ActNext<'o, SS, BY>>
 {
-    fn call<'x>(&self, v: By<'x, BY>) { Box::as_ref(self).call(v) }
-    fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
+    #[inline(always)] fn call<'x>(&self, v: By<'x, BY>) { Box::as_ref(self).call(v) }
+    #[inline(always)] fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
 }
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o, SS, BY>>
 {
-    fn call_once<'x>(self, e: Option<By<'x, BY>>) { self.call_box(e) }
+    #[inline(always)] fn call_once<'x>(self, e: Option<By<'x, BY>>) { self.call_box(e) }
 }
 
 
@@ -167,7 +161,7 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o,
 
 
 
-
+//todo:...
 unsafe impl<SS:YesNo, A: for<'x> Act<SS, &'x Unsub<'static, SS>>+'static>
 SchActPeriodic<SS>
 for A{}

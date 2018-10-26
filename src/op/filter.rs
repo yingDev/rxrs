@@ -44,7 +44,7 @@ for FilterOp<YES, Src, F>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (f, next) = (self.f.clone(), sendsync_next(next));
+        let f = self.f.clone();
         let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(

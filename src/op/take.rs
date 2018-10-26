@@ -31,6 +31,11 @@ for TakeOp<NO, Src>
 {
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
+        if self.count == 0 {
+            ec.call_once(None);
+            return Unsub::done();
+        }
+
         let  n = Cell::new(self.count);
         let (s1, s2, s3) = Unsub::new().clones();
         let (ec, ec1) = Rc::new(RefCell::new(Some(ec))).clones();
@@ -65,11 +70,15 @@ for TakeOp<YES, Src>
 {
     fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
     {
-        let (s1, s2, s3) = Unsub::new().clones();
-        let next = sendsync_next(next);
+        if self.count == 0 {
+            ec.call_once(None);
+            return Unsub::done();
+        }
+
+        let (s1, s2, s3, s4) = Unsub::new().clones();
         let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
 
-        s1.added_each(self.src.sub(move |v:By<_>| {
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:By<_>| {
             s2.if_not_done(|| {
                 let state = unsafe{ &mut *state.get() };
                 let mut val = state.0;
@@ -83,7 +92,7 @@ for TakeOp<YES, Src>
                 }
             });
 
-        }, move |e:Option<By<_>>| s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e)))) )
+        }, move |s| (s || s4.is_done())), move |e:Option<By<_>>| s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e)))) )
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
@@ -128,6 +137,15 @@ mod test
         Of::value(123).take(100).sub(|v:By<_>| { n.replace(*v); }, |e:Option<By<_>>| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 223);
+    }
+
+    #[test]
+    fn zero()
+    {
+        let n = Cell::new(0);
+        Of::value(123).take(0).sub(|v:By<_>| { n.replace(*v); }, |e:Option<By<_>>| { n.replace(n.get() + 100); });
+
+        assert_eq!(n.get(), 100);
     }
 
 }

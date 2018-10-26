@@ -38,7 +38,9 @@ for Timer<YES, Sch>
             sch.as_ref();
             if !next.stopped() {
                 next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
-            } else { unsub.unsub(); }
+            }
+
+            if next.stopped() { unsub.unsub(); }
         })
     }
 
@@ -58,11 +60,12 @@ for Timer<NO, Sch>
         let sch = self.scheduler.clone();
         self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, NO>|{
             sch.as_ref();
+            if ! next.stopped() {
+                next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+            }
             if next.stopped() {
                 unsub.unsub();
-                return;
             }
-            next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
         })
     }
 

@@ -34,9 +34,11 @@ for Timer<YES, Sch>
         //hack: avoid sch being dropped when Timer is dropped
         //todo: find a better way ?
         let sch = self.scheduler.clone();
-        self.scheduler.schedule_periodic(self.period, move |_:&Unsub<'static, YES>|{
+        self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, YES>|{
             sch.as_ref();
-            next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+            if !next.stopped() {
+                next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+            } else { unsub.unsub(); }
         })
     }
 
@@ -170,7 +172,6 @@ mod test
             move |e: Option<By<_>>| out3.borrow_mut().push_str("ok")
         );
 
-        ::std::thread::sleep_ms(1000);
         assert_eq!(out1.borrow().as_str(), "02468ok");
     }
 }

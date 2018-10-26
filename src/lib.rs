@@ -147,13 +147,13 @@ unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, ()
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActNext<'o, SS, BY> for Box<ActNext<'o, SS, BY>>
 {
-    #[inline(always)] fn call<'x>(&self, v: By<'x, BY>) { Box::as_ref(self).call(v) }
+    #[inline(always)] fn call(&self, v: By<BY>) { Box::as_ref(self).call(v) }
     #[inline(always)] fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
 }
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o, SS, BY>>
 {
-    #[inline(always)] fn call_once<'x>(self, e: Option<By<'x, BY>>) { self.call_box(e) }
+    #[inline(always)] fn call_once(self, e: Option<By<BY>>) { self.call_box(e) }
 }
 
 

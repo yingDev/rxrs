@@ -31,7 +31,7 @@ struct ActQueue
     tmp_for_remove: Option<BinaryHeap<ActItem>>
 }
 
-type ArcActFn = Arc<Fn(&Scheduler<YES>)+Send+Sync+'static>;
+type ArcActFn = Arc<Fn()+Send+Sync+'static>;
 
 struct ActItem
 {
@@ -49,8 +49,8 @@ impl Scheduler<YES> for Inner
 
         let (sub, sub1) = Unsub::new().clones();
         let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
-        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, Arc::new(move |sch: &Scheduler<YES>|
-            unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(sch)); })
+        self.schedule_internal(due.unwrap_or(Duration::new(0,0)), None, Arc::new(move ||
+            unsafe{ &mut *act.get()}.take().map_or((), |a| { sub1.add_each(a.call_once(())); })
         ), sub)
     }
 }
@@ -63,8 +63,8 @@ impl SchedulerPeriodic<YES> for Inner
 
         let (sub, sub1) = Unsub::new().clones();
         let act = unsafe{ AnySendSync::new(UnsafeCell::new(Some(act))) };
-        self.schedule_internal(period, Some(period), Arc::new(move |_: &Scheduler<YES>|
-            unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(()))
+        self.schedule_internal(period, Some(period), Arc::new(move ||
+            unsafe{ &*act.get()}.as_ref().map_or((), |a| a.call(&sub1))
         ), sub)
     }
 }
@@ -102,7 +102,7 @@ impl Inner
 
             drop(queue);
             for mut act in ready.drain(..).filter(|a| !a.unsub.is_done()) {
-                act.act.call((Arc::as_ref(&state) as &Scheduler<YES>, ));
+                act.act.call(());
                 if act.unsub.is_done() { continue; }
 
                 if let Some(period) = act.period {
@@ -246,45 +246,45 @@ mod test
     {
         let sch = EventLoopScheduler::new(Arc::new(DefaultThreadFac), true);
 
-        let sub = sch.schedule_periodic(Duration::from_millis(33), |()| println!("shit"));
+        let sub = sch.schedule_periodic(Duration::from_millis(33), |_:&Unsub<'static, YES>| println!("shit"));
         ::std::thread::spawn(move ||{
             ::std::thread::sleep_ms(700);
             sub.unsub();
         });
 
 
-        sch.schedule(None, |s: &Scheduler<YES>| {
+        sch.schedule(None, |()| {
             println!("ok? a");
             Unsub::done()
         });
-        sch.schedule(None, |s: &Scheduler<YES>| {
+        sch.schedule(None, |()| {
             println!("ok? b");
             Unsub::done()
         });
 
-        sch.schedule(None, |s: &Scheduler<YES>| {
+        sch.schedule(None, |()| {
             println!("ok? c");
             Unsub::done()
         });
 
-        sch.schedule(Some(::std::time::Duration::from_millis(4)), |s: &Scheduler<YES>| {
+        sch.schedule(Some(::std::time::Duration::from_millis(4)), |()| {
             println!("later...4");
             Unsub::done()
         });
 
 
-        sch.schedule(Some(::std::time::Duration::from_millis(3)), |s: &Scheduler<YES>| {
+        sch.schedule(Some(::std::time::Duration::from_millis(3)), |()| {
             println!("later...3");
             ::std::thread::sleep_ms(200);
             Unsub::done()
         });
-        sch.schedule(Some(::std::time::Duration::from_millis(2)), |s: &Scheduler<YES>| {
+        sch.schedule(Some(::std::time::Duration::from_millis(2)), |()| {
             println!("later... 2");
             ::std::thread::sleep_ms(200);
 
             Unsub::done()
         });
-        sch.schedule(Some(::std::time::Duration::from_millis(1)), |s: &Scheduler<YES>| {
+        sch.schedule(Some(::std::time::Duration::from_millis(1)), |()| {
             println!("later... 1");
             ::std::thread::sleep_ms(200);
 

@@ -317,8 +317,8 @@ mod tests
     fn unsub()
     {
         let s = Subject::<NO, i32>::new();
-        let sub = s.sub(|_: By<_>| assert!(false, "shouldn't call"), ());
-        sub.unsub();
+        let unsub = s.sub(|_: By<_>| assert!(false, "shouldn't call"), ());
+        unsub();
 
         s.next(1);
     }

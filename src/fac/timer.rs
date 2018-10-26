@@ -34,7 +34,7 @@ for Timer<YES, Sch>
         //hack: avoid sch being dropped when Timer is dropped
         //todo: find a better way ?
         let sch = self.scheduler.clone();
-        self.scheduler.schedule_periodic(self.period, move |()|{
+        self.scheduler.schedule_periodic(self.period, move |_:&Unsub<'static, YES>|{
             sch.as_ref();
             next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
         })

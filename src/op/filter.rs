@@ -28,11 +28,14 @@ for FilterOp<NO, Src, F>
         let f = self.f.clone();
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub( move |v:By<_>| if f(&v) && !s2.is_done() { next.call(v); }, ec))
+        s1.added_each(self.src.sub(
+            ForwardNext::new(next, move |next, v:By<_>| if f(&v) && !s2.is_done() { next.call(v); }, |s| s),
+            ec
+        ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
+    { self.sub(next, ec) }
 }
 
 impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(&By<VBy>)->bool+'static+Send+Sync>
@@ -44,11 +47,14 @@ for FilterOp<YES, Src, F>
         let (f, next) = (self.f.clone(), sendsync_next(next));
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(move |v:By<_>| if f(&v) { s2.if_not_done(|| next.call(v)); }, ec))
+        s1.added_each(self.src.sub(
+            move |v:By<_>| if f(&v) { s2.if_not_done(|| next.call(v)); },
+            ec
+        ))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
+    { self.sub(next, ec) }
 }
 
 

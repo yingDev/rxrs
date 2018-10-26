@@ -32,10 +32,12 @@ for TakeOp<NO, Src>
     fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
     {
         let  n = Cell::new(self.count);
-        let (s1, s2) = Unsub::new().clones();
+        let (s1, s2, s3) = Unsub::new().clones();
         let (ec, ec1) = Rc::new(RefCell::new(Some(ec))).clones();
 
-        s1.added_each(self.src.sub(move |v:By<_>| {
+        let is_stopped = move |()| s3.is_done();
+
+        s1.added_each(self.src.sub((move |v:By<_>| {
             if !s2.is_done() {
                 let mut val = n.get();
                 if val != 0 {
@@ -52,11 +54,11 @@ for TakeOp<NO, Src>
                 }
             }
 
-        }, move |e:Option<By<_>>| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(e))) )
+        }, is_stopped), move |e:Option<By<_>>| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(e))) )
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
+    { self.sub(next, ec) }
 }
 
 impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>+'static+Send+Sync>
@@ -87,7 +89,7 @@ for TakeOp<YES, Src>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
+    { self.sub(next, ec) }
 }
 
 

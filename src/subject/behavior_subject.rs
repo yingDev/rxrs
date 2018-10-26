@@ -13,7 +13,7 @@ pub struct BehaviorSubject<'o, SS:YesNo, V, E:Clone=()>
 unsafe impl<'o, V:SSs, E:SSs+Clone> Send for BehaviorSubject<'o, YES, V, E>{}
 unsafe impl<'o, V:SSs, E:SSs+Clone> Sync for BehaviorSubject<'o, YES, V, E>{}
 
-impl<'o, V, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
+impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
 {
     #[inline(always)]
     pub fn new(value: V) -> BehaviorSubject<'o, SS, V, E>

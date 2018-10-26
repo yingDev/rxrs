@@ -45,7 +45,7 @@ for UntilOp<Src, SVBy, SEBy, Sig>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    { self.sub(dyn_to_impl_next(next), dyn_to_impl_ec(ec)) }
+    { self.sub(next, ec) }
 }
 
 impl<VBy: RefOrValSSs, EBy: RefOrValSSs,  SVBy: RefOrValSSs, SEBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, Sig: Observable<'static, YES, SVBy, SEBy>>
@@ -71,7 +71,7 @@ for UntilOp<Src, SVBy, SEBy, Sig>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
+    { self.sub(next, ec) }
 }
 
 struct AnySendSync<T>(UnsafeCell<T>);

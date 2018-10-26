@@ -13,7 +13,7 @@ pub struct Timer<SS: YesNo, Sch: SchedulerPeriodic<SS>>
     PhantomData: PhantomData<SS>
 }
 
-impl<Sch: SchedulerPeriodic<YES>> Timer<YES, Sch>
+impl<SS:YesNo, Sch: SchedulerPeriodic<SS>> Timer<SS, Sch>
 {
     //todo: default should be a DefaultScheduler ...
     pub fn new(period: Duration, scheduler: Sch) -> Self
@@ -41,7 +41,31 @@ for Timer<YES, Sch>
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<usize>>>, ec: Box<ActEcBox<'static, YES>>) -> Unsub<'static, YES>
-    { self.sub(dyn_to_impl_next_ss(next), dyn_to_impl_ec_ss(ec)) }
+    { self.sub(next, ec) }
+}
+
+impl<Sch: SchedulerPeriodic<NO>+'static>
+Observable<'static, NO, Val<usize>>
+for Timer<NO, Sch>
+{
+    fn sub(&self, next: impl ActNext<'static, NO, Val<usize>>, ec: impl ActEc<'static, NO>) -> Unsub<'static, NO>
+    {
+        let count = AtomicUsize::new(0);
+        //hack: avoid sch being dropped when Timer is dropped
+        //todo: find a better way ?
+        let sch = self.scheduler.clone();
+        self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, NO>|{
+            sch.as_ref();
+            if next.stopped() {
+                unsub.unsub();
+                return;
+            }
+            next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+        })
+    }
+
+    fn sub_dyn(&self, next: Box<ActNext<'static, NO, Val<usize>>>, ec: Box<ActEcBox<'static, NO>>) -> Unsub<'static, NO>
+    { self.sub(next, ec) }
 }
 
 #[cfg(test)]
@@ -54,6 +78,7 @@ mod test
     use std::cell::Cell;
     use std::sync::atomic::*;
     use std::sync::Mutex;
+    use std::cell::RefCell;
 
     #[test]
     fn smoke()
@@ -132,5 +157,20 @@ mod test
         s1.next(1234);
         s1.complete();
         assert_eq!(*n.lock().unwrap(), 106);
+    }
+
+    #[test]
+    fn no()
+    {
+        let (out, out1, out3) = Rc::new(RefCell::new(String::new())).clones();
+        let t = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
+
+        t.filter(|v| **v % 2 == 0 ).take(5).map(|v| format!("{}", *v)).sub(
+            move |v: By<Val<String>>| { out.borrow_mut().push_str(&*v); },
+            move |e: Option<By<_>>| out3.borrow_mut().push_str("ok")
+        );
+
+        ::std::thread::sleep_ms(1000);
+        assert_eq!(out1.borrow().as_str(), "02468ok");
     }
 }

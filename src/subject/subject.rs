@@ -25,14 +25,14 @@ struct Wrap<'o, SS:YesNo, V, E:Clone>
 unsafe impl <'o, V:SSs, E:SSs+Clone> Send for Wrap<'o, YES, V, E> {}
 unsafe impl <'o, V:SSs, E:SSs+Clone> Sync for Wrap<'o, YES, V, E> {}
 
-pub struct Subject<'o, SS:YesNo, V, E:Clone=()>
+pub struct Subject<'o, SS:YesNo, V, E:Clone+'o=()>
 {
     state: Arc<Wrap<'o,SS,V,E>>,
 }
 unsafe impl<V:SSs, E:SSs+Clone> Send for Subject<'static, YES, V, E> {}
 unsafe impl<V:SSs, E:SSs+Clone> Sync for Subject<'static, YES, V, E> {}
 
-impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
+impl<'o, V, E:Clone+'o, SS:YesNo> Subject<'o, SS, V, E>
 {
     pub fn new() -> Subject<'o, SS, V, E>
     {
@@ -124,7 +124,7 @@ impl<'o, V, E:Clone, SS:YesNo> Subject<'o, SS, V, E>
 }
 
 
-impl<'s, 'o, V, E:Clone, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
+impl<'s, 'o, V, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
 {
     fn drop(&mut self)
     {

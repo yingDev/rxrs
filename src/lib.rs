@@ -21,10 +21,24 @@ pub trait IntoDyn<'o, SS, VBy, EBy> : Sized
     fn into_dyn(self) -> Box<Self>  { box self }
 }
 
-pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : for<'x> Act    <SS, By<'x, BY>>+'o {}
-pub unsafe trait ActEc   <'o, SS:YesNo, BY: RefOrVal=Ref<()>> : for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o {}
-pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : for<'x> ActBox <SS, Option<By<'x, BY>>>+'o {}
+pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : 'o //: for<'x> Act    <SS, By<'x, BY>>+'o
+{
+    fn call(&self, by: By<BY>);
+    fn stopped(&self) -> bool { false }
+}
+pub unsafe trait ActEc<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : 'o
+{
+    fn call_once(self, e: Option<By<BY>>);
+}
+pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : 'o
+{
+    fn call_box(self: Box<Self>, e: Option<By<BY>>);
+}
 
+unsafe impl<'o, SS:YesNo, BY:RefOrVal, A: ActEc<'o, SS, BY>> ActEcBox<'o, SS, BY> for A
+{
+    fn call_box(self: Box<A>, e: Option<By<BY>>) { self.call_once(e) }
+}
 
 pub mod sync;
 
@@ -37,6 +51,8 @@ pub use crate::act::*;
 pub use crate::act_helpers::*;
 pub use crate::observables::*;
 pub use crate::scheduler::*;
+use std::marker::PhantomData;
+
 mod observables;
 mod op;
 mod util;
@@ -52,17 +68,105 @@ impl<'a, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, VBy, 
 IntoDyn<'o, SS, VBy, EBy>
 for O {}
 
-unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> Act    <SS, By<'x, BY>>+'o>
+
+
+unsafe impl<'o, BY: RefOrVal, A: for<'x> Fn(By<'x, BY>)+'o>
+ActNext<'o, NO, BY>
+for A {
+    fn call(&self, by: By<BY>) { self.call((by,)) }
+}
+
+unsafe impl<'o, BY: RefOrVal, A: for<'x> Fn(By<'x, BY>)+'o+Send+Sync>
+ActNext<'o, YES, BY>
+for A {
+    fn call(&self, by: By<BY>) { self.call((by,)) }
+}
+
+unsafe impl<'o, SS:YesNo, BY: RefOrVal>
 ActNext<'o, SS, BY>
-for A {}
+for () {
+    fn call(&self, by: By<BY>) {  }
+}
 
-unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActOnce<SS, Option<By<'x, BY>>>+'o>
+
+
+
+unsafe impl<'o, BY: RefOrVal, A: FnOnce(Option<By<BY>>)+'o>
+ActEc<'o, NO, BY>
+for A {
+    fn call_once(self, by: Option<By<BY>>) { self.call_once((by,)) }
+}
+
+unsafe impl<'o, BY: RefOrVal, A: FnOnce(Option<By<BY>>)+'o+Send+Sync>
+ActEc<'o, YES, BY>
+for A {
+    fn call_once(self, by: Option<By<BY>>) { self.call_once((by,)) }
+}
+
+unsafe impl<'o, SS:YesNo, BY: RefOrVal>
 ActEc<'o, SS, BY>
-for A {}
+for () {
+    fn call_once(self, by: Option<By<BY>>) {  }
+}
 
-unsafe impl<'o, SS:YesNo, BY: RefOrVal, A: for<'x> ActBox <SS, Option<By<'x, BY>>>+'o>
-ActEcBox<'o, SS, BY>
-for A {}
+
+
+pub struct ForwardNext<'o, SS:YesNo, BY:RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)+'o, S: Fn(bool)->bool+'o>
+{
+    old: N,
+    next: F,
+    stop: S,
+    PhantomData: PhantomData<&'o(SS, BY)>
+}
+
+impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, BY, N, F, S>
+{
+    pub fn new(old: N, next: F, stop: S) -> Self
+    {
+        ForwardNext{ old, next, stop, PhantomData }
+    }
+}
+
+unsafe impl<'o, SS:YesNo, BY:RefOrVal, N: ActNext<'o, SS, BY>, F: Fn(&N, By<BY>)+'o, S: Fn(bool)->bool+'o> ActNext<'o, SS, BY> for ForwardNext<'o, SS, BY, N, F, S>
+{
+    fn call(&self, by: By<BY>)
+    {
+        self.next.call((&self.old, by))
+    }
+
+    fn stopped(&self) -> bool
+    {
+        self.stop.call((self.old.stopped(),))
+    }
+}
+
+unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)
+{
+    fn call(&self, v: By<BY>) {
+        self.0.call(v);
+    }
+
+    fn stopped(&self) -> bool {
+        self.1.call(())
+    }
+}
+
+unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActNext<'o, SS, BY> for Box<ActNext<'o, SS, BY>>
+{
+    fn call<'x>(&self, v: By<'x, BY>) { Box::as_ref(self).call(v) }
+    fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
+}
+
+unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o, SS, BY>>
+{
+    fn call_once<'x>(self, e: Option<By<'x, BY>>) { self.call_box(e) }
+}
+
+
+
+
+
+
 
 unsafe impl<SS:YesNo, A: for<'x> Act<SS, &'x Unsub<'static, SS>>+'static>
 SchActPeriodic<SS>

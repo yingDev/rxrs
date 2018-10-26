@@ -39,24 +39,24 @@ pub fn sendsync_ec_box<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, YES, BY>>) -> B
 }
 
 
-pub fn dyn_to_impl_next<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, NO, BY>>) -> impl ActNext<'o, NO, BY>
-{
-    move |v: By<BY>| next.call(v)
-}
+//pub fn dyn_to_impl_next<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, NO, BY>>) -> impl ActNext<'o, NO, BY>
+//{
+//    ForwardNext::new(next, |next, v| next.call(v), |s|s)
+//}
 
-pub fn dyn_to_impl_next_ss<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> impl ActNext<'o, YES, BY>
-{
-    let next = sendsync_next_box(next);
-    move |v: By<BY>| next.call(v)
-}
-
-pub fn dyn_to_impl_ec<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, NO, BY>>) -> impl ActEc<'o, NO, BY>
-{
-    move |e: Option<By<BY>>| ec.call_box(e)
-}
-
-pub fn dyn_to_impl_ec_ss<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, YES, BY>>) -> impl ActEc<'o, YES, BY>
-{
-    let ec = sendsync_ec_box(ec);
-    move |e: Option<By<BY>>| ec.call_box(e)
-}
+//pub fn dyn_to_impl_next_ss<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> impl ActNext<'o, YES, BY>
+//{
+//    let next = sendsync_next_box(next);
+//    move |v: By<BY>| next.call(v)
+//}
+//
+//pub fn dyn_to_impl_ec<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, NO, BY>>) -> impl ActEc<'o, NO, BY>
+//{
+//    move |e: Option<By<BY>>| ec.call_box(e)
+//}
+//
+//pub fn dyn_to_impl_ec_ss<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, YES, BY>>) -> impl ActEc<'o, YES, BY>
+//{
+//    let ec = sendsync_ec_box(ec);
+//    move |e: Option<By<BY>>| ec.call_box(e)
+//}

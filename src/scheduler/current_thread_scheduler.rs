@@ -94,10 +94,10 @@ impl SchedulerPeriodic<NO> for CurrentThreadScheduler
 {
     fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<NO>) -> Unsub<'static, NO> where Self: Sized
     {
-        let (act, act1) = Rc::new(RefCell::new(Some(act))).clones();
+        let (act, act1) = Rc::new(act).clones();
         let (sub, sub1, sub2) = Unsub::<NO>::new().clones();
         let (act, act1) = Rc::new(move |()| {
-            act.borrow().as_ref().map_or((), |a| { a.call(&sub2); })
+            act.call(&sub2);
         }).clones();
 
         self.queue.borrow_mut().push(ActItem{

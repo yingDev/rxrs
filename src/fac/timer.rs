@@ -3,6 +3,7 @@ use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::*;
+use std::cell::Cell;
 
 //todo:
 
@@ -54,18 +55,16 @@ for Timer<NO, Sch>
 {
     fn sub(&self, next: impl ActNext<'static, NO, Val<usize>>, ec: impl ActEc<'static, NO>) -> Unsub<'static, NO>
     {
-        let count = AtomicUsize::new(0);
+        let count = Cell::new(0);
         //hack: avoid sch being dropped when Timer is dropped
         //todo: find a better way ?
         let sch = self.scheduler.clone();
         self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, NO>|{
             sch.as_ref();
             if ! next.stopped() {
-                next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+                next.call(By::v(count.replace(count.get() + 1)));
             }
-            if next.stopped() {
-                unsub.unsub();
-            }
+            if next.stopped() { unsub.unsub(); }
         })
     }
 

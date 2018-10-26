@@ -45,6 +45,7 @@ src
 │   ├── take.rs
 │   └── until.rs
 ├── scheduler
+│   ├── current_thread_scheduler.rs
 │   ├── event_loop_scheduler.rs
 │   ├── mod.rs
 │   └── new_thread_scheduler.rs
@@ -63,5 +64,6 @@ src
     ├── clones.rs
     ├── mod.rs
     └── yesno.rs
+
 
 ```

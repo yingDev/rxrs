@@ -142,6 +142,7 @@ mod test
     use std::cell::Cell;
     use std::rc::Rc;
     use std::sync::Arc;
+    use std::cell::RefCell;
 
     #[test]
     fn smoke()
@@ -160,28 +161,27 @@ mod test
     #[test]
     fn recurse()
     {
-        let (n, n1) = Rc::new(Cell::new(0)).clones();
+        let (n, n1, n2) = Rc::new(RefCell::new(String::new())).clones();
         let (s, s1, s2) = Arc::new(CurrentThreadScheduler::new()).clones();
 
-        s.schedule(Some(Duration::from_millis(100)), move |()| {
-            println!("a");
+        s.schedule(Some(Duration::from_millis(1)), move |()| {
             let (n, n1, n2) = n.clones();
-            n.replace(n.get() + 1);
+            n.borrow_mut().push_str("a");
 
-            s1.schedule(Some(Duration::from_millis(800)), move |()| {
-                println!("b");
-                n.replace(n.get() + 1);
+            s1.schedule(Some(Duration::from_millis(3)), move |()| {
+                n.borrow_mut().push_str("b");
                 Unsub::done()
             } );
 
-            s2.schedule(Some(Duration::from_millis(100)), move |()| {
-                println!("c");
-                n1.replace(n1.get() + 1);
+            s2.schedule(Some(Duration::from_millis(2)), move |()| {
+                n1.borrow_mut().push_str("c");
                 Unsub::done()
             } );
 
             Unsub::done()
         });
+
+        assert_eq!(n2.borrow().as_str(), "acb");
     }
 
     #[test]

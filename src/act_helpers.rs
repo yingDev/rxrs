@@ -20,13 +20,13 @@ pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> im
 {
     //let a = unsafe{ AnySendSync::new(next) };
     ForwardNext::new(next, |n,v| n.call(v), |s|s)
-    //move |v:By<BY>| a.call(v)
+    //move |v:BY| a.call(v)
 }
 
 pub fn sendsync_ec<'o, BY: RefOrValSSs>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
 {
     let a = unsafe{ AnySendSync::new(act) };
-    move |e:Option<By<BY>>| a.into_inner().call_once(e)
+    move |e:Option<BY>| a.into_inner().call_once(e)
 }
 
 pub fn sendsync_next_box<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> Box<ActNext<'o, YES, BY>+Send+Sync>
@@ -48,16 +48,16 @@ pub fn sendsync_ec_box<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, YES, BY>>) -> B
 //pub fn dyn_to_impl_next_ss<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> impl ActNext<'o, YES, BY>
 //{
 //    let next = sendsync_next_box(next);
-//    move |v: By<BY>| next.call(v)
+//    move |v: BY| next.call(v)
 //}
 //
 //pub fn dyn_to_impl_ec<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, NO, BY>>) -> impl ActEc<'o, NO, BY>
 //{
-//    move |e: Option<By<BY>>| ec.call_box(e)
+//    move |e: Option<BY>| ec.call_box(e)
 //}
 //
 //pub fn dyn_to_impl_ec_ss<'o, BY: RefOrVal+'o>(ec: Box<ActEcBox<'o, YES, BY>>) -> impl ActEc<'o, YES, BY>
 //{
 //    let ec = sendsync_ec_box(ec);
-//    move |e: Option<By<BY>>| ec.call_box(e)
+//    move |e: Option<BY>| ec.call_box(e)
 //}

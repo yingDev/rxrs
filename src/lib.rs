@@ -74,25 +74,29 @@ for O {}
 
 unsafe impl<'o, V, A: Fn(V)+'o>
 ActNext<'o, NO, Val<V>>
-for A {
+for A
+{
     fn call(&self, by: V) { self.call((by,)) }
 }
 
 unsafe impl<'o, V, A: Fn(&V)+'o>
 ActNext<'o, NO, Ref<V>>
-for A {
+for A
+{
     fn call(&self, by: *const V) { self.call((unsafe{ &*by },)) }
 }
 
 unsafe impl<'o, V, A: Fn(V)+'o+Send+Sync>
 ActNext<'o, YES, Val<V>>
-for A {
+for A
+{
     fn call(&self, by: V) { self.call((by,)) }
 }
 
 unsafe impl<'o, V, A: Fn(&V)+'o+Send+Sync>
 ActNext<'o, YES, Ref<V>>
-for A {
+for A
+{
     fn call(&self, by: *const V) { self.call((unsafe { &*by },)) }
 }
 
@@ -166,8 +170,7 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o,
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 {
-    fn call_once(self, e: Option<BY::V>) {
-    }
+    fn call_once(self, e: Option<BY::V>) {}
 }
 
 

@@ -17,7 +17,9 @@ impl<'o, V:'o> Observable<'o, NO> for Of<V>
     {
         if ! next.stopped() {
             next.call(&self.0);
-            ec.call_once(None);
+            if !next.stopped() {
+                ec.call_once(None);
+            }
         }
 
         Unsub::done()

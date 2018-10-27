@@ -82,7 +82,9 @@ mod test
 {
     use crate::*;
     use std::cell::Cell;
+    use std::sync::atomic::*;
     use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn smoke()
@@ -97,6 +99,16 @@ mod test
         }
 
         assert_eq!(n.get(), 20);
+
+        let (n, n1) = Arc::new(AtomicUsize::new(0)).clones();
+        let (input, output) = Rc::new(Subject::<YES, i32>::new()).clones();
+        output.filter(|v:&_| v % 2 == 0).sub(move |v:&_| { n.fetch_add(1, Ordering::SeqCst); }, ());
+
+        input.next(1);
+        input.next(2);
+        input.next(3);
+
+        assert_eq!(n1.load(Ordering::SeqCst), 1);
     }
 
     #[test]

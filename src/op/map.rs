@@ -1,91 +1,91 @@
-//use std::marker::PhantomData;
-//use std::sync::Arc;
-//use crate::*;
-//use crate::util::alias::SSs;
-//
-//pub struct MapOp<SS, VBy, Src, F>
-//{
-//    f: Arc<F>,
-//    src: Src,
-//    PhantomData: PhantomData<(SS, VBy)>
-//}
-//
-//pub trait ObsMapOp<SS: YesNo, VBy, EBy, VOut, F: Act<SS, VBy, VOut>> : Sized
-//{
-//    fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
-//}
-//
-//impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src: Observable<'o, SS, By=VBy, EBy=EBy>, F: Act<SS, VBy, VOut>+'o, SS:YesNo>
-//ObsMapOp<SS, VBy,EBy, VOut, F>
-//for Src {}
-//
-//
-//impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Fn(By<VBy>)->VOut+'o>
-//Observable<'o, NO, Val<VOut>, EBy>
-//for MapOp<NO, VBy, Src, F>
-//{
-//    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
-//    {
-//        let f = self.f.clone();
-//        let (s1, s2) = Unsub::new().clones();
-//
-//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v| {
-//            let v = f(v);
-//            if !s2.is_done() { next.call(By::v(v)); }
-//        }, |s| s) , ec))
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-//    { self.sub(next, ec) }
-//}
-//
-//impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(By<VBy>)->VOut+'static+Send+Sync>
-//Observable<'static, YES, Val<VOut>, EBy>
-//for MapOp<YES, VBy, Src, F>
-//{
-//    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
-//    {
-//        let f = self.f.clone();
-//        let (s1, s2) = Unsub::new().clones();
-//
-//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v| {
-//            let v = f(v);
-//            s2.if_not_done(|| next.call(By::v(v)));
-//        }, |s|s), ec))
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-//    { self.sub(next, ec) }
-//}
-//
-//
-//#[cfg(test)]
-//mod test
-//{
-//    use crate::*;
-//    use std::cell::RefCell;
-//    use std::cell::Cell;
-//    use std::rc::Rc;
-//    use std::sync::Arc;
-//    use std::sync::atomic::*;
-//
-//    #[test]
-//    fn smoke()
-//    {
-//        let n = Cell::new(0);
-//        let o = Of::value(123);
-//        o.map(|v: By<Ref<i32>>| *v * 2).sub(|v:By<_>| { n.replace(*v);}, ());
-//        assert_eq!(n.get(), 246);
-//
-//        let o = Of::value("B".to_owned());
-//        let mapped = o.map(|s| format!("A{}", *s)).map(|s| format!("{}C", *s)).into_dyn();
-//
-//        let result = RefCell::new(String::new());
-//        mapped.sub_dyn(box |v:By<Val<String>>| result.borrow_mut().push_str(&*v), box());
-//
-//        assert_eq!(result.borrow().as_str(), "ABC");
-//    }
-//
+use std::marker::PhantomData;
+use std::sync::Arc;
+use crate::*;
+use crate::util::alias::SSs;
+
+pub struct MapOp<SS, VBy, Src, F>
+{
+    f: Arc<F>,
+    src: Src,
+    PhantomData: PhantomData<(SS, VBy)>
+}
+
+pub trait ObsMapOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>> : Sized
+{
+    fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
+}
+
+impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, VBy, VOut>+'o, SS:YesNo>
+ObsMapOp<SS, VBy,EBy, VOut, F>
+for Src {}
+
+
+impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Act<NO, VBy, VOut>+'o>
+Observable<'o, NO, Val<VOut>, EBy>
+for MapOp<NO, VBy, Src, F>
+{
+    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
+    {
+        let f = self.f.clone();
+        let (s1, s2) = Unsub::new().clones();
+
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v| {
+            let v = f.call(v);
+            if !s2.is_done() { next.call(v); }
+        }, |s| s) , ec))
+    }
+
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
+    { self.sub(next, ec) }
+}
+
+impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Act<NO, VBy, VOut>+'static+Send+Sync>
+Observable<'static, YES, Val<VOut>, EBy>
+for MapOp<YES, VBy, Src, F>
+{
+    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
+    {
+        let f = self.f.clone();
+        let (s1, s2) = Unsub::new().clones();
+
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v| {
+            let v = f.call(v);
+            s2.if_not_done(|| next.call(v));
+        }, |s|s), ec))
+    }
+
+    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
+    { self.sub(next, ec) }
+}
+
+
+#[cfg(test)]
+mod test
+{
+    use crate::*;
+    use std::cell::RefCell;
+    use std::cell::Cell;
+    use std::rc::Rc;
+    use std::sync::Arc;
+    use std::sync::atomic::*;
+
+    #[test]
+    fn smoke()
+    {
+        let n = Cell::new(0);
+        let o = Of::value(123);
+        o.map(|v: &_| *v * 2).sub(|v| { n.replace(v);}, ());
+        assert_eq!(n.get(), 246);
+
+        let o = Of::value("B".to_owned());
+        let mapped = o.map(|s:&_| format!("A{}", *s)).map(|s| format!("{}C", s)).into_dyn();
+
+        let result = RefCell::new(String::new());
+        mapped.sub_dyn(box |v:String| result.borrow_mut().push_str(&v), box());
+
+        assert_eq!(result.borrow().as_str(), "ABC");
+    }
+
 //    #[test]
 //    fn unsub()
 //    {
@@ -162,4 +162,4 @@
 //
 //        assert_eq!(n3.get(), 4);
 //    }
-//}
+}

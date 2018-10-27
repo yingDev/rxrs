@@ -1,14 +1,15 @@
 use crate::*;
 use crate::sync::*;
 use std::cell::UnsafeCell;
+use std::boxed::FnBox;
 use std::sync::{Arc, Once, ONCE_INIT};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-pub struct UnsubState<'a, SS:YesNo>
+struct UnsubState<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
-    cb: UnsafeCell<Option<Box<ActBox<SS, ()> + 'a>>>,
+    cb: UnsafeCell<Option<Box<FnBox()+'a>>>,
     cbs: UnsafeCell<Vec<Unsub<'a, SS>>>,
 }
 
@@ -157,7 +158,7 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
 
 impl<'a> Unsub<'a, NO>
 {
-    pub fn with(cb: impl ActOnce<NO, ()> + 'a) -> Unsub<'a, NO>
+    pub fn with(cb: impl FnOnce()+'a) -> Unsub<'a, NO>
     {
         Unsub { state: Arc::new(UnsubState { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
@@ -165,7 +166,7 @@ impl<'a> Unsub<'a, NO>
 
 impl Unsub<'static, YES>
 {
-    pub fn with(cb: impl ActOnce<YES, ()> + 'static) -> Unsub<'static, YES>
+    pub fn with(cb: impl FnOnce()+Send+Sync+'static) -> Unsub<'static, YES>
     {
         Unsub { state: Arc::new(UnsubState { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }

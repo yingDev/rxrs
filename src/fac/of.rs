@@ -47,7 +47,7 @@ mod test
 
         let n = std::cell::Cell::new(0);
 
-        o.sub_dyn(box |v:&_| { n.replace(*v + 1); }, box());
+        o.sub_dyn(box |v:&_| { n.replace(*v + 1); }, box ());
 
         Of::value_dyn(123).sub_dyn(box |v:&_| { n.replace(*v + 1); }, box());
 

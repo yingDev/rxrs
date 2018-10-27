@@ -24,12 +24,12 @@ pub trait IntoDyn<'o, SS> : Sized
     fn into_dyn(self) -> Box<Self>  { box self }
 }
 
-pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : 'o
+pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> :'o
 {
-    fn call(&self, by: BY::V);
+    fn call(&self, v: BY::V);
     fn stopped(&self) -> bool { false }
 }
-pub unsafe trait ActEc<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : 'o
+pub unsafe trait ActEc<'o, SS:YesNo, BY: RefOrVal=Ref<()> > : 'o
 {
     fn call_once(self, e: Option<BY::V>);
 }
@@ -40,7 +40,7 @@ pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : 'o
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal, A: ActEc<'o, SS, BY>> ActEcBox<'o, SS, BY> for A
 {
-    fn call_box(self: Box<A>, e: Option<BY::V>) { self.call_once(e) }
+    fn call_box(self: Box<Self>, e: Option<BY::V>) { self.call_once(e) }
 }
 
 pub mod sync;
@@ -96,39 +96,26 @@ for A {
     fn call(&self, by: *const V) { self.call((unsafe { &*by },)) }
 }
 
-unsafe impl<'o, SS:YesNo, BY: RefOrVal>
-ActNext<'o, SS, BY>
-for () {
-    fn call(&self, by: BY::V) {  }
-}
+//unsafe impl<'o, SS:YesNo, BY: RefOrVal>
+//ActNext<'o, SS, BY>
+//for () {
+//    //fn call(&self, by: BY::V) {  }
+//}
 
 
 
-
-unsafe impl<'o, E, A: FnOnce(Option<E>)+'o>
-ActEc<'o, NO, Val<E>>
-for A {
-    fn call_once(self, by: Option<E>) { self.call_once((by,)) }
-}
-
-unsafe impl<'o, E, A: FnOnce(Option<&E>)+'o>
-ActEc<'o, NO, Ref<E>>
-for A {
-    fn call_once(self, by: Option<*const E>) { self.call_once((by.map(|p| unsafe{ &*p }),)) }
-}
-
-unsafe impl<'o, E, A: FnOnce(Option<E>)+'o+Send+Sync>
-ActEc<'o, YES, Val<E>>
-for A {
-    fn call_once(self, by: Option<E>) { self.call_once((by,)) }
-}
-
-unsafe impl<'o, SS:YesNo, BY: RefOrVal>
-ActEc<'o, SS, BY>
-for () {
-    fn call_once(self, by: Option<BY::V>) {  }
-}
-
+//
+//unsafe impl<'o, BY: RefOrVal, A: FnOnce(Option<BY::V>)+'o>
+//ActEc<'o, NO, BY>
+//for A {
+//    //fn call_once(self, by: Option<E>) { self.call_once((by,)) }
+//}
+//
+//unsafe impl<'o, BY: RefOrVal, A: FnOnce(Option<BY::V>)+'o+Send+Sync>
+//ActEc<'o, YES, BY>
+//for A {
+//    //fn call_once(self, by: Option<E>) { self.call_once((by,)) }
+//}
 
 
 //pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, By<FBY>)+'o, S: Fn(bool)->bool+'o>
@@ -165,19 +152,23 @@ for () {
 //    #[inline(always)]fn stopped(&self) -> bool {self.1.call(()) }
 //}
 //
+
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActNext<'o, SS, BY> for Box<ActNext<'o, SS, BY>>
 {
-    #[inline(always)] fn call(&self, v: BY::V) { Box::as_ref(self).call(v) }
-    #[inline(always)] fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
+    fn call(&self, v: BY::V) { Box::as_ref(self).call(v) }
+    fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
 }
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o, SS, BY>>
 {
-    #[inline(always)] fn call_once(self, e: Option<BY::V>) { self.call_box(e) }
+    fn call_once(self, e: Option<BY::V>) { self.call_box(e) }
 }
 
-
-
+unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
+{
+    fn call_once(self, e: Option<BY::V>) {
+    }
+}
 
 
 

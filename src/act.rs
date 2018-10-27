@@ -1,52 +1,96 @@
 use crate::*;
 
-pub unsafe trait ActOnce<SS:YesNo, A=(), R=()>
+pub unsafe trait ActOnce<SS:YesNo, A: RefOrVal, R=()>
 {
-    fn call_once(self, e: A) -> R;
+    fn call_once(self, e: A::V) -> R;
 }
 
-pub unsafe trait Act<SS:YesNo, A=(), R=()>
+pub unsafe trait Act<SS:YesNo, A: RefOrVal, R=()>
 {
-    fn call(&self, v: A) -> R;
+    fn call(&self, v: A::V) -> R;
 }
 
-pub unsafe trait ActBox<SS:YesNo, A=(), R=()>
+pub unsafe trait ActBox<SS:YesNo, A: RefOrVal, R=()>
 {
-    fn call_box(self: Box<Self>, e: A) -> R;
+    fn call_box(self: Box<Self>, e: A::V) -> R;
 }
 
-unsafe impl<'a, A, R, F: Fn(A) -> R+'a> Act<NO, A, R> for F
+
+
+
+unsafe impl<'a, V, R, F: Fn(V) -> R+'a> Act<NO, Val<V>, R> for F
 {
-    #[inline(always)] fn call(&self, v: A) -> R { self(v) }
+    #[inline(always)] fn call(&self, v: V) -> R { self(v) }
 }
 
-unsafe impl<A, R, F: Fn(A)->R+Send+Sync> Act<YES, A, R> for F
+unsafe impl<'a, V, R, F: Fn(V)->R+Send+Sync+'a> Act<YES, Val<V>, R> for F
 {
-    #[inline(always)] fn call(&self, v: A) -> R { self(v) }
+    #[inline(always)] fn call(&self, v: V) -> R { self(v) }
 }
 
-unsafe impl<'a, A, R, F: FnOnce(A) -> R+'a> ActOnce<NO, A, R> for F
+unsafe impl<'a, V, R, F: Fn(&V) -> R+'a> Act<NO, Ref<V>, R> for F
 {
-    #[inline(always)] fn call_once(self, v: A) -> R { self(v) }
+    #[inline(always)] fn call(&self, v: *const V) -> R { self(unsafe{ &*v }) }
 }
 
-unsafe impl<A, R, F: FnOnce(A)->R+Send+Sync> ActOnce<YES, A, R> for F
+unsafe impl<'a, V, R, F: Fn(&V)->R+Send+Sync+'a> Act<YES, Ref<V>, R> for F
 {
-    #[inline(always)] fn call_once(self, v: A) -> R { self(v) }
+    #[inline(always)] fn call(&self, v: *const V) -> R { self(unsafe{ &*v }) }
 }
 
-unsafe impl<SS:YesNo, A, R, F: ActOnce<SS, A, R>> ActBox<SS, A, R> for F
+
+
+
+unsafe impl<'a, V, R, F: FnOnce(V) -> R+'a> ActOnce<NO, Val<V>, R> for F
 {
-    #[inline(always)] fn call_box(self: Box<F>, args: A) -> R  { self.call_once(args) }
+    #[inline(always)] fn call_once(self, v: V) -> R { self(v) }
 }
 
-unsafe impl<SS:YesNo, A> Act<SS, A> for ()
+unsafe impl<'a, V, R, F: FnOnce(V)->R+Send+Sync+'a> ActOnce<YES, Val<V>, R> for F
 {
-    #[inline(always)] fn call(&self, _: A) {  }
+    #[inline(always)] fn call_once(self, v: V) -> R { self(v) }
 }
 
-unsafe impl<SS:YesNo, A> ActOnce<SS, A> for ()
+unsafe impl<'a, V, R, F: FnOnce(&V) -> R+'a> ActOnce<NO, Ref<V>, R> for F
 {
-    #[inline(always)] fn call_once(self, _: A) {  }
+    #[inline(always)] fn call_once(self, v: *const V) -> R { self(unsafe{ &*v }) }
+}
+
+unsafe impl<'a, V, R, F: FnOnce(&V)->R+Send+Sync+'a> ActOnce<YES, Ref<V>, R> for F
+{
+    #[inline(always)] fn call_once(self, v: *const V) -> R { self(unsafe{ &*v }) }
+}
+
+unsafe impl<'a, R, F: FnOnce()->R+Send+Sync+'a> ActOnce<YES, (), R> for F
+{
+    #[inline(always)] fn call_once(self, v: ()) -> R { self() }
+}
+
+unsafe impl<'a, R, F: FnOnce()->R+'a> ActOnce<NO, (), R> for F
+{
+    #[inline(always)] fn call_once(self, v: ()) -> R { self() }
+}
+
+
+
+unsafe impl<'a, SS:YesNo, A: RefOrVal, R, F: ActOnce<SS, A, R>+'a> ActBox<SS, A, R> for F
+{
+    #[inline(always)] fn call_box(self: Box<F>, v: A::V) -> R  { self.call_once(v) }
+}
+
+//unsafe impl<'a, SS:YesNo, V, R, F: ActOnce<SS, Ref<V>, R>+'a> ActBox<SS, Ref<V>, R> for F
+//{
+//    #[inline(always)] fn call_box(self: Box<F>, v: *const V) -> R  { self.call_once(unsafe{ &*v }) }
+//}
+
+
+unsafe impl<SS:YesNo, A: RefOrVal> Act<SS, A> for ()
+{
+    #[inline(always)] fn call(&self, _: A::V) {  }
+}
+
+unsafe impl<SS:YesNo, A: RefOrVal> ActOnce<SS, A> for ()
+{
+    #[inline(always)] fn call_once(self, _: A::V) {  }
 }
 

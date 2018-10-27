@@ -49,14 +49,14 @@ pub use crate::util::*;
 pub use crate::unsub::*;
 //pub use crate::subject::*;
 pub use crate::fac::*;
-//pub use crate::op::*;
+pub use crate::op::*;
 pub use crate::act::*;
 //pub use crate::act_helpers::*;
 pub use crate::observables::*;
 //pub use crate::scheduler::*;
 
 mod observables;
-//mod op;
+mod op;
 mod util;
 //mod subject;
 mod unsub;

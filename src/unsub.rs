@@ -191,7 +191,7 @@ mod test
     fn drop_should_unsub()
     {
         let n = Cell::new(0);
-        let a = Unsub::<NO>::with(|()| { n.replace(1); });
+        let a = Unsub::<NO>::with(|| { n.replace(1); });
 
         drop(a);
 

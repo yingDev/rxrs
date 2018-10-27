@@ -13,6 +13,7 @@ pub struct Val<V>(V);
 
 unsafe impl<V> RefOrVal for Ref<V>{ type V = *const V;}
 unsafe impl<V> RefOrVal for Val<V>{ type V = V;}
+unsafe impl RefOrVal for () { type V = (); }
 
 //pub struct By<'a, T: RefOrVal>
 //{

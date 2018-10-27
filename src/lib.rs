@@ -44,11 +44,11 @@ pub mod sync;
 
 pub use crate::util::*;
 pub use crate::unsub::*;
-//pub use crate::subject::*;
+pub use crate::subject::*;
 pub use crate::fac::*;
 pub use crate::op::*;
 pub use crate::act::*;
-//pub use crate::act_helpers::*;
+pub use crate::act_helpers::*;
 pub use crate::observables::*;
 use std::marker::PhantomData;
 //pub use crate::scheduler::*;
@@ -56,11 +56,11 @@ use std::marker::PhantomData;
 mod observables;
 mod op;
 mod util;
-//mod subject;
+mod subject;
 mod unsub;
 mod fac;
 mod act;
-//mod act_helpers;
+mod act_helpers;
 //mod scheduler;
 
 

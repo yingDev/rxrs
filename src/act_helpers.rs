@@ -2,19 +2,20 @@ use crate::*;
 use crate::any_send_sync::AnySendSync;
 use std::ops::Deref;
 use std::cell::UnsafeCell;
+use std::marker::PhantomData;
 
-//todo
-pub fn sendsync_act<'o, A>(act: impl Act<YES, A>+'o) -> impl Act<YES, A>+'o + Send + Sync
-{
-    let a = unsafe{ AnySendSync::new(act) };
-    move |v:A| a.call(v)
-}
-//todo
-pub fn sendsync_actonce<'o, A>(act: impl ActOnce<YES, A>+'o) -> impl ActOnce<YES, A>+'o + Send + Sync
-{
-    let a = unsafe{ AnySendSync::new(act) };
-    move |v:A| a.into_inner().call_once(v)
-}
+////todo
+//pub fn sendsync_act<'o, A: RefOrVal, R>(act: impl Act<YES, A, R>+'o) -> impl Act<YES, A, R>+'o + Send + Sync
+//{
+//    let a = unsafe{ AnySendSync::new(act) };
+//    move |v: A::V| a.call(v)
+//}
+////todo
+//pub fn sendsync_actonce<'o, A: RefOrVal, R>(act: impl ActOnce<YES, A, R>+'o) -> impl ActOnce<YES, A, R>+'o + Send + Sync
+//{
+//    let a = unsafe{ AnySendSync::new(act) };
+//    move |v: A::V| a.into_inner().call_once(v)
+//}
 
 pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
 {
@@ -23,10 +24,34 @@ pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> im
     //move |v:BY| a.call(v)
 }
 
-pub fn sendsync_ec<'o, BY: RefOrValSSs>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
+pub fn sendsync_ec<'o, V, BY: RefOrValSSs<V=V>>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
 {
-    let a = unsafe{ AnySendSync::new(act) };
-    move |e:Option<BY>| a.into_inner().call_once(e)
+    struct ForwardEc<SS, A, By>
+    {
+        act: A,
+        PhantomData: PhantomData<(SS, By)>
+    }
+
+    unsafe impl<A, By> Send for ForwardEc<YES, A, By> {}
+    unsafe impl<A, By> Sync for ForwardEc<YES, A, By> {}
+
+    impl<'o, SS:YesNo, By: RefOrVal, A: ActEc<'o, SS, By>> ForwardEc<SS, A, By>
+    {
+        fn new(act: A) -> ForwardEc<SS, A, By>
+        {
+            ForwardEc{ act, PhantomData }
+        }
+    }
+
+    unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A: ActEc<'o, SS, By>> ActEc<'o, SS, By> for ForwardEc<SS, A, By>
+    {
+        fn call_once(self, e: Option<By::V>)  { self.act.call_once(e) }
+    }
+
+    ForwardEc::new(act)
+
+    //let a = unsafe{ AnySendSync::new(act) };
+    //move |e:Option<V>| a.into_inner().call_once(e)
 }
 
 pub fn sendsync_next_box<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> Box<ActNext<'o, YES, BY>+Send+Sync>

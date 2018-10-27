@@ -42,7 +42,7 @@ impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
         }
 
         let sub = make_sub();
-        next.call(By::r(val.as_ref().unwrap()));
+        next.call(val.as_ref().unwrap());
 
         self.lock.exit();
         sub
@@ -59,7 +59,7 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for  Behavio
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO, Ref<E>>>) -> Unsub<'o, NO>
     {
         let next: Arc<ActNext<'o, NO, Ref<V>>> = next.into();
-        self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
+        self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:&_| next.call(v), ec))
     }
 }
 
@@ -73,7 +73,7 @@ impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, Y
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
         let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
-        self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:By<_>| next.call(v), ec))
+        self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:&_| next.call(v), ec))
     }
 }
 
@@ -130,7 +130,7 @@ mod test
 
         let s = BehaviorSubject::<NO, i32>::new(123);
 
-        s.sub(|v:By<_>| { n.replace(*v); }, ());
+        s.sub(|v:&_| { n.replace(*v); }, ());
         assert_eq!(n.get(), 123);
 
         s.next(456);
@@ -138,7 +138,7 @@ mod test
 
         s.next(789);
 
-        s.sub(|v:By<_>| { x.replace(*v); }, ());
+        s.sub(|v:&_| { x.replace(*v); }, ());
         assert_eq!(x.get(), 789);
         assert_eq!(n.get(), 789);
     }

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 pub unsafe trait RefOrVal {
-    type V;
+    type V: Sized;
 }
 
 pub trait RefOrValSSs: RefOrVal+Send+Sync+'static {}

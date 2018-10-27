@@ -81,7 +81,7 @@ impl<'o, V, E:Clone+'o, SS:YesNo> Subject<'o, SS, V, E>
                 lock.exit();
                 return sub;
             },
-            Error(e) => ec.call_box(Some(By::r(e))),
+            Error(e) => ec.call_box(Some(e)),
             Complete => ec.call_box(None),
             Drop => {}
         }
@@ -146,7 +146,7 @@ impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO
     {
         let next: Arc<ActNext<'o, NO, Ref<V>>>= next.into();
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
-        self.sub_internal(next, ec, move || Unsub::<NO>::with(move |()| Self::unsub(state, weak_next)))
+        self.sub_internal(next, ec, move || Unsub::<NO>::with(move || Self::unsub(state, weak_next)))
     }
 }
 
@@ -156,7 +156,7 @@ impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static> Observable<'static, YES, Re
     {
         let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
-        self.sub_internal(next, ec, move || Unsub::<YES>::with(move |()| Self::unsub(state, weak_next)))
+        self.sub_internal(next, ec, move || Unsub::<YES>::with(move || Self::unsub(state, weak_next)))
     }
 }
 
@@ -197,7 +197,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> Subject<'o, SS, V,E>
 
         if let Next(vec) = unsafe { &**state.get() } {
             for (n,_,sub) in vec {
-                if ! sub.is_done() { n.call(By::r(v),); }
+                if ! sub.is_done() { n.call(v,); }
             }
 
             if recur == 0 {
@@ -220,7 +220,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> Subject<'o, SS, V,E>
             for (_,ec,sub) in vec.iter() {
                 if sub.is_done() { continue; }
                 sub.unsub();
-                unsafe{ &mut *ec.get()}.take().map(|ec| ec.call_box(Some(By::r(&e))));
+                unsafe{ &mut *ec.get()}.take().map(|ec| ec.call_box(Some(&e)));
             }
 
             if recur == 0 {
@@ -276,7 +276,7 @@ mod tests
 
         let nn = n.clone();
         let ss = s.clone();
-        s.sub(move |v:By<_>| { nn.store(*v, Ordering::SeqCst); }, ());
+        s.sub(move |v:&_| { nn.store(*v, Ordering::SeqCst); }, ());
 
         ::std::thread::spawn(move ||{
             ss.next(123);
@@ -292,7 +292,7 @@ mod tests
         //expects: `temp` does not live long enough
 //        let s = Subject::<NO, i32>::new();
 //        let temp = Cell::new(0);
-//        s.sub(|v:By<_>| { temp.replace(*v); }, ());
+//        s.sub(|v:&_| { temp.replace(*v); }, ());
 
 
 
@@ -300,14 +300,14 @@ mod tests
 
         let n = Cell::new(0);
         let ss = Subject::<NO, i32>::new_dyn();
-        ss.sub_dyn(box |v:By<_>| { n.replace(*v); }, box());
+        ss.sub_dyn(box |v:&_| { n.replace(*v); }, box());
     }
 
     #[test]
     fn next_after_complete()
     {
         let s = Subject::<NO, i32>::new();
-        s.sub(|_:By<_>| assert!(false, "shouldn't call"), ());
+        s.sub(|_:&_| assert!(false, "shouldn't call"), ());
 
         s.complete();
         s.next(1);
@@ -317,7 +317,7 @@ mod tests
     fn unsub()
     {
         let s = Subject::<NO, i32>::new();
-        let unsub = s.sub(|_: By<_>| assert!(false, "shouldn't call"), ());
+        let unsub = s.sub(|_: &_| assert!(false, "shouldn't call"), ());
         unsub();
 
         s.next(1);
@@ -328,8 +328,8 @@ mod tests
     {
         let (sub, sub2) = Unsub::new().clones();
         let s = Subject::<NO, i32>::new();
-        s.sub(move |_: By<_>| sub.unsub(), ());
-        sub2.add(s.sub(move |_: By<_>| assert!(false, "should not happen"), ()));
+        s.sub(move |_: &_| sub.unsub(), ());
+        sub2.add(s.sub(move |_: &_| assert!(false, "should not happen"), ()));
 
         s.next(1);
     }
@@ -368,7 +368,7 @@ mod tests
 
         for _ in 0..10{
             let nn = n.clone();
-            s.sub(|_:By<_>|{}, ()).add(Unsub::<NO>::with(move |()| { nn.replace(nn.get() + 1); }));
+            s.sub(|_:&_|{}, ()).add(Unsub::<NO>::with(move || { nn.replace(nn.get() + 1); }));
         }
 
         //s.complete();
@@ -385,9 +385,9 @@ mod tests
         let n = std::cell::Cell::new(0);
         let s = Subject::<NO, i32>::new();
 
-        s.sub(|v:By<_>| { n.replace(*v); }, ());
+        s.sub(|v:&_| { n.replace(*v); }, ());
 
-        src.sub(|v:By<_>| s.next(*v), |e: Option<By<_>>| { s.ec(e.map(|e| *e)) } );
+        src.sub(|v:&_| s.next(*v), |e: Option<&_>| { s.ec(e.map(|e| *e)) } );
 
         assert_eq!(n.get(), 123);
     }

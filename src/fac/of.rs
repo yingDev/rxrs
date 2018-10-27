@@ -8,12 +8,9 @@ impl<V> Of<V>
     pub fn value_dyn(v: V) -> Box<Self>  { box Of(v) }
 }
 
-impl<'o, V:'o> Observable<'o, NO> for Of<V>
+impl<'o, V:'o> Observable<'o, NO, Ref<V>> for Of<V>
 {
-    type By = Ref<V>;
-    type EBy = Ref<()>;
-
-    fn sub(&self, next: impl ActNext<'o, NO, Self::By>, ec: impl ActEc<'o, NO, Self::EBy>+'o) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<()>>+'o) -> Unsub<'o, NO> where Self: Sized
     {
         if ! next.stopped() {
             next.call(&self.0);
@@ -25,7 +22,7 @@ impl<'o, V:'o> Observable<'o, NO> for Of<V>
         Unsub::done()
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Self::By>>, ec: Box<ActEcBox<'o,NO, Self::EBy>>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o,NO, Ref<()>>>) -> Unsub<'o, NO>
     { self.sub(next, ec) }
 }
 

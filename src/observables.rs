@@ -59,6 +59,10 @@ for Box<dyn Observable<'o, SS, By=By, EBy=EBy>>
     type EBy = EBy;
 
     #[inline(always)]
+    fn sub(&self, next: impl ActNext<'o, SS, Self::By>, ec: impl ActEc<'o, SS, Self::EBy>) -> Unsub<'o, SS> where Self: Sized
+    { self.sub_dyn(box next, box ec) }
+
+    #[inline(always)]
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, Self::By>>, ec: Box<ActEcBox<'o, SS, Self::EBy>>) -> Unsub<'o, SS>
     { Box::as_ref(self).sub_dyn(next, ec) }
 }

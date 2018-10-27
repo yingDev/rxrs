@@ -8,7 +8,7 @@
 pub trait Observable<'o, SS:YesNo>
 {
     type By: RefOrVal;
-    type EBy: RefOrVal;
+    type EBy: RefOrVal = Ref<()>;
 
     fn sub(&self, next: impl ActNext<'o, SS, Self::By>, err_or_comp: impl ActEc<'o, SS, Self::EBy>) -> Unsub<'o, SS> where Self: Sized
     {
@@ -48,7 +48,7 @@ pub mod sync;
 pub use crate::util::*;
 pub use crate::unsub::*;
 //pub use crate::subject::*;
-//pub use crate::fac::*;
+pub use crate::fac::*;
 //pub use crate::op::*;
 pub use crate::act::*;
 //pub use crate::act_helpers::*;
@@ -60,7 +60,7 @@ mod observables;
 mod util;
 //mod subject;
 mod unsub;
-//mod fac;
+mod fac;
 mod act;
 //mod act_helpers;
 //mod scheduler;
@@ -165,16 +165,16 @@ for () {
 //    #[inline(always)]fn stopped(&self) -> bool {self.1.call(()) }
 //}
 //
-//unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActNext<'o, SS, BY> for Box<ActNext<'o, SS, BY>>
-//{
-//    #[inline(always)] fn call(&self, v: BY) { Box::as_ref(self).call(v) }
-//    #[inline(always)] fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
-//}
-//
-//unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o, SS, BY>>
-//{
-//    #[inline(always)] fn call_once(self, e: Option<BY>) { self.call_box(e) }
-//}
+unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActNext<'o, SS, BY> for Box<ActNext<'o, SS, BY>>
+{
+    #[inline(always)] fn call(&self, v: BY::V) { Box::as_ref(self).call(v) }
+    #[inline(always)] fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
+}
+
+unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o, SS, BY>>
+{
+    #[inline(always)] fn call_once(self, e: Option<BY::V>) { self.call_box(e) }
+}
 
 
 
@@ -202,48 +202,6 @@ mod test
 
     fn inference()
     {
-
-
-        trait ANext<BY: RefOrVal>
-        {
-            fn call(&self, a: BY::V);
-        }
-
-        impl<V, F: Fn(V)> ANext<Val<V>> for F {
-            fn call(&self, a: V) {
-                self(a)
-            }
-        }
-        impl<V, F: Fn(&V)> ANext<Ref<V>> for F {
-            fn call(&self, a: *const V) {
-                self(unsafe{ &*a });
-            }
-        }
-
-        trait Obs
-        {
-            type BY: RefOrVal;
-            fn sub(&self, a: impl ANext<Self::BY>);
-        }
-
-        struct X;
-        impl Obs for X
-        {
-            type BY = Val<i32>;
-            fn sub(&self, a: impl ANext<Val<i32>>) {
-                unimplemented!()
-            }
-        }
-
-        let x = X;
-        x.sub(|v| println!("v={}", v));
-
-        shit().sub(|v| println!("v={}", v));
-
-        fn shit() -> impl Obs<BY=Val<i32>>
-        {
-            X
-        }
 
     }
 }

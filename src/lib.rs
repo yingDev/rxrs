@@ -164,6 +164,7 @@ unsafe impl<'o, A, By: RefOrVal, F: Sync> Sync for ForwardEc<'o, YES, A, By, F> 
 
 impl<'o, SS:YesNo, By: RefOrVal, A, F: FnOnce(A, Option<By>)> ForwardEc<'o, SS, A, By, F>
 {
+    #[inline(always)]
     fn new(act: A, f: F) -> ForwardEc<'o, SS, A, By, F>
     {
         ForwardEc{ act, f, PhantomData }
@@ -172,7 +173,7 @@ impl<'o, SS:YesNo, By: RefOrVal, A, F: FnOnce(A, Option<By>)> ForwardEc<'o, SS, 
 
 unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A:'o, F: FnOnce(A, Option<By>)+'o> ActEc<'o, SS, By> for ForwardEc<'o, SS, A, By, F>
 {
-    fn call_once(self, e: Option<By::V>)  { self.f.call_once((self.act, e.map(|e| unsafe { By::from_v(e) }))) }
+    #[inline(always)] fn call_once(self, e: Option<By::V>)  { self.f.call_once((self.act, e.map(|e| unsafe { By::from_v(e) }))) }
 }
 
 

@@ -1,10 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::sync::atomic::*;
 use crate::*;
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::rc::Rc;
 use crate::any_send_sync::AnySendSync;
 use std::cell::UnsafeCell;
 
@@ -24,85 +20,46 @@ impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>+'o, SS:
 ObsTakeOp<SS, VBy,EBy>
 for Src {}
 
-
-impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>+'o>
-Observable<'o, NO, VBy, EBy>
-for TakeOp<NO, Src>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
+Observable<'o, SS, VBy, EBy>
+for TakeOp<SS, Src>
 {
-    fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
         if self.count == 0 {
             ec.call_once(None);
             return Unsub::done();
         }
 
-        let  n = Cell::new(self.count);
-        let (s1, s2, s3) = Unsub::new().clones();
+        let (s1, s2, s3, s4) = Unsub::new().clones();
+        let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
 
-        let (ec, ec1) = Rc::new(RefCell::new(Some(ec))).clones();
-        let ec = ForwardEc::new(ec, move |ec, e: Option<EBy>|{
-            ec.borrow_mut().take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v())))
-        });
-
-        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:VBy| {
-            if !s2.is_done() {
-                let mut val = n.get();
-                if val != 0 {
-                    val -= 1;
-                    n.replace(val);
-                    next.call(v.into_v());
-                }
-
-                if val == 0 {
-                    if ! s2.is_done() {
-                        s2.unsub();
-                        ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None));
+        s1.added_each(self.src.sub(
+            ForwardNext::new(next, move |next, v:VBy| {
+                s2.if_not_done(|| {
+                    let state = unsafe{ &mut *state.get() };
+                    let mut val = state.0;
+                    if val != 0 {
+                        val -= 1;
+                        state.0 -= 1;
+                        next.call(v.into_v());
                     }
-                }
-            }
+                    if val == 0 {
+                        s2.unsub_then(|| state.1.take().map_or((), |ec| ec.call_once(None)));
+                    }
+                });
 
-        }, move |s| (s || s3.is_done()) ), ec ))
+            }, move |s| (s || s4.is_done())),
+
+            ForwardEc::new(state1, move |state, e:Option<EBy>| {
+                s3.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
+            })
+        ))
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { self.sub(next, ec) }
 }
-
-//impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>+'static+Send+Sync>
-//Observable<'static, YES, VBy, EBy>
-//for TakeOp<YES, Src>
-//{
-//    fn sub(&self, next: impl ActNext<'static, YES, VBy>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
-//    {
-//        if self.count == 0 {
-//            ec.call_once(None);
-//            return Unsub::done();
-//        }
-//
-//        let (s1, s2, s3, s4) = Unsub::new().clones();
-//        let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
-//
-//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:VBy| {
-//            s2.if_not_done(|| {
-//                let state = unsafe{ &mut *state.get() };
-//                let mut val = state.0;
-//                if val != 0 {
-//                    val -= 1;
-//                    state.0 -= 1;
-//                    next.call(v.into_v());
-//                }
-//                if val == 0 {
-//                    s2.unsub_then(|| state.1.take().map_or((), |ec| ec.call_once(None)));
-//                }
-//            });
-//
-//        }, move |s| (s || s4.is_done())), move |e:Option<EBy::V>| s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e)))) )
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-//    { self.sub(next, ec) }
-//}
-
 
 #[cfg(test)]
 mod test

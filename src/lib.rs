@@ -150,27 +150,34 @@ for ForwardNext<'o, SS, NBY, FBY, N, F, S>
 }
 
 
-pub struct ForwardEc<SS, A, By>
+
+
+pub struct ForwardEc<'o, SS: YesNo, A, By: RefOrVal, F>
 {
     act: A,
-    PhantomData: PhantomData<(SS, By)>
+    f: F,
+    PhantomData: PhantomData<&'o (SS, By)>
 }
 
-unsafe impl<A, By> Send for ForwardEc<YES, A, By> {}
-unsafe impl<A, By> Sync for ForwardEc<YES, A, By> {}
+unsafe impl<'o, A, By: RefOrVal, F: Send> Send for ForwardEc<'o, YES, A, By, F> {}
+unsafe impl<'o, A, By: RefOrVal, F: Sync> Sync for ForwardEc<'o, YES, A, By, F> {}
 
-impl<'o, SS:YesNo, By: RefOrVal, A: ActEc<'o, SS, By>> ForwardEc<SS, A, By>
+impl<'o, SS:YesNo, By: RefOrVal, A, F: FnOnce(A, Option<By>)> ForwardEc<'o, SS, A, By, F>
 {
-    fn new(act: A) -> ForwardEc<SS, A, By>
+    fn new(act: A, f: F) -> ForwardEc<'o, SS, A, By, F>
     {
-        ForwardEc{ act, PhantomData }
+        ForwardEc{ act, f, PhantomData }
     }
 }
 
-unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A: ActEc<'o, SS, By>> ActEc<'o, SS, By> for ForwardEc<SS, A, By>
+unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A:'o, F: FnOnce(A, Option<By>)+'o> ActEc<'o, SS, By> for ForwardEc<'o, SS, A, By, F>
 {
-    fn call_once(self, e: Option<By::V>)  { self.act.call_once(e) }
+    fn call_once(self, e: Option<By::V>)  { self.f.call_once((self.act, e.map(|e| unsafe { By::from_v(e) }))) }
 }
+
+
+
+
 
 
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)

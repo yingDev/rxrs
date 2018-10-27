@@ -1,12 +1,12 @@
 mod map;
 mod filter;
 //mod until;
-//mod take;
+mod take;
 
 pub use self::map::*;
 pub use self::filter::*;
 //pub use self::until::*;
-//pub use self::take::*;
+pub use self::take::*;
 
 #[cfg(test)]
 mod test

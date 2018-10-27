@@ -17,20 +17,20 @@ use std::marker::PhantomData;
 //    move |v: A::V| a.into_inner().call_once(v)
 //}
 
-pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
-{
-    //let a = unsafe{ AnySendSync::new(next) };
-    ForwardNext::new(next, |n,v:BY| n.call(v.into_v()), |s|s)
-    //move |v:BY| a.call(v)
-}
-
-pub fn sendsync_ec<'o, V, BY: RefOrValSSs<V=V>>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
-{
-    ForwardEc::new(act)
-
-    //let a = unsafe{ AnySendSync::new(act) };
-    //move |e:Option<V>| a.into_inner().call_once(e)
-}
+//pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
+//{
+//    //let a = unsafe{ AnySendSync::new(next) };
+//    ForwardNext::new(next, |n,v:BY| n.call(v.into_v()), |s|s)
+//    //move |v:BY| a.call(v)
+//}
+//
+//pub fn sendsync_ec<'o, V, BY: RefOrValSSs<V=V>>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
+//{
+//    ForwardEc::new(act)
+//
+//    //let a = unsafe{ AnySendSync::new(act) };
+//    //move |e:Option<V>| a.into_inner().call_once(e)
+//}
 
 pub fn sendsync_next_box<'o, BY: RefOrVal+'o>(next: Box<ActNext<'o, YES, BY>>) -> Box<ActNext<'o, YES, BY>+Send+Sync>
 {

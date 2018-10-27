@@ -183,6 +183,12 @@ unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, F: FnOnce(Option<By>)+'o> ActEc<'o, S
 }
 
 
+#[inline(always)]
+pub fn forward_ec<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)>
+(f: F) -> ForwardEc<'o, SS, By, F>
+{
+    ForwardEc::new(f)
+}
 
 
 

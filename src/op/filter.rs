@@ -28,7 +28,7 @@ for FilterOp<SS, Src, F>
         let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
-            ForwardNext::new(next, move |n,v: VBy| if f.call(v.as_ref()) { s2.if_not_done(|| n.call(v.into_v())); }, |s| s),
+            forward_next(next, move |n,v: VBy| if f.call(v.as_ref()) { s2.if_not_done(|| n.call(v.into_v())); }, |s| s),
             ec
         ))
     }

@@ -9,17 +9,17 @@ pub struct FilterOp<SS, Src, F>
     PhantomData: PhantomData<(SS)>
 }
 
-pub trait ObsFilterOp<SS, VBy, EBy, F: Fn(&By<VBy>)->bool> : Sized
+pub trait ObsFilterOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, F: Fn(&VBy::RAW)-> bool> : Sized
 {
     fn filter(self, f: F) -> FilterOp<SS, Self, F> { FilterOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Fn(&By<VBy>)->bool+'o, SS:YesNo>
+impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Fn(&VBy::RAW)-> bool+'o, SS:YesNo>
 ObsFilterOp<SS, VBy,EBy, F>
 for Src {}
 
 
-impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Fn(&By<VBy>)->bool+'o>
+impl<'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Fn(&VBy::RAW)-> bool+'o>
 Observable<'o, NO, VBy, EBy>
 for FilterOp<NO, Src, F>
 {
@@ -29,7 +29,7 @@ for FilterOp<NO, Src, F>
         let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
-            ForwardNext::new(next, move |next, v:By<_>| if f(&v) && !s2.is_done() { next.call(v); }, |s| s),
+            ForwardNext::new(next, move |next, v: VBy| if f(v.as_ref()) && !s2.is_done() { next.call(v.into_v()); }, |s| s),
             ec
         ))
     }
@@ -38,7 +38,7 @@ for FilterOp<NO, Src, F>
     { self.sub(next, ec) }
 }
 
-impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(&By<VBy>)->bool+'static+Send+Sync>
+impl<VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Fn(&VBy::RAW)-> bool+'static+Send+Sync>
 Observable<'static, YES, VBy, EBy>
 for FilterOp<YES, Src, F>
 {
@@ -48,7 +48,7 @@ for FilterOp<YES, Src, F>
         let (s1, s2) = Unsub::new().clones();
 
         s1.added_each(self.src.sub(
-            ForwardNext::new(next, move |n,v| if f(&v) { s2.if_not_done(|| n.call(v)); }, |s| s),
+            ForwardNext::new(next, move |n,v: VBy| if f(v.as_ref()) { s2.if_not_done(|| n.call(v.into_v())); }, |s| s),
             ec
         ))
     }
@@ -71,7 +71,7 @@ mod test
         let n = Cell::new(0);
         let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        output.filter(|v| v.as_ref() % 2 == 0).sub(|v:By<_>| { n.replace(n.get() + *v); }, ());
+        output.filter(|v:&_| v % 2 == 0).sub(|v:&_| { n.replace(n.get() + *v); }, ());
 
         for i in 0..10 {
             input.next(i);
@@ -86,10 +86,10 @@ mod test
         let n = Cell::new(0);
         let (input, output, side_effect) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        output.filter(move |v| {
+        output.filter(move |v:&_| {
             side_effect.complete();
-            v.as_ref() % 2 == 0
-        }).sub(|v:By<_>| { n.replace(n.get() + *v); }, ());
+            v % 2 == 0
+        }).sub(|v:&_| { n.replace(n.get() + *v); }, ());
 
         for i in 0..10 {
             input.next(i);
@@ -104,9 +104,9 @@ mod test
         let (n1, n2, n3) = Rc::new(Cell::new(0)).clones();
         let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        output.filter(move |_| true).sub(
-            move |v:By<_>        | {  n1.replace(n1.get() + *v); },
-            move |_:Option<By<_>>| {  n2.replace(n2.get() + 1);  });
+        output.filter(move |_:&_| true).sub(
+            move |v:&_| {  n1.replace(n1.get() + *v); },
+            move |_:Option<&_>| {  n2.replace(n2.get() + 1);  });
 
         input.next(1);
         input.next(2);

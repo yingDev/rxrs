@@ -40,7 +40,7 @@ for TakeOp<NO, Src>
         let (s1, s2, s3) = Unsub::new().clones();
         let (ec, ec1) = Rc::new(RefCell::new(Some(ec))).clones();
 
-        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:By<_>| {
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:VBy::V| {
             if !s2.is_done() {
                 let mut val = n.get();
                 if val != 0 {
@@ -57,7 +57,7 @@ for TakeOp<NO, Src>
                 }
             }
 
-        }, move |s| (s || s3.is_done()) ), move |e:Option<By<_>>| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(e))) )
+        }, move |s| (s || s3.is_done()) ), move |e:Option<EBy::V>| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(e))) )
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
@@ -78,7 +78,7 @@ for TakeOp<YES, Src>
         let (s1, s2, s3, s4) = Unsub::new().clones();
         let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
 
-        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:By<_>| {
+        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v:VBy::V| {
             s2.if_not_done(|| {
                 let state = unsafe{ &mut *state.get() };
                 let mut val = state.0;
@@ -92,7 +92,7 @@ for TakeOp<YES, Src>
                 }
             });
 
-        }, move |s| (s || s4.is_done())), move |e:Option<By<_>>| s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e)))) )
+        }, move |s| (s || s4.is_done())), move |e:Option<EBy::V>| s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e)))) )
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, YES, VBy>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>

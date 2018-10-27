@@ -3,6 +3,11 @@ use std::ops::Deref;
 
 pub unsafe trait RefOrVal {
     type V: Sized;
+    type RAW: Sized;
+
+    fn as_ref(&self) -> &Self::RAW;
+    fn into_v(self) -> Self::V;
+    fn from_v(v: Self::V) -> Self;
 }
 
 pub trait RefOrValSSs: RefOrVal+Send+Sync+'static {}
@@ -11,9 +16,34 @@ impl<T: RefOrVal+Send+Sync+'static> RefOrValSSs for T {}
 pub struct Ref<V>(*const V);
 pub struct Val<V>(V);
 
-unsafe impl<V> RefOrVal for Ref<V>{ type V = *const V;}
-unsafe impl<V> RefOrVal for Val<V>{ type V = V;}
-unsafe impl RefOrVal for () { type V = (); }
+unsafe impl<V> RefOrVal for Ref<V>
+{
+    type V = *const V;
+    type RAW = V;
+
+    fn as_ref(&self) -> &V { unsafe{ &*self.0 } }
+    fn into_v(self) -> Self::V { self.0 }
+    fn from_v(v: Self::V) -> Self { Ref(v) }
+}
+unsafe impl<V> RefOrVal for Val<V>
+{
+    type V = V;
+    type RAW = V;
+
+    fn as_ref(&self) -> &V { &self.0 }
+    fn into_v(self) -> Self::V { self.0 }
+    fn from_v(v: Self::V) -> Self { Val(v) }
+
+}
+unsafe impl RefOrVal for ()
+{
+    type V = ();
+    type RAW = ();
+
+    fn as_ref(&self) -> &() { &self }
+    fn into_v(self) -> Self::V { self }
+    fn from_v(v: Self::V) -> Self { () }
+}
 
 //pub struct By<'a, T: RefOrVal>
 //{

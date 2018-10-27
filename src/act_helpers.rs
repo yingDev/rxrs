@@ -20,34 +20,12 @@ use std::marker::PhantomData;
 pub fn sendsync_next<'o, BY: RefOrValSSs>(next: impl ActNext<'o, YES, BY>) -> impl ActNext<'o, YES, BY> + Send + Sync
 {
     //let a = unsafe{ AnySendSync::new(next) };
-    ForwardNext::new(next, |n,v| n.call(v), |s|s)
+    ForwardNext::new(next, |n,v:BY| n.call(v.into_v()), |s|s)
     //move |v:BY| a.call(v)
 }
 
 pub fn sendsync_ec<'o, V, BY: RefOrValSSs<V=V>>(act: impl ActEc<'o, YES, BY>) -> impl ActEc<'o, YES, BY> + Send + Sync
 {
-    struct ForwardEc<SS, A, By>
-    {
-        act: A,
-        PhantomData: PhantomData<(SS, By)>
-    }
-
-    unsafe impl<A, By> Send for ForwardEc<YES, A, By> {}
-    unsafe impl<A, By> Sync for ForwardEc<YES, A, By> {}
-
-    impl<'o, SS:YesNo, By: RefOrVal, A: ActEc<'o, SS, By>> ForwardEc<SS, A, By>
-    {
-        fn new(act: A) -> ForwardEc<SS, A, By>
-        {
-            ForwardEc{ act, PhantomData }
-        }
-    }
-
-    unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A: ActEc<'o, SS, By>> ActEc<'o, SS, By> for ForwardEc<SS, A, By>
-    {
-        fn call_once(self, e: Option<By::V>)  { self.act.call_once(e) }
-    }
-
     ForwardEc::new(act)
 
     //let a = unsafe{ AnySendSync::new(act) };

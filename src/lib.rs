@@ -119,7 +119,7 @@ for A
 //}
 
 
-pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY::V)+'o, S: Fn(bool)->bool+'o>
+pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
 {
     old: N,
     next: F,
@@ -127,10 +127,10 @@ pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o,
     PhantomData: PhantomData<&'o(SS, NBY, FBY)>
 }
 
-unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, FBY::V)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Send for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
-unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, FBY::V)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Sync for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
+unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, FBY)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Send for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
+unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, FBY)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Sync for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
 
-impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY::V)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, NBY, FBY, N, F, S>
+impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
     #[inline(always)] pub fn new(old: N, next: F, stop: S) -> Self
     {
@@ -138,14 +138,40 @@ impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&
     }
 }
 
-unsafe impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY::V)+'o, S: Fn(bool)->bool+'o> ActNext<'o, SS, FBY> for ForwardNext<'o, SS, NBY, FBY, N, F, S>
+unsafe impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
+ActNext<'o, SS, FBY>
+for ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
-    #[inline(always)]fn call(&self, by: FBY::V) { self.next.call((&self.old, by)) }
+    #[inline(always)]fn call(&self, by: FBY::V) { self.next.call((&self.old, FBY::from_v(by))) }
     #[inline(always)]fn stopped(&self) -> bool
     {
         self.stop.call((self.old.stopped(),))
     }
 }
+
+
+pub struct ForwardEc<SS, A, By>
+{
+    act: A,
+    PhantomData: PhantomData<(SS, By)>
+}
+
+unsafe impl<A, By> Send for ForwardEc<YES, A, By> {}
+unsafe impl<A, By> Sync for ForwardEc<YES, A, By> {}
+
+impl<'o, SS:YesNo, By: RefOrVal, A: ActEc<'o, SS, By>> ForwardEc<SS, A, By>
+{
+    fn new(act: A) -> ForwardEc<SS, A, By>
+    {
+        ForwardEc{ act, PhantomData }
+    }
+}
+
+unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A: ActEc<'o, SS, By>> ActEc<'o, SS, By> for ForwardEc<SS, A, By>
+{
+    fn call_once(self, e: Option<By::V>)  { self.act.call_once(e) }
+}
+
 
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)
 {

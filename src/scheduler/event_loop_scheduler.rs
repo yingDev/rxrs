@@ -134,7 +134,7 @@ impl Inner
 
     fn remove(&self, act: &ArcActFn)
     {
-        //sine BinaryHeap has no `remove()`, we use a ~O(n) way to remove the target item
+        //since BinaryHeap has no `remove()`, we use a ~O(n) way to remove the target item
         let mut queue = self.queue.lock().unwrap();
         let mut tmp = queue.tmp_for_remove.take().unwrap();
 

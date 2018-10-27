@@ -142,7 +142,7 @@ unsafe impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, 
 ActNext<'o, SS, FBY>
 for ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
-    #[inline(always)]fn call(&self, by: FBY::V) { self.next.call((&self.old, FBY::from_v(by))) }
+    #[inline(always)]fn call(&self, by: FBY::V) { self.next.call((&self.old, unsafe { FBY::from_v(by) })) }
     #[inline(always)]fn stopped(&self) -> bool
     {
         self.stop.call((self.old.stopped(),))

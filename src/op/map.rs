@@ -2,16 +2,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 use crate::util::alias::SSs;
+use crate::util::any_send_sync::AnySendSync;
 
 pub struct MapOp<SS, VBy, Src, F>
 {
     f: Arc<F>,
     src: Src,
-    PhantomData: PhantomData<(SS, VBy)>
+    PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
 }
-
-unsafe impl<VBy, Src: Send, F> Send for MapOp<YES, VBy, Src, F> {}
-unsafe impl<VBy, Src: Sync, F> Sync for MapOp<YES, VBy, Src, F> {}
 
 pub trait ObsMapOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>> : Sized
 {
@@ -21,45 +19,6 @@ pub trait ObsMapOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy
 impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, VBy, VOut>+'o, SS:YesNo>
 ObsMapOp<SS, VBy,EBy, VOut, F>
 for Src {}
-
-
-//impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Act<NO, VBy, VOut>+'o>
-//Observable<'o, NO, Val<VOut>, EBy>
-//for MapOp<NO, VBy, Src, F>
-//{
-//    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
-//    {
-//        let f = self.f.clone();
-//        let (s1, s2) = Unsub::new().clones();
-//
-//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v: VBy| {
-//            let v = f.call(v.into_v());
-//            if !s2.is_done() { next.call(v); }
-//        }, |s| s) , ec))
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-//    { self.sub(next, ec) }
-//}
-
-//impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Act<YES, VBy, VOut>+'static+Send+Sync>
-//Observable<'static, YES, Val<VOut>, EBy>
-//for MapOp<YES, VBy, Src, F>
-//{
-//    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
-//    {
-//        let f = self.f.clone();
-//        let (s1, s2) = Unsub::new().clones();
-//
-//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v: VBy| {
-//            let v = f.call(v.into_v());
-//            s2.if_not_done(|| next.call(v));
-//        }, |s|s), ec))
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
-//    { self.sub(next, ec) }
-//}
 
 impl<'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, VBy, VOut>+'o>
 Observable<'o, SS, Val<VOut>, EBy>

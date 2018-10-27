@@ -10,6 +10,9 @@ pub struct MapOp<SS, VBy, Src, F>
     PhantomData: PhantomData<(SS, VBy)>
 }
 
+unsafe impl<VBy, Src: Send, F> Send for MapOp<YES, VBy, Src, F> {}
+unsafe impl<VBy, Src: Sync, F> Sync for MapOp<YES, VBy, Src, F> {}
+
 pub trait ObsMapOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>> : Sized
 {
     fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
@@ -104,80 +107,81 @@ mod test
         assert_eq!(result.borrow().as_str(), "ABC");
     }
 
-//    #[test]
-//    fn unsub()
-//    {
-//        let n = Cell::new(0);
-//        let (i,o) = Rc::new(Subject::<NO, i32>::new()).clones();
-//        let unsub = o.map(|v| *v+1).sub(|v:By<_>| { n.replace(*v); }, ());
-//
-//        i.next(1);
-//        assert_eq!(n.get(), 2);
-//
-//        unsub();
-//        i.next(2);
-//        assert_eq!(n.get(), 2);
-//    }
-//
-//    #[test]
-//    fn boxed()
-//    {
-//        let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
-//
-//        let o: Box<Observable<NO, Val<i32>>> = o.map(|v| *v+1).into_dyn();
-//        o.sub(|v:By<_>| println!("v={}", *v), ());
-//    }
-//
-//    #[test]
-//    fn thread()
-//    {
-//        let (n, n1) = Arc::new(AtomicI32::new(0)).clones();
-//        let (i, o, send) = Arc::new(Subject::<YES, i32>::new()).clones();
-//
-//        o.sub(|_: By<_>|{}, ());
-//
-//        o.map(|v| *v+1).sub(move |v: By<Val<i32>>| {n.store(*v, Ordering::SeqCst); }, ());
-//
-//        let s = send.map(|v| *v * *v);
-//        ::std::thread::spawn(move ||{
-//            i.next(123);
-//            s.sub(|_:By<_>|{}, ());
-//        }).join().ok();
-//
-//        assert_eq!(n1.load(Ordering::SeqCst), 124);
-//    }
-//
-//    #[test]
-//    fn drops_closure()
-//    {
-//        let (r, r1) = Rc::new(0).clones();
-//
-//        assert_eq!(Rc::strong_count(&r), 2);
-//
-//        let o = Of::value(123);
-//
-//        o.map(move |_| Rc::strong_count(&r1)).sub((), ());
-//
-//        assert_eq!(Rc::strong_count(&r), 1);
-//    }
-//
-//    #[test]
-//    fn should_complete()
-//    {
-//        let (n1, n2, n3) = Rc::new(Cell::new(0)).clones();
-//        let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
-//
-//        output.map(move |v| *v).sub(
-//            move |v:By<_>        | {  n1.replace(n1.get() + *v); },
-//            move |_:Option<By<_>>| {  n2.replace(n2.get() + 1);  });
-//
-//        input.next(1);
-//        input.next(2);
-//
-//        assert_eq!(n3.get(), 3);
-//
-//        input.complete();
-//
-//        assert_eq!(n3.get(), 4);
-//    }
+    #[test]
+    fn unsub()
+    {
+        let n = Cell::new(0);
+        let (i,o) = Rc::new(Subject::<NO, i32>::new()).clones();
+        let unsub = o.map(|v:&_| *v+1).sub(|v| { n.replace(v); }, ());
+
+        i.next(1);
+        assert_eq!(n.get(), 2);
+
+        unsub();
+        i.next(2);
+        assert_eq!(n.get(), 2);
+    }
+
+    #[test]
+    fn boxed()
+    {
+        let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
+
+        let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&_| v+1).into_dyn();
+        o.sub(|v| println!("v={}", v), ());
+    }
+
+    #[test]
+    fn thread()
+    {
+        let (n, n1) = Arc::new(AtomicI32::new(0)).clones();
+        let (i, o, send) = Arc::new(Subject::<YES, i32>::new()).clones();
+
+        o.sub(|_: &_|{}, ());
+
+        o.map(|v:&_| v+1).sub(move |v:i32| {n.store(v, Ordering::SeqCst); }, ());
+
+        let s = send.map(|v:&_| v * v);
+        ::std::thread::spawn(move ||{
+            i.next(123);
+
+            s.sub(|_|{}, ());
+        }).join().ok();
+
+        assert_eq!(n1.load(Ordering::SeqCst), 124);
+    }
+
+    #[test]
+    fn drops_closure()
+    {
+        let (r, r1) = Rc::new(0).clones();
+
+        assert_eq!(Rc::strong_count(&r), 2);
+
+        let o = Of::value(123);
+
+//        o.map(move |_:&i32| Rc::strong_count(&r1)).sub((), ());
+
+        assert_eq!(Rc::strong_count(&r), 1);
+    }
+
+    #[test]
+    fn should_complete()
+    {
+        let (n1, n2, n3) = Rc::new(Cell::new(0)).clones();
+        let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
+
+        output.map(move |v:&_| *v).sub(
+            move |v| {  n1.replace(n1.get() + v); },
+            move |_:Option<&_>| {  n2.replace(n2.get() + 1);  });
+
+        input.next(1);
+        input.next(2);
+
+        assert_eq!(n3.get(), 3);
+
+        input.complete();
+
+        assert_eq!(n3.get(), 4);
+    }
 }

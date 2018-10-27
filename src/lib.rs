@@ -149,6 +149,13 @@ for ForwardNext<'o, SS, NBY, FBY, N, F, S>
     }
 }
 
+#[inline(always)]
+pub fn forward_next<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
+(old: N, next: F, stop: S) -> ForwardNext<'o, SS, NBY, FBY, N, F, S>
+{
+    ForwardNext::new(old, next, stop)
+}
+
 
 
 

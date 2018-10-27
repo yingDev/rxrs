@@ -51,8 +51,8 @@ for TakeOp<SS, Src>
 
             }, move |s| (s || s4.is_done())),
 
-            ForwardEc::new(state1, move |state, e:Option<EBy>| {
-                s3.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
+            ForwardEc::new(move |e:Option<EBy>| {
+                s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
             })
         ))
     }

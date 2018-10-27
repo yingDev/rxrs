@@ -20,30 +20,49 @@ ObsMapOp<SS, VBy,EBy, VOut, F>
 for Src {}
 
 
-impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Act<NO, VBy, VOut>+'o>
-Observable<'o, NO, Val<VOut>, EBy>
-for MapOp<NO, VBy, Src, F>
+//impl<'o, VOut:'o, VBy: RefOrVal+'o, EBy:RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, F: Act<NO, VBy, VOut>+'o>
+//Observable<'o, NO, Val<VOut>, EBy>
+//for MapOp<NO, VBy, Src, F>
+//{
+//    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
+//    {
+//        let f = self.f.clone();
+//        let (s1, s2) = Unsub::new().clones();
+//
+//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v: VBy| {
+//            let v = f.call(v.into_v());
+//            if !s2.is_done() { next.call(v); }
+//        }, |s| s) , ec))
+//    }
+//
+//    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
+//    { self.sub(next, ec) }
+//}
+
+//impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Act<YES, VBy, VOut>+'static+Send+Sync>
+//Observable<'static, YES, Val<VOut>, EBy>
+//for MapOp<YES, VBy, Src, F>
+//{
+//    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
+//    {
+//        let f = self.f.clone();
+//        let (s1, s2) = Unsub::new().clones();
+//
+//        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v: VBy| {
+//            let v = f.call(v.into_v());
+//            s2.if_not_done(|| next.call(v));
+//        }, |s|s), ec))
+//    }
+//
+//    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
+//    { self.sub(next, ec) }
+//}
+
+impl<'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, VBy, VOut>+'o>
+Observable<'o, SS, Val<VOut>, EBy>
+for MapOp<SS, VBy, Src, F>
 {
-    fn sub(&self, next: impl ActNext<'o, NO, Val<VOut>>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
-    {
-        let f = self.f.clone();
-        let (s1, s2) = Unsub::new().clones();
-
-        s1.added_each(self.src.sub(ForwardNext::new(next, move |next, v: VBy| {
-            let v = f.call(v.into_v());
-            if !s2.is_done() { next.call(v); }
-        }, |s| s) , ec))
-    }
-
-    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Val<VOut>>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-    { self.sub(next, ec) }
-}
-
-impl<VOut:SSs, VBy: RefOrValSSs, EBy: RefOrValSSs, Src: Observable<'static, YES, VBy, EBy>, F: Act<NO, VBy, VOut>+'static+Send+Sync>
-Observable<'static, YES, Val<VOut>, EBy>
-for MapOp<YES, VBy, Src, F>
-{
-    fn sub(&self, next: impl ActNext<'static, YES, Val<VOut>>, ec: impl ActEc<'static, YES, EBy>) -> Unsub<'static, YES> where Self: Sized
+    fn sub(&self, next: impl ActNext<'o, SS, Val<VOut>>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
         let f = self.f.clone();
         let (s1, s2) = Unsub::new().clones();
@@ -54,10 +73,9 @@ for MapOp<YES, VBy, Src, F>
         }, |s|s), ec))
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<VOut>>>, ec: Box<ActEcBox<'static, YES, EBy>>) -> Unsub<'static, YES>
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<VOut>>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { self.sub(next, ec) }
 }
-
 
 #[cfg(test)]
 mod test

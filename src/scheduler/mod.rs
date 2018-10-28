@@ -17,7 +17,7 @@ pub trait ThreadFactory
     fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>);
 }
 
-pub unsafe trait SchActPeriodic<SS:YesNo> : for<'x> Act<SS, &'x Unsub<'static, SS>> + 'static {}
+pub unsafe trait SchActPeriodic<SS:YesNo> : Act<SS, Ref<Unsub<'static, SS>>> + 'static {}
 pub unsafe trait SchActOnce<SS:YesNo> : ActOnce<SS, (), Unsub<'static, SS>> + 'static {}
 pub unsafe trait SchActBox<SS:YesNo> : ActBox<SS, (), Unsub<'static, SS>> + 'static {}
 

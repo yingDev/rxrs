@@ -165,7 +165,7 @@ impl Inner
         }
 
         let selv = Arc::downgrade(&self.get_arc_self());
-        sub.add(Unsub::<YES>::with(move |()| selv.upgrade().map_or((), |arc| arc.remove(&act) )));
+        sub.add(Unsub::<YES>::with(move || selv.upgrade().map_or((), |arc| arc.remove(&act) )));
 
         self.noti.notify_one();
         self.ensure_thread();
@@ -253,38 +253,38 @@ mod test
         });
 
 
-        sch.schedule(None, |()| {
+        sch.schedule(None, || {
             println!("ok? a");
             Unsub::done()
         });
-        sch.schedule(None, |()| {
+        sch.schedule(None, || {
             println!("ok? b");
             Unsub::done()
         });
 
-        sch.schedule(None, |()| {
+        sch.schedule(None, || {
             println!("ok? c");
             Unsub::done()
         });
 
-        sch.schedule(Some(::std::time::Duration::from_millis(4)), |()| {
+        sch.schedule(Some(::std::time::Duration::from_millis(4)), || {
             println!("later...4");
             Unsub::done()
         });
 
 
-        sch.schedule(Some(::std::time::Duration::from_millis(3)), |()| {
+        sch.schedule(Some(::std::time::Duration::from_millis(3)), || {
             println!("later...3");
             ::std::thread::sleep_ms(200);
             Unsub::done()
         });
-        sch.schedule(Some(::std::time::Duration::from_millis(2)), |()| {
+        sch.schedule(Some(::std::time::Duration::from_millis(2)), || {
             println!("later... 2");
             ::std::thread::sleep_ms(200);
 
             Unsub::done()
         });
-        sch.schedule(Some(::std::time::Duration::from_millis(1)), |()| {
+        sch.schedule(Some(::std::time::Duration::from_millis(1)), || {
             println!("later... 1");
             ::std::thread::sleep_ms(200);
 

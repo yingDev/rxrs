@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::*;
 use std::cell::Cell;
+use crate::util::any_send_sync::AnySendSync;
 
 //todo:
 
@@ -30,15 +31,14 @@ for Timer<YES, Sch>
 {
     fn sub(&self, next: impl ActNext<'static, YES, Val<usize>>, ec: impl ActEc<'static, YES>) -> Unsub<'static, YES>
     {
-        let next = sendsync_next(next);
         let count = AtomicUsize::new(0);
+        let next = unsafe { AnySendSync::new(next) };
         //hack: avoid sch being dropped when Timer is dropped
-        //todo: find a better way ?
         let sch = self.scheduler.clone();
         self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, YES>|{
             sch.as_ref();
             if !next.stopped() {
-                next.call(By::v(count.fetch_add(1, Ordering::Relaxed)));
+                next.call(count.fetch_add(1, Ordering::Relaxed));
             }
 
             if next.stopped() { unsub.unsub(); }
@@ -57,12 +57,11 @@ for Timer<NO, Sch>
     {
         let count = Cell::new(0);
         //hack: avoid sch being dropped when Timer is dropped
-        //todo: find a better way ?
         let sch = self.scheduler.clone();
         self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, NO>|{
             sch.as_ref();
             if ! next.stopped() {
-                next.call(By::v(count.replace(count.get() + 1)));
+                next.call(count.replace(count.get() + 1));
             }
             if next.stopped() { unsub.unsub(); }
         })
@@ -90,7 +89,7 @@ mod test
         let (n, n1) = Arc::new(AtomicUsize::new(0)).clones();
         let t = Timer::new(Duration::from_millis(33), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
 
-        t.take(10).sub(move |v: By<_>| { n.store(*v, Ordering::SeqCst); }, ());
+        t.take(10).sub(move |v| { n.store(v, Ordering::SeqCst); }, ());
         assert_ne!(n1.load(Ordering::SeqCst), 9);
 
 
@@ -104,9 +103,9 @@ mod test
         let (out, out1, out3) = Arc::new(Mutex::new(String::new())).clones();
         let t = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
 
-        t.filter(|v| **v % 2 == 0 ).take(5).map(|v| format!("{}", *v)).sub(
-            move |v: By<Val<String>>| { out.lock().unwrap().push_str(&*v); },
-            move |e: Option<By<_>>| out3.lock().unwrap().push_str("ok")
+        t.filter(|v: &_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
+            move |v: String| { out.lock().unwrap().push_str(&*v); },
+            move |e: Option<&_>| out3.lock().unwrap().push_str("ok")
         );
 
         ::std::thread::sleep_ms(1000);
@@ -124,8 +123,8 @@ mod test
             let (n1, n2) = n.clone().clones();
             let t = t.clone();
             t.take(1).sub(
-                move |v: By<_>| *n1.lock().unwrap() += i,
-                move |e:Option<By<_>>| *n2.lock().unwrap() += 1
+                move |v| *n1.lock().unwrap() += i,
+                move |e:Option<&_>| *n2.lock().unwrap() += 1
             );
         }
 
@@ -133,35 +132,35 @@ mod test
         assert_eq!(*n.lock().unwrap(), 10 + 5);
     }
 
-    #[test]
-    fn as_until_sig()
-    {
-        let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
-        let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
-        let t = Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
-
-        s.until(t).sub(
-            move |v:By<_>| *n1.lock().unwrap() += *v ,
-            move |e: Option<By<_>>| *n2.lock().unwrap() += 100
-        );
-
-        s1.next(1);
-        assert_eq!(*n.lock().unwrap(), 1);
-
-        s1.next(2);
-        assert_eq!(*n.lock().unwrap(), 3);
-
-        ::std::thread::sleep_ms(10);
-        s1.next(3);
-        assert_eq!(*n.lock().unwrap(), 6);
-
-        ::std::thread::sleep_ms(150);
-        assert_eq!(*n.lock().unwrap(), 106);
-
-        s1.next(1234);
-        s1.complete();
-        assert_eq!(*n.lock().unwrap(), 106);
-    }
+//    #[test]
+//    fn as_until_sig()
+//    {
+//        let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
+//        let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
+//        let t = Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+//
+//        s.until(t).sub(
+//            move |v| *n1.lock().unwrap() += v ,
+//            move |e: Option<_>| *n2.lock().unwrap() += 100
+//        );
+//
+//        s1.next(1);
+//        assert_eq!(*n.lock().unwrap(), 1);
+//
+//        s1.next(2);
+//        assert_eq!(*n.lock().unwrap(), 3);
+//
+//        ::std::thread::sleep_ms(10);
+//        s1.next(3);
+//        assert_eq!(*n.lock().unwrap(), 6);
+//
+//        ::std::thread::sleep_ms(150);
+//        assert_eq!(*n.lock().unwrap(), 106);
+//
+//        s1.next(1234);
+//        s1.complete();
+//        assert_eq!(*n.lock().unwrap(), 106);
+//    }
 
     #[test]
     fn no()
@@ -169,9 +168,9 @@ mod test
         let (out, out1, out3) = Rc::new(RefCell::new(String::new())).clones();
         let t = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
 
-        t.filter(|v| **v % 2 == 0 ).take(5).map(|v| format!("{}", *v)).sub(
-            move |v: By<Val<String>>| { out.borrow_mut().push_str(&*v); },
-            move |e: Option<By<_>>| out3.borrow_mut().push_str("ok")
+        t.filter(|v:&_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
+            move |v: String| { out.borrow_mut().push_str(&*v); },
+            move |e: Option<&_>| out3.borrow_mut().push_str("ok")
         );
 
         assert_eq!(out1.borrow().as_str(), "02468ok");

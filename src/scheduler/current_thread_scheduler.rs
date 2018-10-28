@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::cell::Cell;
 
 
-type RcActFn = Rc<Fn(())+'static>;
+type RcActFn = Rc<Fn()+'static>;
 
 struct ActItem
 {
@@ -42,7 +42,7 @@ impl CurrentThreadScheduler
                     ::std::thread::sleep(act.due - now);
                 }
                 if ! act.unsub.is_done() {
-                    act.act.call(((), ));
+                    (act.act)();
                 }
                 if ! act.unsub.is_done() {
                     if let Some(period) = act.period {
@@ -73,8 +73,8 @@ impl Scheduler<NO> for CurrentThreadScheduler
         }
 
         let (act, act1) = Rc::new(RefCell::new(Some(act))).clones();
-        let (sub, sub1) = Unsub::<NO>::with(move|()| { act1.borrow_mut().take(); }).clones();
-        let (act, act1) = Rc::new(move |()| {
+        let (sub, sub1) = Unsub::<NO>::with(move|| { act1.borrow_mut().take(); }).clones();
+        let (act, act1) = Rc::new(move || {
             let act = act.borrow_mut().take();
             act.map_or((), |a| { sub.add_each(a.call_once(())); })
         }).clones();
@@ -96,7 +96,7 @@ impl SchedulerPeriodic<NO> for CurrentThreadScheduler
     {
         let (act, act1) = Rc::new(act).clones();
         let (sub, sub1, sub2) = Unsub::<NO>::new().clones();
-        let (act, act1) = Rc::new(move |()| {
+        let (act, act1) = Rc::new(move || {
             act.call(&sub2);
         }).clones();
 
@@ -150,7 +150,7 @@ mod test
         let (n, n1) = Rc::new(Cell::new(0)).clones();
         let s = CurrentThreadScheduler::new();
 
-        s.schedule(Some(Duration::from_millis(100)), move |()| {
+        s.schedule(Some(Duration::from_millis(100)), move || {
             n.replace(n.get() + 1);
             Unsub::done()
         });
@@ -164,16 +164,16 @@ mod test
         let (n, n1, n2) = Rc::new(RefCell::new(String::new())).clones();
         let (s, s1, s2) = Arc::new(CurrentThreadScheduler::new()).clones();
 
-        s.schedule(Some(Duration::from_millis(1)), move |()| {
+        s.schedule(Some(Duration::from_millis(1)), move || {
             let (n, n1, n2) = n.clones();
             n.borrow_mut().push_str("a");
 
-            s1.schedule(Some(Duration::from_millis(3)), move |()| {
+            s1.schedule(Some(Duration::from_millis(3)), move || {
                 n.borrow_mut().push_str("b");
                 Unsub::done()
             } );
 
-            s2.schedule(Some(Duration::from_millis(2)), move |()| {
+            s2.schedule(Some(Duration::from_millis(2)), move || {
                 n1.borrow_mut().push_str("c");
                 Unsub::done()
             } );

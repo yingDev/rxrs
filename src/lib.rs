@@ -51,7 +51,7 @@ pub use crate::act::*;
 pub use crate::act_helpers::*;
 pub use crate::observables::*;
 use std::marker::PhantomData;
-//pub use crate::scheduler::*;
+pub use crate::scheduler::*;
 
 mod observables;
 mod op;
@@ -61,7 +61,7 @@ mod unsub;
 mod fac;
 mod act;
 mod act_helpers;
-//mod scheduler;
+mod scheduler;
 
 
 impl<'a, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>+'a>
@@ -104,26 +104,6 @@ for ()
     fn call(&self, by: By::V) { }
 }
 
-//unsafe impl<'o, SS:YesNo, BY: RefOrVal>
-//ActNext<'o, SS, BY>
-//for () {
-//    //fn call(&self, by: BY::V) {  }
-//}
-
-
-
-//
-//unsafe impl<'o, BY: RefOrVal, A: FnOnce(Option<BY::V>)+'o>
-//ActEc<'o, NO, BY>
-//for A {
-//    //fn call_once(self, by: Option<E>) { self.call_once((by,)) }
-//}
-//
-//unsafe impl<'o, BY: RefOrVal, A: FnOnce(Option<BY::V>)+'o+Send+Sync>
-//ActEc<'o, YES, BY>
-//for A {
-//    //fn call_once(self, by: Option<E>) { self.call_once((by,)) }
-//}
 
 
 pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
@@ -237,17 +217,17 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 
 
 ////todo:...
-//unsafe impl<SS:YesNo, A: for<'x> Act<SS, &'x Unsub<'static, SS>>+'static>
-//SchActPeriodic<SS>
-//for A{}
-//
-//unsafe impl<SS:YesNo, A: ActOnce<SS, (), Unsub<'static, SS>>+'static>
-//SchActOnce<SS>
-//for A{}
-//
-//unsafe impl<SS:YesNo, A: ActBox<SS, (), Unsub<'static, SS>>+'static>
-//SchActBox<SS>
-//for A{}
+unsafe impl<SS:YesNo, A: Act<SS, Ref<Unsub<'static, SS>>>+'static>
+SchActPeriodic<SS>
+for A{}
+
+unsafe impl<SS:YesNo, A: ActOnce<SS, (), Unsub<'static, SS>>+'static>
+SchActOnce<SS>
+for A{}
+
+unsafe impl<SS:YesNo, A: ActBox<SS, (), Unsub<'static, SS>>+'static>
+SchActBox<SS>
+for A{}
 
 
 #[cfg(test)]

@@ -121,7 +121,7 @@ unsafe impl<'o, By: RefOrVal, A: Sync+'o, R> Sync for WrapAct<'o, YES, By, A, R>
 impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R> WrapAct<'o, SS, By, A, R>
 {
     #[inline(always)]
-    pub fn new(act: A) -> WrapAct<'o, SS, By, A, R>
+    pub unsafe fn new(act: A) -> WrapAct<'o, SS, By, A, R>
     {
         WrapAct { act, PhantomData }
     }

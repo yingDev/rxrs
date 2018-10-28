@@ -28,10 +28,10 @@ for MapOp<SS, VBy, Src, F>
         let f = self.f.clone();
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(forward_next(next, move |next, v: VBy| {
+        s1.added_each(self.src.sub(unsafe { forward_next(next, move |next, v: VBy| {
             let v = f.call(v.into_v());
             s2.if_not_done(|| next.call(v));
-        }, |s|s), ec))
+        }, |s|s) }, ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<VOut>>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>

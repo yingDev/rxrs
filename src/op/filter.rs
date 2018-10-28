@@ -25,12 +25,20 @@ for FilterOp<SS, Src, F>
     fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
         let f = self.f.clone();
-        let (s1, s2) = Unsub::new().clones();
+        let (s1, s2) = Unsub::<SS>::new().clones();
+unimplemented!();
+//        s1.added_each(self.src.sub(
+//            unsafe { forward_next(next, move |n,v: VBy| {
+//                if f.call(v.as_ref()) {
+//                    s2.if_not_done(|| n.call(v.into_v()));
+//                }
+//            }, |s| s) },
+//            ec
+//        ))
 
-        s1.added_each(self.src.sub(
-            forward_next(next, move |n,v: VBy| if f.call(v.as_ref()) { s2.if_not_done(|| n.call(v.into_v())); }, |s| s),
-            ec
-        ))
+//                s1.added_each(self.src.sub(Closure::new(next, |next, v|{
+//
+//                }), ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>

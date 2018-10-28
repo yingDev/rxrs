@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::*;
 use crate::util::any_send_sync::AnySendSync;
 use crate::act::WrapAct;
+use std::cell::Cell;
+use std::cell::RefCell;
 
 pub struct Timer<SS: YesNo, Sch: SchedulerPeriodic<SS>>
 {
@@ -32,14 +34,15 @@ for Timer<SS, Sch>
         //hack: prevent sch being dropped when Timer is dropped
         let sch = self.scheduler.clone();
 
-        self.scheduler.schedule_periodic(self.period, WrapAct::new(move |unsub: Ref<Unsub<'static, SS>>|{
+        self.scheduler.schedule_periodic(self.period, unsafe { WrapAct::new(move |unsub: Ref<Unsub<'static, SS>>|{
             sch.as_ref();
+
             if !next.stopped() {
                 next.call(count.fetch_add(1, Ordering::Relaxed));
             }
 
             if next.stopped() { unsub.as_ref().unsub(); }
-        }))
+        })})
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, SS, Val<usize>>>, ec: Box<ActEcBox<'static, SS>>) -> Unsub<'static, SS>

@@ -119,7 +119,8 @@ unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: 
 
 impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
-    #[inline(always)] pub fn new(old: N, next: F, stop: S) -> Self
+    #[inline(always)]
+    pub unsafe fn new(old: N, next: F, stop: S) -> Self
     {
         ForwardNext{ old, next, stop, PhantomData }
     }
@@ -137,7 +138,7 @@ for ForwardNext<'o, SS, NBY, FBY, N, F, S>
 }
 
 #[inline(always)]
-pub fn forward_next<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
+pub unsafe fn forward_next<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
 (old: N, next: F, stop: S) -> ForwardNext<'o, SS, NBY, FBY, N, F, S>
 {
     ForwardNext::new(old, next, stop)
@@ -158,7 +159,7 @@ unsafe impl<'o, By: RefOrVal, F: Sync> Sync for ForwardEc<'o, YES, By, F> {}
 impl<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)> ForwardEc<'o, SS,By, F>
 {
     #[inline(always)]
-    fn new(f: F) -> ForwardEc<'o, SS, By, F>
+    unsafe fn new(f: F) -> ForwardEc<'o, SS, By, F>
     {
         ForwardEc{ f, PhantomData }
     }
@@ -171,7 +172,7 @@ unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, F: FnOnce(Option<By>)+'o> ActEc<'o, S
 
 
 #[inline(always)]
-pub fn forward_ec<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)>
+pub unsafe fn forward_ec<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)>
 (f: F) -> ForwardEc<'o, SS, By, F>
 {
     ForwardEc::new(f)
@@ -233,14 +234,114 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 //SchActBox<SS>
 //for A{}
 
+pub unsafe trait SendSync {
+    type SS: YesNo;
+}
+
+//unsafe impl<T> SendSync for T { default type SS = NO; }
+//unsafe impl<T: Send+Sync> SendSync for T  { default type SS = YES; }
+
+pub struct Closure<Caps: SendSync, Args, R=()>
+{
+    f: fn(&Caps, Args) ->R,
+    captures: Caps,
+    PhantomData: PhantomData<(* const Caps, R, Args)>
+}
+
+unsafe impl<Caps: SendSync, Args, R> SendSync for Closure<Caps, Args, R>
+{
+    type SS = Caps::SS;
+}
+
+unsafe impl<Caps: SendSync<SS=YES>, Args, R> Send for Closure<Caps, Args, R> {}
+unsafe impl<Caps: SendSync<SS=YES>, Args, R> Sync for Closure<Caps, Args, R> {}
+
+impl<Caps: SendSync, Args, R> Closure<Caps, Args, R>
+{
+    pub fn new(captures: Caps, f: fn(&Caps, Args) ->R) -> Closure<Caps, Args, R>
+    {
+        Closure{ PhantomData, captures, f }
+    }
+
+    pub fn call(&self, args: Args) -> R
+    {
+        (self.f)(&self.captures, args)
+    }
+}
+
 
 #[cfg(test)]
 mod test
 {
     use crate::*;
+    use std::marker::PhantomData;
+    use std::cell::Cell;
+    use std::cell::UnsafeCell;
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
+    #[test]
     fn inference()
     {
+        pub trait Observable<'o, By: RefOrVal, EBy: RefOrVal=Ref<()>>
+        {
+            type SSA:YesNo;
+
+            fn sub(&self, next: impl ActNext<'o, By>+SendSync<SS=Self::SSA>, err_or_comp: impl ActEc<'o, EBy>+SendSync<SS=Self::SSA>) -> Unsub<'o, Self::SSA> where Self: Sized;
+
+        }
+
+        pub unsafe trait ActNext <'o, BY: RefOrVal> : 'o
+        {
+            fn call(&self, v: BY::V);
+            fn stopped(&self) -> bool { false }
+        }
+        pub unsafe trait ActEc<'o, BY: RefOrVal=Ref<()> > : 'o
+        {
+            fn call_once(self, e: Option<BY::V>);
+        }
+        pub unsafe trait ActEcBox<'o, BY: RefOrVal=Ref<()>> : 'o
+        {
+            fn call_box(self: Box<Self>, e: Option<BY::V>);
+        }
+
+        unsafe impl<'o,BY:RefOrVal, A: ActEc<'o, BY>> ActEcBox<'o, BY> for A
+        {
+            fn call_box(self: Box<Self>, e: Option<BY::V>) { self.call_once(e) }
+        }
+
+
+        unsafe impl<'o, Caps: SendSync+'o, BY: RefOrVal+'o> ActNext<'o, BY> for Closure<Caps, BY>
+        {
+            fn call(&self, v: <BY as RefOrVal>::V)
+            {
+                unimplemented!()
+            }
+
+            fn stopped(&self) -> bool
+            {
+                unimplemented!()
+            }
+        }
+
+        struct Filter<Src>
+        {
+            src: Src
+        }
+
+        impl<'o, Src: Observable<'o, Val<i32>, ()>> Observable<'o, Val<i32>, ()> for Filter<Src>
+        {
+            type SSA = Src::SSA;
+
+            fn sub(&self, next: impl ActNext<'o, Val<i32>> + SendSync<SS=Self::SSA>, ec: impl ActEc<'o, ()> + SendSync<SS=Self::SSA>) -> Unsub<'o, Self::SSA> where Self: Sized
+            {
+                self.src.sub(Closure::new(next, |next, v|{
+                    next.call(123)
+                }), ec)
+            }
+        }
+
+
 
     }
 }

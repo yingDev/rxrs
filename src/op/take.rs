@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::*;
 use crate::any_send_sync::AnySendSync;
 use std::cell::UnsafeCell;
+use std::cell::RefCell;
 
 pub struct TakeOp<SS, Src>
 {
@@ -34,10 +35,10 @@ for TakeOp<SS, Src>
         let (s1, s2, s3, s4) = Unsub::new().clones();
         let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
 
-        s1.added_each(self.src.sub(
-            forward_next(next, move |next, v:VBy| {
+        s1.added_each(self.src.sub(unsafe { forward_next(next, move |next, v:VBy| {
                 s2.if_not_done(|| {
                     let state = unsafe{ &mut *state.get() };
+
                     let mut val = state.0;
                     if val != 0 {
                         val -= 1;
@@ -48,11 +49,11 @@ for TakeOp<SS, Src>
                         s2.unsub_then(|| state.1.take().map_or((), |ec| ec.call_once(None)));
                     }
                 });
-            }, move |s| (s || s4.is_done())),
+            }, move |s| (s || s4.is_done())) },
 
-            forward_ec(move |e:Option<EBy>| {
+            unsafe { forward_ec(move |e:Option<EBy>| {
                 s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
-            })
+            }) }
         ))
     }
 

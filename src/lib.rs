@@ -180,6 +180,10 @@ pub fn forward_ec<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)>
 
 
 
+
+
+
+
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)
 {
     #[inline(always)]fn call(&self, v: BY::V) { self.0.call(v); }
@@ -217,17 +221,17 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 
 
 ////todo:...
-unsafe impl<SS:YesNo, A: Act<SS, Ref<Unsub<'static, SS>>>+'static>
-SchActPeriodic<SS>
-for A{}
-
-unsafe impl<SS:YesNo, A: ActOnce<SS, (), Unsub<'static, SS>>+'static>
-SchActOnce<SS>
-for A{}
-
-unsafe impl<SS:YesNo, A: ActBox<SS, (), Unsub<'static, SS>>+'static>
-SchActBox<SS>
-for A{}
+//unsafe impl<SS:YesNo, A: Act<SS, Ref<Unsub<'static, SS>>>+'static>
+//SchActPeriodic<SS>
+//for A{}
+//
+//unsafe impl<SS:YesNo, A: ActOnce<SS, (), Unsub<'static, SS>>+'static>
+//SchActOnce<SS>
+//for A{}
+//
+//unsafe impl<SS:YesNo, A: ActBox<SS, (), Unsub<'static, SS>>+'static>
+//SchActBox<SS>
+//for A{}
 
 
 #[cfg(test)]

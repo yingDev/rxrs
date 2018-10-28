@@ -5,8 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::*;
 use std::cell::Cell;
 use crate::util::any_send_sync::AnySendSync;
-
-//todo:
+use crate::act::WrapAct;
 
 pub struct Timer<SS: YesNo, Sch: SchedulerPeriodic<SS>>
 {
@@ -17,7 +16,6 @@ pub struct Timer<SS: YesNo, Sch: SchedulerPeriodic<SS>>
 
 impl<SS:YesNo, Sch: SchedulerPeriodic<SS>> Timer<SS, Sch>
 {
-    //todo: default should be a DefaultScheduler ...
     pub fn new(period: Duration, scheduler: Sch) -> Self
     {
         Timer{ period, scheduler: Arc::new(scheduler), PhantomData }
@@ -25,49 +23,28 @@ impl<SS:YesNo, Sch: SchedulerPeriodic<SS>> Timer<SS, Sch>
 }
 
 
-impl<Sch: SchedulerPeriodic<YES>+Send+Sync+'static>
-Observable<'static, YES, Val<usize>>
-for Timer<YES, Sch>
+impl<SS:YesNo, Sch: SchedulerPeriodic<SS>+'static>
+Observable<'static, SS, Val<usize>>
+for Timer<SS, Sch>
 {
-    fn sub(&self, next: impl ActNext<'static, YES, Val<usize>>, ec: impl ActEc<'static, YES>) -> Unsub<'static, YES>
+    fn sub(&self, next: impl ActNext<'static, SS, Val<usize>>, ec: impl ActEc<'static, SS>) -> Unsub<'static, SS>
     {
         let count = AtomicUsize::new(0);
         let next = unsafe { AnySendSync::new(next) };
-        //hack: avoid sch being dropped when Timer is dropped
+        //hack: prevent sch being dropped when Timer is dropped
         let sch = self.scheduler.clone();
-        self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, YES>|{
+
+        self.scheduler.schedule_periodic(self.period, WrapAct::new(move |unsub: Ref<Unsub<'static, SS>>|{
             sch.as_ref();
             if !next.stopped() {
                 next.call(count.fetch_add(1, Ordering::Relaxed));
             }
 
-            if next.stopped() { unsub.unsub(); }
-        })
+            if next.stopped() { unsub.as_ref().unsub(); }
+        }))
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Val<usize>>>, ec: Box<ActEcBox<'static, YES>>) -> Unsub<'static, YES>
-    { self.sub(next, ec) }
-}
-
-impl<Sch: SchedulerPeriodic<NO>+'static>
-Observable<'static, NO, Val<usize>>
-for Timer<NO, Sch>
-{
-    fn sub(&self, next: impl ActNext<'static, NO, Val<usize>>, ec: impl ActEc<'static, NO>) -> Unsub<'static, NO>
-    {
-        let count = Cell::new(0);
-        //hack: avoid sch being dropped when Timer is dropped
-        let sch = self.scheduler.clone();
-        self.scheduler.schedule_periodic(self.period, move |unsub:&Unsub<'static, NO>|{
-            sch.as_ref();
-            if ! next.stopped() {
-                next.call(count.replace(count.get() + 1));
-            }
-            if next.stopped() { unsub.unsub(); }
-        })
-    }
-
-    fn sub_dyn(&self, next: Box<ActNext<'static, NO, Val<usize>>>, ec: Box<ActEcBox<'static, NO>>) -> Unsub<'static, NO>
+    fn sub_dyn(&self, next: Box<ActNext<'static, SS, Val<usize>>>, ec: Box<ActEcBox<'static, SS>>) -> Unsub<'static, SS>
     { self.sub(next, ec) }
 }
 

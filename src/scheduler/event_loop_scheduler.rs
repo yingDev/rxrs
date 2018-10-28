@@ -43,7 +43,7 @@ struct ActItem
 
 impl Scheduler<YES> for Inner
 {
-    fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule(&self, due: Option<Duration>, act: impl ActOnce<YES, (), Unsub<'static, YES>> + 'static) -> Unsub<'static, YES> where Self: Sized
     {
         if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
 
@@ -57,7 +57,7 @@ impl Scheduler<YES> for Inner
 
 impl SchedulerPeriodic<YES> for Inner
 {
-    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule_periodic(&self, period: Duration, act: impl Act<YES, Ref<Unsub<'static, YES>>> + 'static) -> Unsub<'static, YES> where Self: Sized
     {
         if self.disposed.load(Ordering::Acquire) { return Unsub::done(); }
 
@@ -176,7 +176,7 @@ impl Inner
 
 impl Scheduler<YES> for EventLoopScheduler
 {
-    fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule(&self, due: Option<Duration>, act: impl ActOnce<YES, (), Unsub<'static, YES>> + 'static) -> Unsub<'static, YES> where Self: Sized
     {
         self.state.schedule(due, act)
     }
@@ -184,7 +184,7 @@ impl Scheduler<YES> for EventLoopScheduler
 
 impl SchedulerPeriodic<YES> for EventLoopScheduler
 {
-    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule_periodic(&self, period: Duration, act: impl Act<YES, Ref<Unsub<'static, YES>>> + 'static) -> Unsub<'static, YES> where Self: Sized
     {
         self.state.schedule_periodic(period, act)
     }

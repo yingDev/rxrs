@@ -1,4 +1,5 @@
 use crate::*;
+use std::marker::PhantomData;
 
 pub unsafe trait ActOnce<SS:YesNo, A: RefOrVal, R=()>
 {
@@ -104,3 +105,34 @@ unsafe impl<SS:YesNo, A: RefOrVal> ActOnce<SS, A> for ()
 {
     #[inline(always)] fn call_once(self, _: A::V) {  }
 }
+
+
+
+
+pub struct WrapAct<'o, SS: YesNo, By: RefOrVal, A, R>
+{
+    act: A,
+    PhantomData: PhantomData<&'o (SS, By, R)>
+}
+
+unsafe impl<'o, By: RefOrVal, A: Send+'o, R> Send for WrapAct<'o, YES, By, A, R> {}
+unsafe impl<'o, By: RefOrVal, A: Sync+'o, R> Sync for WrapAct<'o, YES, By, A, R> {}
+
+impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R> WrapAct<'o, SS, By, A, R>
+{
+    #[inline(always)]
+    pub fn new(act: A) -> WrapAct<'o, SS, By, A, R>
+    {
+        WrapAct { act, PhantomData }
+    }
+}
+
+unsafe impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R> Act<SS, By, R> for WrapAct<'o, SS, By, A, R>
+{
+    #[inline(always)]
+    fn call(&self, v: By::V) -> R
+    {
+        (self.act)(unsafe { By::from_v(v) })
+    }
+}
+

@@ -59,7 +59,7 @@ impl CurrentThreadScheduler
 
 impl Scheduler<NO> for CurrentThreadScheduler
 {
-    fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<NO>) -> Unsub<'static, NO> where Self: Sized
+    fn schedule(&self, due: Option<Duration>, act: impl ActOnce<NO, (), Unsub<'static, NO>> + 'static) -> Unsub<'static, NO> where Self: Sized
     {
         if !self.running.get() {
             self.running.replace(true);
@@ -92,7 +92,7 @@ impl Scheduler<NO> for CurrentThreadScheduler
 
 impl SchedulerPeriodic<NO> for CurrentThreadScheduler
 {
-    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<NO>) -> Unsub<'static, NO> where Self: Sized
+    fn schedule_periodic(&self, period: Duration, act: impl Act<NO, Ref<Unsub<'static, NO>>> + 'static) -> Unsub<'static, NO> where Self: Sized
     {
         let (act, act1) = Rc::new(act).clones();
         let (sub, sub1, sub2) = Unsub::<NO>::new().clones();

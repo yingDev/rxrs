@@ -17,7 +17,7 @@ impl NewThreadScheduler
 
 impl Scheduler<YES> for NewThreadScheduler
 {
-    fn schedule(&self, due: Option<Duration>, act: impl SchActOnce<YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule(&self, due: Option<Duration>, act: impl ActOnce<YES, (), Unsub<'static, YES>> + 'static) -> Unsub<'static, YES> where Self: Sized
     {
         self.ev.schedule(due, act)
     }
@@ -25,7 +25,7 @@ impl Scheduler<YES> for NewThreadScheduler
 
 impl SchedulerPeriodic<YES> for NewThreadScheduler
 {
-    fn schedule_periodic(&self, period: Duration, act: impl SchActPeriodic<YES>) -> Unsub<'static, YES> where Self: Sized
+    fn schedule_periodic(&self, period: Duration, act: impl Act<YES, Ref<Unsub<'static, YES>>> + 'static) -> Unsub<'static, YES> where Self: Sized
     {
         self.ev.schedule_periodic(period, act)
     }

@@ -3,12 +3,12 @@ use crate::*;
 
 pub trait Scheduler<SS:YesNo>
 {
-    fn schedule(&self, due: Option<::std::time::Duration>, act: impl SchActOnce<SS>) -> Unsub<'static, SS> where Self: Sized;
+    fn schedule(&self, due: Option<::std::time::Duration>, act: impl ActOnce<SS, (), Unsub<'static, SS>> + 'static) -> Unsub<'static, SS> where Self: Sized;
 }
 
 pub trait SchedulerPeriodic<SS:YesNo> : Scheduler<SS>
 {
-    fn schedule_periodic(&self, period: ::std::time::Duration, act: impl SchActPeriodic<SS>) -> Unsub<'static, SS> where Self: Sized;
+    fn schedule_periodic(&self, period: ::std::time::Duration, act: impl Act<SS, Ref<Unsub<'static, SS>>> + 'static) -> Unsub<'static, SS> where Self: Sized;
 }
 
 pub trait ThreadFactory
@@ -17,9 +17,9 @@ pub trait ThreadFactory
     fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>);
 }
 
-pub unsafe trait SchActPeriodic<SS:YesNo> : Act<SS, Ref<Unsub<'static, SS>>> + 'static {}
-pub unsafe trait SchActOnce<SS:YesNo> : ActOnce<SS, (), Unsub<'static, SS>> + 'static {}
-pub unsafe trait SchActBox<SS:YesNo> : ActBox<SS, (), Unsub<'static, SS>> + 'static {}
+//pub unsafe trait SchActPeriodic<SS:YesNo> : Act<SS, Ref<Unsub<'static, SS>>> + 'static {}
+//pub unsafe trait SchActOnce<SS:YesNo> : ActOnce<SS, (), Unsub<'static, SS>> + 'static {}
+//pub unsafe trait SchActBox<SS:YesNo> : ActBox<SS, (), Unsub<'static, SS>> + 'static {}
 
 pub struct DefaultThreadFac;
 impl ThreadFactory for DefaultThreadFac

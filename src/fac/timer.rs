@@ -3,7 +3,6 @@ use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::*;
-use std::cell::Cell;
 use crate::util::any_send_sync::AnySendSync;
 use crate::act::WrapAct;
 
@@ -30,7 +29,6 @@ for Timer<SS, Sch>
     fn sub(&self, next: impl ActNext<'static, SS, Val<usize>>, ec: impl ActEc<'static, SS>) -> Unsub<'static, SS>
     {
         let count = AtomicUsize::new(0);
-        let next = unsafe { AnySendSync::new(next) };
         //hack: prevent sch being dropped when Timer is dropped
         let sch = self.scheduler.clone();
 

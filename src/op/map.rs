@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
-use crate::util::alias::SSs;
 use crate::util::any_send_sync::AnySendSync;
 
 pub struct MapOp<SS, VBy, Src, F>
@@ -119,7 +118,7 @@ mod test
 
         let o = Of::value(123);
 
-//        o.map(move |_:&i32| Rc::strong_count(&r1)).sub((), ());
+        o.map(move |_:&i32| Rc::strong_count(&r1)).sub((), ());
 
         assert_eq!(Rc::strong_count(&r), 1);
     }

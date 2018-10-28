@@ -97,6 +97,13 @@ for A
     fn call(&self, by: *const V) { self.call((unsafe { &*by },)) }
 }
 
+unsafe impl<'o, SS:YesNo, By: RefOrVal>
+ActNext<'o, SS, By>
+for ()
+{
+    fn call(&self, by: By::V) { }
+}
+
 //unsafe impl<'o, SS:YesNo, BY: RefOrVal>
 //ActNext<'o, SS, BY>
 //for () {

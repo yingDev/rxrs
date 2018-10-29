@@ -74,7 +74,11 @@ mod test
     {
         let (n, n1, n2) = Rc::new(Cell::new(0)).clones();
         let (s, s1) = Rc::new(Subject::<NO, i32>::new()).clones();
-        s.take(3).sub(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n1.replace(n1.get() + 100); });
+
+        s.take(3).sub(
+            |v:&_| { n.replace(*v); },
+            |e:Option<&_>| { n1.replace(n1.get() + 100); }
+        );
 
         s1.next(1);
         assert_eq!(n2.get(), 1);

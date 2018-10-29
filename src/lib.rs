@@ -106,87 +106,6 @@ for ()
     fn call(&self, by: By::V) { }
 }
 
-
-//
-//pub struct ForwardNext<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
-//{
-//    old: N,
-//    next: F,
-//    stop: S,
-//    PhantomData: PhantomData<&'o(SS, NBY, FBY)>
-//}
-//
-//unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, FBY)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Send for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
-//unsafe impl<'o, NBY:RefOrValSSs, FBY: RefOrValSSs, N: ActNext<'o, YES, NBY>, F: Fn(&N, FBY)+'o+Send+Sync, S: Fn(bool)->bool+'o+Send+Sync> Sync for ForwardNext<'o, YES, NBY, FBY, N, F, S> {}
-//
-//impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o> ForwardNext<'o, SS, NBY, FBY, N, F, S>
-//{
-//    #[inline(always)]
-//    pub unsafe fn new(old: N, next: F, stop: S) -> Self
-//    {
-//        ForwardNext{ old, next, stop, PhantomData }
-//    }
-//}
-//
-//unsafe impl<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
-//ActNext<'o, SS, FBY>
-//for ForwardNext<'o, SS, NBY, FBY, N, F, S>
-//{
-//    #[inline(always)]fn call(&self, by: FBY::V) { self.next.call((&self.old, unsafe { FBY::from_v(by) })) }
-//    #[inline(always)]fn stopped(&self) -> bool
-//    {
-//        self.stop.call((self.old.stopped(),))
-//    }
-//}
-//
-//#[inline(always)]
-//pub unsafe fn forward_next<'o, SS:YesNo, NBY:RefOrVal, FBY: RefOrVal, N: ActNext<'o, SS, NBY>, F: Fn(&N, FBY)+'o, S: Fn(bool)->bool+'o>
-//(old: N, next: F, stop: S) -> ForwardNext<'o, SS, NBY, FBY, N, F, S>
-//{
-//    ForwardNext::new(old, next, stop)
-//}
-//
-//
-//
-//
-//pub struct ForwardEc<'o, SS: YesNo, By: RefOrVal, F>
-//{
-//    f: F,
-//    PhantomData: PhantomData<&'o (SS, By)>
-//}
-//
-//unsafe impl<'o, By: RefOrVal, F: Send> Send for ForwardEc<'o, YES, By, F> {}
-//unsafe impl<'o, By: RefOrVal, F: Sync> Sync for ForwardEc<'o, YES, By, F> {}
-//
-//impl<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)> ForwardEc<'o, SS,By, F>
-//{
-//    #[inline(always)]
-//    unsafe fn new(f: F) -> ForwardEc<'o, SS, By, F>
-//    {
-//        ForwardEc{ f, PhantomData }
-//    }
-//}
-//
-//unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, F: FnOnce(Option<By>)+'o> ActEc<'o, SS, By> for ForwardEc<'o, SS, By, F>
-//{
-//    #[inline(always)] fn call_once(self, e: Option<By::V>)  { self.f.call_once((e.map(|e| unsafe { By::from_v(e) }), )) }
-//}
-//
-//
-//#[inline(always)]
-//pub unsafe fn forward_ec<'o, SS:YesNo, By: RefOrVal, F: FnOnce(Option<By>)>
-//(f: F) -> ForwardEc<'o, SS, By, F>
-//{
-//    ForwardEc::new(f)
-//}
-
-
-
-
-
-
-
-
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)
 {
     #[inline(always)]fn call(&self, v: BY::V) { self.0.call(v); }
@@ -235,11 +154,6 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 //unsafe impl<SS:YesNo, A: ActBox<SS, (), Unsub<'static, SS>>+'static>
 //SchActBox<SS>
 //for A{}
-
-//
-//unsafe impl<T> SendSync<NO> for T {  }
-//unsafe impl<T: Send+Sync> SendSync<YES> for T  { }
-
 
 pub unsafe trait SendSync<SS:YesNo> : Sized { }
 

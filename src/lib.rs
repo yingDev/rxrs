@@ -251,6 +251,7 @@ mod test
     use std::rc::Rc;
     use crate::util::any_send_sync::AnySendSync;
     use std::ops::Deref;
+    use std::sync::Arc;
 
     #[test]
     fn inference()
@@ -313,8 +314,9 @@ mod test
         {
             fn sub(&self, next: impl ActNext<'o, SS, Val<String>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
             {
-                let a = 123;
-                self.src.sub(forward_next(SSActNextWrap::new(next), (SSWrap::new(a)), |next, (a), by| {
+                let arc = SSWrap(Arc::new(444));
+                let a = SSWrap(123);
+                self.src.sub(forward_next(SSActNextWrap::new(next), (a, arc), |next, (a,arc), by| {
 
                     next.call(format!("**{}**", **a));
                 }, |next, _| next.stopped() ), ec)
@@ -371,7 +373,7 @@ mod test
 
         impl<T> SsForward<T>
         {
-            pub fn new<SS:YesNo>(ss:SS, value: T) -> Self where T: SendSync<SS>
+            pub fn new(value: T) -> Self
             {
                 SsForward { value }
             }
@@ -412,7 +414,7 @@ mod test
         (next:N, captures: Caps, fnext: fn(&N, &Caps, By), fstop: fn(&N, &Caps)->bool)
             -> SsForward<(N, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
         {
-            SsForward::new(SS::SELF, (next, captures, fnext, fstop))
+            SsForward::new((next, captures, fnext, fstop))
         }
 
 
@@ -421,7 +423,7 @@ mod test
         (ec:EC, captures: Caps, fec: fn(EC, Caps, Option<By>))
          -> SsForward<(SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
         {
-            SsForward::new(SS::SELF, (SSActEcWrap::new(ec), captures, fec))
+            SsForward::new((SSActEcWrap::new(ec), captures, fec))
         }
 
 

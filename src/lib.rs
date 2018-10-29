@@ -313,10 +313,9 @@ mod test
         {
             fn sub(&self, next: impl ActNext<'o, SS, Val<String>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
             {
-                self.src.sub(forward_next(SSActNextWrap::new(next), (), |next:&SSActNextWrap<SS, Val<String>,_>, _, by:Ref<i32>| {
-                    println!("shit");
+                self.src.sub(forward_next(SSActNextWrap::new(next), (), |next, _, by| {
                     next.call("shit".to_owned());
-                }, |next:&_, (rc)| next.stopped() ), ec)
+                }, |next, _| next.stopped() ), ec)
             }
 
             fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<String>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS> {
@@ -400,7 +399,7 @@ mod test
 
             #[inline(always)]
             fn stopped(&self) -> bool
-            {println!("stop");
+            {
                 let (next, caps, _, stop) = &self.value;
                 stop(next, caps)
             }

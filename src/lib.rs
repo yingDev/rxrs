@@ -253,6 +253,7 @@ unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: Sen
 unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>, G: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F, F, G) {}
 
 unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(A, B, C) -> R {}
+unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(A, B) -> R {}
 unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
 unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
 
@@ -357,23 +358,23 @@ pub fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: SendSync<SS>+'o, Caps:Send
 
 
 #[inline(always)]
-pub fn forward_ec<'o, SS:YesNo, By: RefOrVal+'o, EC: ActEc<'o, SS, By>, Caps:SendSync<SS>+'o>
-(ec:EC, captures: Caps, fec: fn(EC, Caps, Option<By>))
- -> SsForward<SS, (SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
+pub fn forward_ec<'o, SS:YesNo, By: RefOrVal+'o, Caps:SendSync<SS>+'o>
+(captures: Caps, fec: fn(Caps, Option<By>))
+ -> SsForward<SS, (Caps, fn(Caps, Option<By>))>
 {
-    SsForward::new((SSActEcWrap::new(ec), captures, fec))
+    SsForward::new((captures, fec))
 }
 
 
-unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, EC: ActEc<'o, SS, By>, Caps:SendSync<SS>+'o>
+unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, Caps:SendSync<SS>+'o>
 ActEc<'o, SS, By>
-for SsForward<SS, (SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
+for SsForward<SS, (Caps, fn(Caps, Option<By>))>
 {
     #[inline(always)]
     fn call_once(self, v: Option<By::V>)
     {
-        let (ec, caps, fec) = self.captures;
-        fec(ec.into_inner(), caps,  v.map(|v| unsafe { By::from_v(v) }))
+        let (caps, fec) = self.captures;
+        fec(caps,  v.map(|v| unsafe { By::from_v(v) }))
     }
 }
 

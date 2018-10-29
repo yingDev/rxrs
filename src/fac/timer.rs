@@ -79,9 +79,9 @@ mod test
     fn ops()
     {
         let (out, out1, out3) = Arc::new(Mutex::new(String::new())).clones();
-        let t = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        let timer: impl Observable<YES, Val<usize>> = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
 
-        t.filter(|v: &_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
+        timer.filter(|v: &_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
             move |v: String| { out.lock().unwrap().push_str(&*v); },
             move |e: Option<&_>| out3.lock().unwrap().push_str("ok")
         );

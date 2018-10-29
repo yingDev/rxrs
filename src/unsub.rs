@@ -81,6 +81,8 @@ pub struct Unsub<'a, SS:YesNo>
     state: Arc<UnsubState<'a, SS>>
 }
 
+//unsafe impl<'a, SS:YesNo> SendSync<SS> for Unsub<'a, SS> {}
+
 impl<'a, SS:YesNo> Clone for Unsub<'a, SS>
 {
     fn clone(&self) -> Unsub<'a, SS>

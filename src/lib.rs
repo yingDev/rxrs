@@ -314,9 +314,11 @@ mod test
         {
             fn sub(&self, next: impl ActNext<'o, SS, Val<String>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
             {
+                let next = SSActNextWrap::new(next);
                 let arc = SSWrap(Arc::new(444));
                 let a = SSWrap(123);
-                self.src.sub(forward_next(SSActNextWrap::new(next), (a, arc), |next, (a,arc), by| {
+
+                self.src.sub(forward_next(next, (a, arc), |next, (a,arc), by| {
 
                     next.call(format!("**{}**", **a));
                 }, |next, _| next.stopped() ), ec)

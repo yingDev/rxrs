@@ -250,10 +250,25 @@ mod test
     use std::cell::RefCell;
     use std::rc::Rc;
     use crate::util::any_send_sync::AnySendSync;
+    use std::ops::Deref;
 
     #[test]
     fn inference()
     {
+        pub unsafe trait SendSync<SS:YesNo> : Sized { }
+
+        unsafe impl<SS:YesNo> SendSync<SS> for () {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>> SendSync<SS> for (A) {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>> SendSync<SS> for (A, B) {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>> SendSync<SS> for (A, B, C) {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>> SendSync<SS> for (A, B, C, D) {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>> SendSync<SS> for (A, B, C, D, E) {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F) {}
+        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>, G: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F, F, G) {}
+
+        unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
+        unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
+
         pub trait Observable<'o, By: RefOrVal, EBy: RefOrVal=Ref<()>>
         {
             type SSA:YesNo;
@@ -273,95 +288,70 @@ mod test
 
             fn sub(&self, next: impl ActNext<'o, Self::SSA, Val<i32>>, ec: impl ActEc<'o, Self::SSA, ()>) -> Unsub<'o, Self::SSA> where Self: Sized
             {
-                let next = SSWrapNext{ act: next, PhantomData };
-
                 self.src.sub(forward_next(next, (), |next:&_, (), by:Val<i32>| {
                     next.call(by.into_v());
                 }, |next:&_, (rc)|{ true }), ec)
             }
         }
 
-        struct SSWrapNext<'o, SS:YesNo, By: RefOrVal, N: ActNext<'o, SS, By>>
+        struct SSActWrap<By: RefOrVal, A>
         {
-            act: N,
-            PhantomData: PhantomData<&'o(SS, By)>
+            act: A,
+            PhantomData: PhantomData<By>
+        }
+        unsafe impl<'o, SS:YesNo, By: RefOrVal, A: ActNext<'o, SS, By>> SendSync<SS> for SSActWrap<By, A> {}
+        impl<By: RefOrVal, A> Deref for SSActWrap<By, A>
+        {
+            type Target = A;
+            fn deref(&self) -> &A { &self.act }
         }
 
-        unsafe impl<'o, SS:YesNo, By: RefOrVal, N: ActNext<'o, SS, By>> ActNext<'o, SS, By> for SSWrapNext<'o, SS, By, N>
+
+
+
+        pub struct SsForward<T> { value: T }
+
+        impl<T> SsForward<T>
         {
-            fn call(&self, v: <By as RefOrVal>::V) {
-                unimplemented!()
-            }
-        }
-
-        unsafe impl<'o, SS:YesNo, By: RefOrVal, N: ActNext<'o, SS, By>> SendSync<SS> for SSWrapNext<'o, SS, By, N>
-        {
-        }
-
-        pub unsafe trait SendSync<SS:YesNo> : Sized
-        {
-            fn map<Args, R>(&self, args: Args, f: fn(&Self, Args)->R) -> R { f(self, args) }
-            fn map_once<Args, R>(self, args:Args, f: fn(Self, Args)->R) -> R { f(self, args) }
-            fn map_mut<Args, R>(&mut self, args: Args, f: fn(&mut Self, Args)->R) -> R { f(self, args) }
-        }
-
-        struct Ss<T>
-        {
-            value: T,
-        }
-
-        fn ss<T: Send+Sync>(value: T) -> Ss<T> { Ss{ value } }
-        unsafe impl<T: Send+Sync, SS:YesNo> SendSync<SS> for Ss<T> {}
-
-        unsafe impl<SS:YesNo> SendSync<SS> for () {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>> SendSync<SS> for (A) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>> SendSync<SS> for (A, B) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>> SendSync<SS> for (A, B, C) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>> SendSync<SS> for (A, B, C, D) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>> SendSync<SS> for (A, B, C, D, E) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>, G: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F, F, G) {}
-
-
-        pub struct SendSyncWrap<Caps> { captures: Caps }
-
-        impl<Caps> SendSyncWrap<Caps>
-        {
-            fn new<SS:YesNo>(ss:SS, captures: Caps) -> Self where Caps: SendSync<SS>
+            fn new<SS:YesNo>(ss:SS, value: T) -> Self where T: SendSync<SS>
             {
-                SendSyncWrap { captures }
+                SsForward { value }
             }
+
+            fn into_inner(self) -> T { self.value }
         }
 
-        unsafe impl<SS:YesNo, Caps: SendSync<SS>> SendSync<SS> for SendSyncWrap<Caps> {}
+        unsafe impl<SS:YesNo, Caps: SendSync<SS>> SendSync<SS> for SsForward<Caps> {}
+
+        impl<T> Deref for SsForward<T>
+        {
+            type Target = T;
+            fn deref(&self) -> &T { &self.value }
+        }
 
 
-
-        unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, N: ActNext<'o, SS, By>+SendSync<SS>, Caps:SendSync<SS>+'o>
+        unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, N: ActNext<'o, SS, By>, Caps:SendSync<SS>+'o>
         ActNext<'o, SS, By>
-        for SendSyncWrap<(N, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
+        for SsForward<(SSActWrap<By, N>, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
         {
             fn call(&self, v: By::V)
             {
-                let (next, caps, fnext, _) = &self.captures;
-                fnext(next, caps, unsafe { By::from_v(v) })
+                let (next, caps, fnext, _) = &self.value;
+                fnext(&*next, caps, unsafe { By::from_v(v) })
             }
 
             fn stopped(&self) -> bool
             {
-                let (next, caps, _, stop) = &self.captures;
-                stop(next, caps)
+                let (next, caps, _, stop) = &self.value;
+                stop(&*next, caps)
             }
         }
 
-        unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
-        unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
-
-        fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: ActNext<'o, SS, By>+SendSync<SS>, Caps:SendSync<SS>+'o>
+        fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: ActNext<'o, SS, By>, Caps:SendSync<SS>+'o>
         (next:N, captures: Caps, fnext: fn(&N, &Caps, By), fstop: fn(&N, &Caps)->bool)
-            -> SendSyncWrap<(N, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
+            -> SsForward<(SSActWrap<By, N>, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
         {
-            SendSyncWrap::new(SS::SELF, (next, captures, fnext, fstop))
+            SsForward::new(SS::SELF, (SSActWrap{ act: next, PhantomData}, captures, fnext, fstop))
         }
 
     }

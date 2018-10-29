@@ -375,42 +375,42 @@ mod test
         unsafe impl<'o, SS:YesNo, By: RefOrVal, A: ActEc<'o, SS, By>> SendSync<SS> for SSActEcWrap<By, A> {}
 
 
-        pub struct SsForward<T> { value: T }
+        pub struct SsForward<SS:YesNo, Caps: SendSync<SS>> { captures: Caps, PhantomData: PhantomData<SS> }
 
-        impl<T> SsForward<T>
+        impl<SS:YesNo, Caps: SendSync<SS>> SsForward<SS, Caps>
         {
-            pub fn new(value: T) -> Self
+            pub fn new(value: Caps) -> Self
             {
-                SsForward { value }
+                SsForward { captures: value, PhantomData }
             }
 
-            pub fn into_inner(self) -> T { self.value }
+            pub fn into_inner(self) -> Caps { self.captures }
         }
 
-        unsafe impl<SS:YesNo, Caps: SendSync<SS>> SendSync<SS> for SsForward<Caps> {}
+        unsafe impl<SS:YesNo, Caps: SendSync<SS>> SendSync<SS> for SsForward<SS, Caps> {}
 
-        impl<T> Deref for SsForward<T>
+        impl<SS:YesNo, Caps: SendSync<SS>> Deref for SsForward<SS, Caps>
         {
-            type Target = T;
-            fn deref(&self) -> &T { &self.value }
+            type Target = Caps;
+            fn deref(&self) -> &Caps { &self.captures }
         }
 
 
         unsafe impl<'o, SS:YesNo, N: SendSync<SS>+'o, Caps:SendSync<SS>+'o, FBy: RefOrVal+'o>
         ActNext<'o, SS, FBy>
-        for SsForward<(N, Caps, fn(&N, &Caps, FBy), fn(&N, &Caps) ->bool)>
+        for SsForward<SS, (N, Caps, fn(&N, &Caps, FBy), fn(&N, &Caps) ->bool)>
         {
             #[inline(always)]
             fn call(&self, v: FBy::V)
             {println!("wtf");
-                let (next, caps, fnext, _) = &self.value;
+                let (next, caps, fnext, _) = &self.captures;
                 fnext(next, caps, unsafe { FBy::from_v(v) })
             }
 
             #[inline(always)]
             fn stopped(&self) -> bool
             {
-                let (next, caps, _, stop) = &self.value;
+                let (next, caps, _, stop) = &self.captures;
                 stop(next, caps)
             }
         }
@@ -418,7 +418,7 @@ mod test
         #[inline(always)]
         pub fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: SendSync<SS>+'o, Caps:SendSync<SS>+'o>
         (next:N, captures: Caps, fnext: fn(&N, &Caps, By), fstop: fn(&N, &Caps)->bool)
-            -> SsForward<(N, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
+            -> SsForward<SS, (N, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
         {
             SsForward::new((next, captures, fnext, fstop))
         }
@@ -427,7 +427,7 @@ mod test
         #[inline(always)]
         pub fn forward_ec<'o, SS:YesNo, By: RefOrVal+'o, EC: ActEc<'o, SS, By>, Caps:SendSync<SS>+'o>
         (ec:EC, captures: Caps, fec: fn(EC, Caps, Option<By>))
-         -> SsForward<(SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
+         -> SsForward<SS, (SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
         {
             SsForward::new((SSActEcWrap::new(ec), captures, fec))
         }
@@ -435,12 +435,12 @@ mod test
 
         unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, EC: ActEc<'o, SS, By>, Caps:SendSync<SS>+'o>
         ActEc<'o, SS, By>
-        for SsForward<(SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
+        for SsForward<SS, (SSActEcWrap<By, EC>, Caps, fn(EC, Caps, Option<By>))>
         {
             #[inline(always)]
             fn call_once(self, v: Option<By::V>)
             {
-                let (ec, caps, fec) = self.value;
+                let (ec, caps, fec) = self.captures;
                 fec(ec.into_inner(), caps,  v.map(|v| unsafe { By::from_v(v) }))
             }
         }

@@ -270,6 +270,19 @@ mod test
         unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
         unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
 
+        struct SSWrap<V:Send+Sync>(V);
+        unsafe impl<SS:YesNo, V: Send+Sync> SendSync<SS> for SSWrap<V> {}
+        impl<V: Send+Sync> SSWrap<V>
+        {
+            fn new(v: V) -> Self { SSWrap(v) }
+            fn into_inner(self) -> V { self.0 }
+        }
+        impl<V: Send+Sync> Deref for SSWrap<V>
+        {
+            type Target = V;
+            fn deref(&self) -> &V { &self.0 }
+        }
+
         struct Filter<Src>
         {
             src: Src
@@ -279,8 +292,10 @@ mod test
         {
             fn sub(&self, next: impl ActNext<'o, SS, Val<i32>>, ec: impl ActEc<'o, SS, ()>) -> Unsub<'o, SS> where Self: Sized
             {
-                self.src.sub(forward_next(SSActNextWrap::new(next), (), |next:&_, (), by:Val<i32>| {
+                let x = 123;
+                self.src.sub(forward_next(SSActNextWrap::new(next), (SSWrap::new(x)), |next:&_, (x), by:Val<i32>| {
                     next.call(by.into_v());
+                    println!("x={}", **x);
                 }, |next:&_, (rc)|{ true }), ec)
             }
 
@@ -309,7 +324,7 @@ mod test
         }
 
         let m = Map{ src: Of::value(123) };
-        m.sub(|v: String| println!("out={}", v), ());
+        m.sub(|v| println!("out={}", v), ());
 
 
         pub struct SSActNextWrap<SS:YesNo, By, A>
@@ -354,12 +369,12 @@ mod test
 
         impl<T> SsForward<T>
         {
-            fn new<SS:YesNo>(ss:SS, value: T) -> Self where T: SendSync<SS>
+            pub fn new<SS:YesNo>(ss:SS, value: T) -> Self where T: SendSync<SS>
             {
                 SsForward { value }
             }
 
-            fn into_inner(self) -> T { self.value }
+            pub fn into_inner(self) -> T { self.value }
         }
 
         unsafe impl<SS:YesNo, Caps: SendSync<SS>> SendSync<SS> for SsForward<Caps> {}

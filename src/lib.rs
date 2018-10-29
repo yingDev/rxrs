@@ -252,6 +252,7 @@ mod test
     use crate::util::any_send_sync::AnySendSync;
     use std::ops::Deref;
     use std::sync::Arc;
+    use std::fmt::Display;
 
     #[test]
     fn inference()
@@ -305,12 +306,14 @@ mod test
             }
         }
 
-        struct Map<Src>
+        struct Map<SVBy, Src>
         {
-            src: Src
+            src: Src,
+            PhantomData: PhantomData<SVBy>
         }
 
-        impl<'o, SS:YesNo, Src: Observable<'o, SS, Ref<i32>> > Observable<'o, SS, Val<String>> for Map<Src>
+        impl<'o, SS:YesNo, SVBy: RefOrVal+'o, Src: Observable<'o, SS, SVBy> > Observable<'o, SS, Val<String>> for Map<SVBy, Src>
+        where SVBy::RAW : Display
         {
             fn sub(&self, next: impl ActNext<'o, SS, Val<String>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
             {
@@ -318,9 +321,10 @@ mod test
                 let arc = SSWrap(Arc::new(444));
                 let a = SSWrap(123);
 
-                self.src.sub(forward_next(next, (a, arc), |next, (a,arc), by| {
+                self.src.sub(forward_next(next, (a, arc), |next, (a,arc), by: SVBy| {
 
-                    next.call(format!("**{}**", **a));
+                    next.call(format!("**{}**", by.as_ref()));
+
                 }, |next, _| next.stopped() ), ec)
             }
 
@@ -329,7 +333,7 @@ mod test
             }
         }
 
-        let m = Map{ src: Of::value(123) };
+        let m = Map{ src: Of::value(123), PhantomData };
         m.sub(|v| println!("out={}", v), ());
 
 

@@ -313,8 +313,10 @@ mod test
         {
             fn sub(&self, next: impl ActNext<'o, SS, Val<String>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
             {
-                self.src.sub(forward_next(SSActNextWrap::new(next), (), |next, _, by| {
-                    next.call("shit".to_owned());
+                let a = 123;
+                self.src.sub(forward_next(SSActNextWrap::new(next), (SSWrap::new(a)), |next, (a), by| {
+
+                    next.call(format!("**{}**", **a));
                 }, |next, _| next.stopped() ), ec)
             }
 

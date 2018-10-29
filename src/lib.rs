@@ -269,43 +269,53 @@ mod test
         unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
         unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
 
-        pub trait Observable<'o, By: RefOrVal, EBy: RefOrVal=Ref<()>>
-        {
-            type SSA:YesNo;
-
-            fn sub(&self, next: impl ActNext<'o, Self::SSA, By>, err_or_comp: impl ActEc<'o,  Self::SSA, EBy>) -> Unsub<'o, Self::SSA> where Self: Sized;
-
-        }
+//        pub trait Observable<'o, By: RefOrVal, EBy: RefOrVal=Ref<()>>
+//        {
+//            type SSA:YesNo;
+//
+//            fn sub(&self, next: impl ActNext<'o, Self::SSA, By>, err_or_comp: impl ActEc<'o,  Self::SSA, EBy>) -> Unsub<'o, Self::SSA> where Self: Sized;
+//
+//        }
 
         struct Filter<Src>
         {
             src: Src
         }
 
-        impl<'o, Src: Observable<'o, Val<i32>, ()> > Observable<'o, Val<i32>, ()> for Filter<Src>
+        impl<'o, SS:YesNo, Src: Observable<'o, SS, Val<i32>, ()> > Observable<'o, SS, Val<i32>, ()> for Filter<Src>
         {
-            type SSA = Src::SSA;
-
-            fn sub(&self, next: impl ActNext<'o, Self::SSA, Val<i32>>, ec: impl ActEc<'o, Self::SSA, ()>) -> Unsub<'o, Self::SSA> where Self: Sized
+            fn sub(&self, next: impl ActNext<'o, SS, Val<i32>>, ec: impl ActEc<'o, SS, ()>) -> Unsub<'o, SS> where Self: Sized
             {
                 self.src.sub(forward_next(next, (), |next:&_, (), by:Val<i32>| {
                     next.call(by.into_v());
                 }, |next:&_, (rc)|{ true }), ec)
             }
+
+            fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<i32>>>, err_or_comp: Box<ActEcBox<'o, SS, ()>>) -> Unsub<'o, SS> {
+                unimplemented!()
+            }
         }
 
-        struct SSActWrap<By: RefOrVal, A>
+
+        pub struct SSActNextWrap<By, A>
         {
-            act: A,
+            next: A,
             PhantomData: PhantomData<By>
         }
-        unsafe impl<'o, SS:YesNo, By: RefOrVal, A: ActNext<'o, SS, By>> SendSync<SS> for SSActWrap<By, A> {}
-        impl<By: RefOrVal, A> Deref for SSActWrap<By, A>
+
+        impl<By: RefOrVal, A> SSActNextWrap<By, A>
         {
-            type Target = A;
-            fn deref(&self) -> &A { &self.act }
+            pub fn new<'o, SS:YesNo>(next: A) -> Self where A: ActNext<'o, SS, By>
+            { SSActNextWrap{ next, PhantomData } }
         }
 
+        unsafe impl<'o, SS:YesNo, By: RefOrVal, A: ActNext<'o, SS, By>> SendSync<SS> for SSActNextWrap<By, A> {}
+
+        impl<By: RefOrVal, A> Deref for SSActNextWrap<By, A>
+        {
+            type Target = A;
+            fn deref(&self) -> &A { &self.next }
+        }
 
 
 
@@ -332,14 +342,16 @@ mod test
 
         unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, N: ActNext<'o, SS, By>, Caps:SendSync<SS>+'o>
         ActNext<'o, SS, By>
-        for SsForward<(SSActWrap<By, N>, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
+        for SsForward<(SSActNextWrap<By, N>, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
         {
+            #[inline(always)]
             fn call(&self, v: By::V)
             {
                 let (next, caps, fnext, _) = &self.value;
                 fnext(&*next, caps, unsafe { By::from_v(v) })
             }
 
+            #[inline(always)]
             fn stopped(&self) -> bool
             {
                 let (next, caps, _, stop) = &self.value;
@@ -347,11 +359,12 @@ mod test
             }
         }
 
+        #[inline(always)]
         fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: ActNext<'o, SS, By>, Caps:SendSync<SS>+'o>
         (next:N, captures: Caps, fnext: fn(&N, &Caps, By), fstop: fn(&N, &Caps)->bool)
-            -> SsForward<(SSActWrap<By, N>, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
+            -> SsForward<(SSActNextWrap<By, N>, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>
         {
-            SsForward::new(SS::SELF, (SSActWrap{ act: next, PhantomData}, captures, fnext, fstop))
+            SsForward::new(SS::SELF, (SSActNextWrap::new(next), captures, fnext, fstop))
         }
 
     }

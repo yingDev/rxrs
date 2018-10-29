@@ -53,6 +53,7 @@ pub use crate::observables::*;
 use std::marker::PhantomData;
 pub use crate::scheduler::*;
 use crate::util::any_send_sync::AnySendSync;
+use std::ops::Deref;
 
 mod observables;
 mod op;
@@ -240,6 +241,34 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 //unsafe impl<T: Send+Sync> SendSync<YES> for T  { }
 
 
+pub unsafe trait SendSync<SS:YesNo> : Sized { }
+
+unsafe impl<SS:YesNo> SendSync<SS> for () {}
+unsafe impl <SS:YesNo, A: SendSync<SS>> SendSync<SS> for (A) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>> SendSync<SS> for (A, B) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>> SendSync<SS> for (A, B, C) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>> SendSync<SS> for (A, B, C, D) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>> SendSync<SS> for (A, B, C, D, E) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>, G: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F, F, G) {}
+
+unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(A, B, C) -> R {}
+unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
+unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
+
+struct SSWrap<V:Send+Sync>(V);
+unsafe impl<SS:YesNo, V: Send+Sync> SendSync<SS> for SSWrap<V> {}
+impl<V: Send+Sync> SSWrap<V>
+{
+    fn new(v: V) -> Self { SSWrap(v) }
+    fn into_inner(self) -> V { self.0 }
+}
+impl<V: Send+Sync> Deref for SSWrap<V>
+{
+    type Target = V;
+    fn deref(&self) -> &V { &self.0 }
+}
+
 #[cfg(test)]
 mod test
 {
@@ -257,33 +286,7 @@ mod test
     #[test]
     fn inference()
     {
-        pub unsafe trait SendSync<SS:YesNo> : Sized { }
 
-        unsafe impl<SS:YesNo> SendSync<SS> for () {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>> SendSync<SS> for (A) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>> SendSync<SS> for (A, B) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>> SendSync<SS> for (A, B, C) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>> SendSync<SS> for (A, B, C, D) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>> SendSync<SS> for (A, B, C, D, E) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F) {}
-        unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>, E: SendSync<SS>, F: SendSync<SS>, G: SendSync<SS>> SendSync<SS> for (A, B, C, D, E, F, F, G) {}
-
-        unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(A, B, C) -> R {}
-        unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
-        unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
-
-        struct SSWrap<V:Send+Sync>(V);
-        unsafe impl<SS:YesNo, V: Send+Sync> SendSync<SS> for SSWrap<V> {}
-        impl<V: Send+Sync> SSWrap<V>
-        {
-            fn new(v: V) -> Self { SSWrap(v) }
-            fn into_inner(self) -> V { self.0 }
-        }
-        impl<V: Send+Sync> Deref for SSWrap<V>
-        {
-            type Target = V;
-            fn deref(&self) -> &V { &self.0 }
-        }
 
         struct Filter<Src>
         {
@@ -402,7 +405,7 @@ mod test
         {
             #[inline(always)]
             fn call(&self, v: FBy::V)
-            {println!("wtf");
+            {
                 let (next, caps, fnext, _) = &self.captures;
                 fnext(next, caps, unsafe { FBy::from_v(v) })
             }

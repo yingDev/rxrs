@@ -142,12 +142,13 @@ mod test
 //    }
 
     #[test]
-    fn no()
+    fn cur_thread()
     {
-        let (out, out1, out3) = Rc::new(RefCell::new(String::new())).clones();
-        let t = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
+        let timer: impl Observable<NO, Val<usize>> = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
 
-        t.filter(|v:&_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
+        let (out, out1, out3) = Rc::new(RefCell::new(String::new())).clones();
+
+        timer.filter(|v:&_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
             move |v: String| { out.borrow_mut().push_str(&*v); },
             move |e: Option<&_>| out3.borrow_mut().push_str("ok")
         );

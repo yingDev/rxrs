@@ -25,13 +25,14 @@ for MapOp<SS, VBy, Src, F>
 {
     fn sub(&self, next: impl ActNext<'o, SS, Val<VOut>>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
-        let f = self.f.clone();
+        let next = SSActNextWrap::new(next);
+        let f = act_sendsync(self.f.clone());
         let (s1, s2) = Unsub::new().clones();
 
-        s1.added_each(self.src.sub(unsafe { forward_next(next, move |next, v: VBy| {
+        s1.added_each(self.src.sub(forward_next(next, (s2, f), |next, (s2, f), v: VBy| {
             let v = f.call(v.into_v());
             s2.if_not_done(|| next.call(v));
-        }, |s|s) }, ec))
+        }, |s,_|s.stopped()), ec))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<VOut>>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>

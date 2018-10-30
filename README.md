@@ -5,6 +5,7 @@
 </p>
 <br>
 
+![version](https://img.shields.io/badge/crates.io-0.1.0--alpha4-orange.svg)
 ### 🌱 WIP: rewriting everything ...
 
 

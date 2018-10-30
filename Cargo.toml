@@ -4,7 +4,7 @@ version = "0.1.0-alpha4"
 description="Reactive Extensions for Rust"
 license="MIT"
 repository="https://github.com/yingDev/rxrs"
-authors = ["YingDev <ying@yingDev.com>"]
+authors = ["yingDev <me@yingDev.com>"]
 edition = "2018"
 
 [dependencies]

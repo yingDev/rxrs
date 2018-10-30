@@ -2,7 +2,7 @@
 <img src="https://github.com/yingDev/rxrs/blob/master/assets/logo.png?raw=true">
 <br>
     <b> RxRs - <a href="http://reactivex.io"> Reactive Extensions</a> for Rust </b>
-<br>
+<br><br>
 <a href="https://crates.io/crates/rxrs">
     <img src="https://img.shields.io/badge/crates.io-0.1.0--alpha4-orange.svg">
 </a>

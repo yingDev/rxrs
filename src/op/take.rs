@@ -34,9 +34,9 @@ for TakeOp<SS, Src>
 
         let next = SSActNextWrap::new(next);
         let sub = Unsub::new();
-        let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
+        let state = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) });
 
-        sub.clone().added_each(self.src.sub(forward_next(next, (sub.clone(), SSWrap::new(state)), |next, (sub, state), v:VBy| {
+        sub.clone().added_each(self.src.sub(forward_next(next, (sub.clone(), SSWrap::new(state.clone())), |next, (sub, state), v:VBy| {
                 sub.if_not_done(|| {
                     let state = unsafe{ &mut *state.get() };
 
@@ -52,8 +52,8 @@ for TakeOp<SS, Src>
                 });
             }, |s, (sub, state)| (s.stopped() || sub.is_done())),
 
-            forward_ec((sub, SSWrap::new(state1)), |(sub, state1), e:Option<EBy>| {
-                sub.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
+            forward_ec((sub, SSWrap::new(state)), |(sub, state), e:Option<EBy>| {
+                sub.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
             })
         ))
     }

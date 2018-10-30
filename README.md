@@ -13,22 +13,26 @@
 
 
 ```rust
-    #[test]
-    fn ops()
-    {
-        let timer: impl Observable<YES, Val<usize>> = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+use rxrs::*;
 
-        let (out, out1, out3) = Arc::new(Mutex::new(String::new())).clones();
+#[wasm_bindgen]
+pub fn greet()
+{
+    let output = RefCell::new(String::new());
 
-        timer.filter(|v: &_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).sub(
-            move |v: String| { out.lock().unwrap().push_str(&*v); },
-            move |e: Option<&_>| out3.lock().unwrap().push_str("ok")
-        );
+    let (subj, obs) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        ::std::thread::sleep_ms(1000);
+    obs.filter(|v:&_| v%2 == 0 ).take(4).map(|v:&_| format!("*{}", v)).sub(
+        |v: String| output.borrow_mut().push_str(&v), ()
+    );
 
-        assert_eq!(out1.lock().unwrap().as_str(), "02468ok");
+    for i in 0..10 {
+        subj.next(i);
     }
+
+    //"*0*2*4*6"
+    log(&*output.borrow());
+}
 
 ```
 

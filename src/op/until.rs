@@ -33,13 +33,11 @@ for UntilOp<Src, SVBy, SEBy, Sig>
         let next = SSActNextWrap::new(next);
         let sub = Unsub::new();
         //no mutex here because access is protected by Unsub's internal lock
-        let (ec1, ec2) = Arc::new(AnySendSync(UnsafeCell::new(Some(ec)))).clones();
+        let ec = Arc::new(AnySendSync(UnsafeCell::new(Some(ec))));
 
-        let sigNext = forward_next((), (sub.clone(), SSWrap::new(ec1)), |(), (sub, ec1), v:SVBy|{
-            sub.unsub_then(|| unsafe{ &mut *Arc::as_ref(&*ec1).0.get() }.take().map_or((), |ec| ec.call_once(None)));
-        }, |(), (sub,_)| sub.is_done());
-
-        sub.add_each(self.sig.sub(sigNext, forward_ec(sub.clone(), |sub, e| sub.unsub())));
+        sub.add_each(self.sig.sub(forward_next((), (sub.clone(), SSWrap::new(ec.clone())), |(), (sub, ec), v:SVBy|{
+            sub.unsub_then(|| unsafe{ &mut *Arc::as_ref(&*ec).0.get() }.take().map_or((), |ec| ec.call_once(None)));
+        }, |(), (sub,_)| sub.is_done()), forward_ec(sub.clone(), |sub, e| sub.unsub())));
 
         if sub.is_done() { return sub; }
 
@@ -48,8 +46,8 @@ for UntilOp<Src, SVBy, SEBy, Sig>
                 sub.if_not_done(|| next.call(v.into_v()))
             }, |next, (sub)| next.stopped() || sub.is_done()),
 
-            forward_ec((sub.clone(), SSWrap::new(ec2)), |(sub, ec2), e:Option<EBy>| {
-                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec2).0.get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
+            forward_ec((sub.clone(), SSWrap::new(ec)), |(sub, ec), e:Option<EBy>| {
+                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec).0.get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
             })
         ))
     }

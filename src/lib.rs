@@ -338,7 +338,7 @@ mod test
             .map(|v:&_| format!("*{}", v));
 
         evens.sub(
-            |v: String| output.borrow_mut().push_str(&v),
+            |v: String    | output.borrow_mut().push_str(&v),
             |e: Option<&_>| output.borrow_mut().push_str("ok")
         );
 

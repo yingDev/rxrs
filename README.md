@@ -13,8 +13,6 @@
 
 
 ```rust
-use rxrs::*;
-
     use rxrs::*;
 
     #[test]

@@ -1,5 +1,5 @@
-#![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox,
-    test, cell_update, box_syntax, specialization, trait_alias, coerce_unsized, unsize,impl_trait_in_bindings,
+#![feature(fn_traits, unboxed_closures, integer_atomics, optin_builtin_traits, fnbox,
+    test, cell_update, box_syntax, coerce_unsized, unsize,
 )]
 //#![feature(arbitrary_self_types)]
 #![allow(non_snake_case)]
@@ -158,7 +158,7 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 pub unsafe trait SendSync<SS:YesNo> : Sized { }
 
 unsafe impl<SS:YesNo> SendSync<SS> for () {}
-unsafe impl <SS:YesNo, A: SendSync<SS>> SendSync<SS> for (A) {}
+unsafe impl <SS:YesNo, A: SendSync<SS>> SendSync<SS> for (A,) {}
 unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>> SendSync<SS> for (A, B) {}
 unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>> SendSync<SS> for (A, B, C) {}
 unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: SendSync<SS>> SendSync<SS> for (A, B, C, D) {}

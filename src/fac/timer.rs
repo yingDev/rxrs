@@ -78,7 +78,7 @@ mod test
     #[test]
     fn ops()
     {
-        let timer: impl Observable<YES, Val<usize>> = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        let timer = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
 
         let (out, out1, out3) = Arc::new(Mutex::new(String::new())).clones();
 
@@ -144,7 +144,7 @@ mod test
     #[test]
     fn cur_thread()
     {
-        let timer: impl Observable<NO, Val<usize>> = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
+        let timer = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
 
         let (out, out1, out3) = Rc::new(RefCell::new(String::new())).clones();
 

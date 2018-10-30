@@ -111,35 +111,35 @@ mod test
         assert_eq!(*n.lock().unwrap(), 10 + 5);
     }
 
-//    #[test]
-//    fn as_until_sig()
-//    {
-//        let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
-//        let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
-//        let t = Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
-//
-//        s.until(t).sub(
-//            move |v| *n1.lock().unwrap() += v ,
-//            move |e: Option<_>| *n2.lock().unwrap() += 100
-//        );
-//
-//        s1.next(1);
-//        assert_eq!(*n.lock().unwrap(), 1);
-//
-//        s1.next(2);
-//        assert_eq!(*n.lock().unwrap(), 3);
-//
-//        ::std::thread::sleep_ms(10);
-//        s1.next(3);
-//        assert_eq!(*n.lock().unwrap(), 6);
-//
-//        ::std::thread::sleep_ms(150);
-//        assert_eq!(*n.lock().unwrap(), 106);
-//
-//        s1.next(1234);
-//        s1.complete();
-//        assert_eq!(*n.lock().unwrap(), 106);
-//    }
+    #[test]
+    fn as_until_sig()
+    {
+        let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
+        let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
+        let t = Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+
+        s.until(t).sub(
+            move |v: &_| *n1.lock().unwrap() += v ,
+            move |e: Option<&_>| *n2.lock().unwrap() += 100
+        );
+
+        s1.next(1);
+        assert_eq!(*n.lock().unwrap(), 1);
+
+        s1.next(2);
+        assert_eq!(*n.lock().unwrap(), 3);
+
+        ::std::thread::sleep_ms(10);
+        s1.next(3);
+        assert_eq!(*n.lock().unwrap(), 6);
+
+        ::std::thread::sleep_ms(150);
+        assert_eq!(*n.lock().unwrap(), 106);
+
+        s1.next(1234);
+        s1.complete();
+        assert_eq!(*n.lock().unwrap(), 106);
+    }
 
     #[test]
     fn cur_thread()

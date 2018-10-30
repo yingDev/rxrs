@@ -1,11 +1,12 @@
 use crate::*;
 
-pub struct Of<V>(V);
+pub struct Of<V>(Option<V>);
 
 impl<V> Of<V>
 {
-    pub fn value(v: V) -> Self { Of(v) }
-    pub fn value_dyn(v: V) -> Box<Self>  { box Of(v) }
+    pub fn value(v: V) -> Self { Of(Some(v)) }
+    pub fn value_dyn(v: V) -> Box<Self>  { box Of(Some(v)) }
+    pub fn empty() -> Self { Of(None) }
 }
 
 impl<'o, V:'o> Observable<'o, NO, Ref<V>> for Of<V>
@@ -13,7 +14,9 @@ impl<'o, V:'o> Observable<'o, NO, Ref<V>> for Of<V>
     fn sub(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<()>>+'o) -> Unsub<'o, NO> where Self: Sized
     {
         if ! next.stopped() {
-            next.call(&self.0);
+            if let Some(v) = self.0.as_ref() {
+                next.call(v);
+            }
             if !next.stopped() {
                 ec.call_once(None);
             }
@@ -31,6 +34,7 @@ impl<'o, V:'o> Observable<'o, NO, Ref<V>> for Of<V>
 mod test
 {
     use crate::*;
+    use std::cell::Cell;
 
     #[test]
     fn smoke()
@@ -51,6 +55,16 @@ mod test
         Of::value_dyn(123).sub_dyn(box |v:&_| { n.replace(*v + 1); }, box());
 
         assert_eq!(n.get(), 124);
+    }
+
+    #[test]
+    fn empty()
+    {
+        let n = Cell::new(0);
+        let o = Of::empty();
+        o.sub(|v:&()| assert!(false, "shouldn't happend"), |e:Option<&_>| { n.replace(1); } );
+
+        assert_eq!(n.get(), 1);
     }
 
 }

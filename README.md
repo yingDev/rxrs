@@ -15,7 +15,7 @@
 ```rust
 use rxrs::*;
 
-#[wasm_bindgen]
+#[test]
 pub fn greet()
 {
     let output = RefCell::new(String::new());
@@ -31,8 +31,7 @@ pub fn greet()
         subj.next(i);
     }
 
-    //"*0*2*4*6ok"
-    log(&*output.borrow());
+    assert_eq!("*0*2*4*6ok", &*output.borrow());
 }
 
 ```

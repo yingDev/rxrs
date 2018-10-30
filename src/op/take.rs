@@ -33,11 +33,11 @@ for TakeOp<SS, Src>
         }
 
         let next = SSActNextWrap::new(next);
-        let (s1, s2, s3, s4) = Unsub::new().clones();
+        let sub = Unsub::new();
         let (state, state1) = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) }).clones();
 
-        s1.added_each(self.src.sub(forward_next(next, (s2, SSWrap::new(state)), |next, (s2, state), v:VBy| {
-                s2.if_not_done(|| {
+        sub.clone().added_each(self.src.sub(forward_next(next, (sub.clone(), SSWrap::new(state)), |next, (sub, state), v:VBy| {
+                sub.if_not_done(|| {
                     let state = unsafe{ &mut *state.get() };
 
                     let mut val = state.0;
@@ -47,13 +47,13 @@ for TakeOp<SS, Src>
                         next.call(v.into_v());
                     }
                     if val == 0 {
-                        s2.unsub_then(|| state.1.take().map_or((), |ec| ec.call_once(None)));
+                        sub.unsub_then(|| state.1.take().map_or((), |ec| ec.call_once(None)));
                     }
                 });
-            }, |s, (s2, state)| (s.stopped() || s2.is_done())),
+            }, |s, (sub, state)| (s.stopped() || sub.is_done())),
 
-            forward_ec((s3, SSWrap::new(state1)), |(s3, state1), e:Option<EBy>| {
-                s3.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
+            forward_ec((sub, SSWrap::new(state1)), |(sub, state1), e:Option<EBy>| {
+                sub.unsub_then(|| unsafe{ &mut *state1.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
             })
         ))
     }

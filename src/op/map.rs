@@ -27,11 +27,11 @@ for MapOp<SS, VBy, Src, F>
     {
         let next = SSActNextWrap::new(next);
         let f = act_sendsync(self.f.clone());
-        let (s1, s2) = Unsub::new().clones();
+        let sub = Unsub::new();
 
-        s1.added_each(self.src.sub(forward_next(next, (s2, f), |next, (s2, f), v: VBy| {
+        sub.clone().added_each(self.src.sub(forward_next(next, (sub, f), |next, (sub, f), v: VBy| {
             let v = f.call(v.into_v());
-            s2.if_not_done(|| next.call(v));
+            sub.if_not_done(|| next.call(v));
         }, |s,_|s.stopped()), ec))
     }
 

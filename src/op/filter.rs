@@ -26,12 +26,12 @@ for FilterOp<SS, Src, F>
     {
         let next = SSActNextWrap::new(next);
         let f = act_sendsync(self.f.clone());
-        let (s1, s2) = Unsub::<SS>::new().clones();
+        let sub = Unsub::<SS>::new();
 
-        s1.added_each(self.src.sub(
-            forward_next(next, (f, s2), |n, (f, s2), v: VBy| {
+        sub.clone().added_each(self.src.sub(
+            forward_next(next, (f, sub), |n, (f, sub), v: VBy| {
                 if f.call(v.as_ref()) {
-                    s2.if_not_done(|| n.call(v.into_v()));
+                    sub.if_not_done(|| n.call(v.into_v()));
                 }
             }, |s, _| s.stopped()),
             ec

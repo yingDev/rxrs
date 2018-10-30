@@ -1,7 +1,7 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, associated_type_defaults, optin_builtin_traits, fnbox,
-    test, cell_update, box_syntax, specialization, trait_alias, option_replace, coerce_unsized, unsize,impl_trait_in_bindings,
+    test, cell_update, box_syntax, specialization, trait_alias, coerce_unsized, unsize,impl_trait_in_bindings,
 )]
-#![feature(arbitrary_self_types)]
+//#![feature(arbitrary_self_types)]
 #![allow(non_snake_case)]
 
 
@@ -289,82 +289,5 @@ for SsForward<SS, (Caps, fn(Caps, Option<By>))>
     {
         let (caps, fec) = self.captures;
         fec(caps,  v.map(|v| unsafe { By::from_v(v) }))
-    }
-}
-
-#[cfg(test)]
-mod test
-{
-    use crate::*;
-    use std::marker::PhantomData;
-    use std::cell::Cell;
-    use std::cell::UnsafeCell;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use crate::util::any_send_sync::AnySendSync;
-    use std::ops::Deref;
-    use std::sync::Arc;
-    use std::fmt::Display;
-
-    #[test]
-    fn inference()
-    {
-
-
-        struct Filter<Src>
-        {
-            src: Src
-        }
-
-        impl<'o, SS:YesNo, Src: Observable<'o, SS, Val<i32>, ()> > Observable<'o, SS, Val<i32>, ()> for Filter<Src>
-        {
-            fn sub(&self, next: impl ActNext<'o, SS, Val<i32>>, ec: impl ActEc<'o, SS, ()>) -> Unsub<'o, SS> where Self: Sized
-            {
-                let x = 123;
-                self.src.sub(forward_next(SSActNextWrap::new(next), (SSWrap::new(x)), |next:&_, (x), by:Val<i32>| {
-                    next.call(by.into_v());
-                    println!("x={}", **x);
-                }, |next:&_, (rc)|{ true }), ec)
-            }
-
-            fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<i32>>>, err_or_comp: Box<ActEcBox<'o, SS, ()>>) -> Unsub<'o, SS> {
-                unimplemented!()
-            }
-        }
-
-        struct Map<SVBy, Src>
-        {
-            src: Src,
-            PhantomData: PhantomData<SVBy>
-        }
-
-        impl<'o, SS:YesNo, SVBy: RefOrVal+'o, Src: Observable<'o, SS, SVBy> > Observable<'o, SS, Val<String>> for Map<SVBy, Src>
-        where SVBy::RAW : Display
-        {
-            fn sub(&self, next: impl ActNext<'o, SS, Val<String>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
-            {
-                let next = SSActNextWrap::new(next);
-                let arc = SSWrap(Arc::new(444));
-                let a = SSWrap(123);
-
-                self.src.sub(forward_next(next, (a, arc), |next, (a,arc), by: SVBy| {
-
-                    next.call(format!("**{}**", by.as_ref()));
-
-                }, |next, _| next.stopped() ), ec)
-            }
-
-            fn sub_dyn(&self, next: Box<ActNext<'o, SS, Val<String>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS> {
-                unimplemented!()
-            }
-        }
-
-        let m = Map{ src: Of::value(123), PhantomData };
-        m.sub(|v| println!("out={}", v), ());
-
-
-
-
-
     }
 }

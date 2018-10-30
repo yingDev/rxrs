@@ -17,9 +17,21 @@ pub trait ThreadFactory
     fn start_dyn(&self, main: Box<FnBox()+Send+Sync+'static>);
 }
 
-//pub unsafe trait SchActPeriodic<SS:YesNo> : Act<SS, Ref<Unsub<'static, SS>>> + 'static {}
-//pub unsafe trait SchActOnce<SS:YesNo> : ActOnce<SS, (), Unsub<'static, SS>> + 'static {}
-//pub unsafe trait SchActBox<SS:YesNo> : ActBox<SS, (), Unsub<'static, SS>> + 'static {}
+impl<SS:YesNo, S: Scheduler<SS>> Scheduler<SS> for Arc<S>
+{
+    #[inline(always)]
+    fn schedule(&self, due: Option<Duration>, act: impl ActOnce<SS, (), Unsub<'static, SS>>+'static) -> Unsub<'static, SS> where Self: Sized {
+        Arc::as_ref(self).schedule(due, act)
+    }
+}
+
+impl<SS:YesNo, S: SchedulerPeriodic<SS>> SchedulerPeriodic<SS> for Arc<S>
+{
+    #[inline(always)]
+    fn schedule_periodic(&self, period: Duration, act: impl Act<SS, Ref<Unsub<'static, SS>>>+'static) -> Unsub<'static, SS> where Self: Sized {
+        Arc::as_ref(self).schedule_periodic(period, act)
+    }
+}
 
 pub struct DefaultThreadFac;
 impl ThreadFactory for DefaultThreadFac
@@ -33,6 +45,9 @@ impl ThreadFactory for DefaultThreadFac
 pub use self::event_loop_scheduler::*;
 pub use self::new_thread_scheduler::*;
 pub use self::current_thread_scheduler::*;
+use std::sync::Arc;
+use std::time::Duration;
+
 mod event_loop_scheduler;
 mod new_thread_scheduler;
 mod current_thread_scheduler;

@@ -169,6 +169,7 @@ unsafe impl <SS:YesNo, A: SendSync<SS>, B: SendSync<SS>, C: SendSync<SS>, D: Sen
 unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(A, B, C) -> R {}
 unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(A, B) -> R {}
 unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, &B) -> R {}
+unsafe impl<SS:YesNo, A, B, R> SendSync<SS> for fn(&A, B) -> R {}
 unsafe impl<SS:YesNo, A, B, C, R> SendSync<SS> for fn(&A, &B, C) -> R {}
 
 struct SSWrap<V:Send+Sync>(V);
@@ -289,5 +290,27 @@ for SsForward<SS, (Caps, fn(Caps, Option<By>))>
     {
         let (caps, fec) = self.captures;
         fec(caps,  v.map(|v| unsafe { By::from_v(v) }))
+    }
+}
+
+
+#[inline(always)]
+pub fn forward_act<'o, SS:YesNo, By: RefOrVal+'o, Caps:SendSync<SS>+'o>
+(captures: Caps, fact: fn(&Caps, By))
+ -> SsForward<SS, (Caps, fn(&Caps, By))>
+{
+    SsForward::new((captures, fact))
+}
+
+
+unsafe impl<SS:YesNo, By: RefOrVal, Caps:SendSync<SS>>
+Act<SS, By>
+for SsForward<SS, (Caps, fn(&Caps, By))>
+{
+    #[inline(always)]
+    fn call(&self, v: By::V)
+    {
+        let (caps, fec) = &self.captures;
+        fec(caps,  unsafe { By::from_v(v) })
     }
 }

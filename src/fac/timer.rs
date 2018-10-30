@@ -7,42 +7,40 @@ use crate::util::any_send_sync::AnySendSync;
 use crate::act::WrapAct;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Timer<SS: YesNo, Sch: SchedulerPeriodic<SS>>
 {
     period: Duration,
-    scheduler: Arc<Sch>,
+    scheduler: Sch,
     PhantomData: PhantomData<SS>
 }
 
-impl<SS:YesNo, Sch: SchedulerPeriodic<SS>> Timer<SS, Sch>
+impl<'s, SS:YesNo, Sch: SchedulerPeriodic<SS>> Timer<SS, Sch>
 {
     pub fn new(period: Duration, scheduler: Sch) -> Self
     {
-        Timer{ period, scheduler: Arc::new(scheduler), PhantomData }
+        Timer{ period, scheduler, PhantomData }
     }
 }
 
 
-impl<SS:YesNo, Sch: SchedulerPeriodic<SS>+'static>
+impl<SS:YesNo, Sch: SchedulerPeriodic<SS>>
 Observable<'static, SS, Val<usize>>
 for Timer<SS, Sch>
 {
     fn sub(&self, next: impl ActNext<'static, SS, Val<usize>>, ec: impl ActEc<'static, SS>) -> Unsub<'static, SS>
     {
-        let count = AtomicUsize::new(0);
-        //hack: prevent sch being dropped when Timer is dropped
-        let sch = self.scheduler.clone();
+        let count = SSWrap::new(AtomicUsize::new(0));
+        let next = SSActNextWrap::new(next);
 
-        self.scheduler.schedule_periodic(self.period, unsafe { WrapAct::new(move |unsub: Ref<Unsub<'static, SS>>|{
-            sch.as_ref();
-
+        self.scheduler.schedule_periodic(self.period, forward_act((next, count), |(next, count), unsub: Ref<Unsub<'static, SS>>|{
             if !next.stopped() {
                 next.call(count.fetch_add(1, Ordering::Relaxed));
             }
 
             if next.stopped() { unsub.as_ref().unsub(); }
-        })})
+        }))
     }
 
     fn sub_dyn(&self, next: Box<ActNext<'static, SS, Val<usize>>>, ec: Box<ActEcBox<'static, SS>>) -> Unsub<'static, SS>
@@ -64,8 +62,10 @@ mod test
     #[test]
     fn smoke()
     {
+        let sch = Arc::new(NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+
         let (n, n1) = Arc::new(AtomicUsize::new(0)).clones();
-        let t = Timer::new(Duration::from_millis(33), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        let t = Timer::new(Duration::from_millis(33), sch.clone());
 
         t.take(10).sub(move |v| { n.store(v, Ordering::SeqCst); }, ());
         assert_ne!(n1.load(Ordering::SeqCst), 9);
@@ -78,7 +78,8 @@ mod test
     #[test]
     fn ops()
     {
-        let timer = Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        let sch = Arc::new(NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        let timer = Timer::new(Duration::from_millis(10), sch.clone());
 
         let (out, out1, out3) = Arc::new(Mutex::new(String::new())).clones();
 
@@ -95,8 +96,9 @@ mod test
     #[test]
     fn multiple_times()
     {
+        let sch = Arc::new(NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
         let n = Arc::new(Mutex::new(0));
-        let t = Arc::new(Timer::new(Duration::from_millis(10), NewThreadScheduler::new(Arc::new(DefaultThreadFac))));
+        let t = Arc::new(Timer::new(Duration::from_millis(10), Arc::new(sch)));
 
         for i in 0..5 {
             let (n1, n2) = n.clone().clones();
@@ -114,9 +116,10 @@ mod test
     #[test]
     fn as_until_sig()
     {
+        let sch = Arc::new(NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
         let (n, n1, n2) = Arc::new(Mutex::new(0)).clones();
         let (s, s1) = Arc::new(Subject::<YES, i32>::new()).clones();
-        let t = Timer::new(Duration::from_millis(100), NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        let t = Timer::new(Duration::from_millis(100), sch.clone());
 
         s.until(t).sub(
             move |v: &_| *n1.lock().unwrap() += v ,
@@ -144,7 +147,8 @@ mod test
     #[test]
     fn cur_thread()
     {
-        let timer = Timer::new(Duration::from_millis(10), CurrentThreadScheduler::new());
+        let sch = Arc::new(CurrentThreadScheduler::new());
+        let timer = Timer::new(Duration::from_millis(10), sch.clone());
 
         let (out, out1, out3) = Rc::new(RefCell::new(String::new())).clones();
 

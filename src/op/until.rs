@@ -24,30 +24,6 @@ impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal+'o, SEBy: RefOrV
 ObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy, Sig>
 for Src {}
 
-//impl<'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, NO, VBy, EBy>, Sig: Observable<'o, NO, SVBy, SEBy>>
-//Observable<'o, NO, VBy, EBy>
-//for UntilOp<Src, SVBy, SEBy, Sig>
-//{
-//    fn sub(&self, next: impl ActNext<'o, NO, VBy>, ec: impl ActEc<'o, NO, EBy>) -> Unsub<'o, NO> where Self: Sized
-//    {
-//        let (s1, s2, s3, s4) = Unsub::new().clones();
-//        let (ec1, ec2) = Rc::new(RefCell::new(Some(ec))).clones();
-//
-//        s1.add_each(self.sig.sub(
-//            (move |v| s2.unsub_then(|| ec1.borrow_mut().take().map_or((), |ec| ec.call_once(None))), move|()| s4.is_done()), ()
-//        ));
-//
-//        if s3.is_done() { return s3; }
-//        s3.added_each(self.src.sub(
-//            next,
-//            move |e: Option<By<_>>| ec2.borrow_mut().take().map_or((), |ec| ec.call_once(e))
-//        ))
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'o, NO, VBy>>, ec: Box<ActEcBox<'o, NO, EBy>>) -> Unsub<'o, NO>
-//    { self.sub(next, ec) }
-//}
-
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o,  SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, SVBy, SEBy>>
 Observable<'o, SS, VBy, EBy>
 for UntilOp<Src, SVBy, SEBy, Sig>
@@ -68,8 +44,13 @@ for UntilOp<Src, SVBy, SEBy, Sig>
         if sub.is_done() { return sub; }
 
         sub.clone().added_each(self.src.sub(
-            forward_next(next, (sub.clone()), |next, (sub), v: VBy| sub.if_not_done(|| next.call(v.into_v())), |next, (sub)| next.stopped() || sub.is_done()),
-            forward_ec((sub.clone(), SSWrap::new(ec2)), |(s5, ec2), e:Option<EBy>| s5.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec2).0.get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v())))))
+            forward_next(next, (sub.clone()), |next, (sub), v: VBy| {
+                sub.if_not_done(|| next.call(v.into_v()))
+            }, |next, (sub)| next.stopped() || sub.is_done()),
+
+            forward_ec((sub.clone(), SSWrap::new(ec2)), |(sub, ec2), e:Option<EBy>| {
+                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec2).0.get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
+            })
         ))
     }
 

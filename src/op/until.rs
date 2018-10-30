@@ -116,4 +116,15 @@ mod test
         s3.complete();
         assert_eq!(n.get(), 100);
     }
+
+    #[test]
+    fn empty_sig()
+    {
+        let sig = Of::<()>::empty();
+        let val = Of::value(123);
+
+        let sub = val.until(sig).sub(|v:&_| assert!(false, "shouldnt next"), |e:Option<&_>| assert!(false, "shouldnt complete"));
+
+        assert!(sub.is_done());
+    }
 }

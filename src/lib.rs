@@ -1,7 +1,7 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, optin_builtin_traits, fnbox,
     test, cell_update, box_syntax, coerce_unsized, unsize,
 )]
-//#![feature(arbitrary_self_types)]
+#![feature(impl_trait_in_bindings)]
 #![allow(non_snake_case)]
 
 
@@ -312,5 +312,40 @@ for SsForward<SS, (Caps, fn(&Caps, By))>
     {
         let (caps, fec) = &self.captures;
         fec(caps,  unsafe { By::from_v(v) })
+    }
+}
+
+
+#[cfg(test)]
+mod test
+{
+    use crate::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    //use rxrs::*;
+
+    #[test]
+    pub fn greet()
+    {
+        let output = RefCell::new(String::new());
+
+        let subj = Rc::new(Subject::<NO, i32>::new());
+
+        let evens: impl Observable<NO, Val<String>> = subj.clone()
+            .filter(|v:&_| v%2 == 0 )
+            .take(4)
+            .map(|v:&_| format!("*{}", v));
+
+        evens.sub(
+            |v: String| output.borrow_mut().push_str(&v),
+            |e: Option<&_>| output.borrow_mut().push_str("ok")
+        );
+
+        for i in 0..10 {
+            subj.next(i);
+        }
+
+        assert_eq!("*0*2*4*6ok", &*output.borrow());
     }
 }

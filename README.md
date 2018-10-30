@@ -15,24 +15,31 @@
 ```rust
 use rxrs::*;
 
-#[test]
-pub fn greet()
-{
-    let output = RefCell::new(String::new());
+    use rxrs::*;
 
-    let (subj, obs) = Rc::new(Subject::<NO, i32>::new()).clones();
+    #[test]
+    pub fn greet()
+    {
+        let output = RefCell::new(String::new());
 
-    obs.filter(|v:&_| v%2 == 0 ).take(4).map(|v:&_| format!("*{}", v)).sub(
-        |v: String| output.borrow_mut().push_str(&v),
-        |e: Option<&_>| output.borrow_mut().push_str("ok")
-    );
+        let subj = Rc::new(Subject::<NO, i32>::new());
 
-    for i in 0..10 {
-        subj.next(i);
+        let evens: impl Observable<NO, Val<String>> = subj.clone()
+            .filter(|v:&_| v%2 == 0 )
+            .take(4)
+            .map(|v:&_| format!("*{}", v));
+
+        evens.sub(
+            |v: String| output.borrow_mut().push_str(&v),
+            |e: Option<&_>| output.borrow_mut().push_str("ok")
+        );
+
+        for i in 0..10 {
+            subj.next(i);
+        }
+
+        assert_eq!("*0*2*4*6ok", &*output.borrow());
     }
-
-    assert_eq!("*0*2*4*6ok", &*output.borrow());
-}
 
 ```
 

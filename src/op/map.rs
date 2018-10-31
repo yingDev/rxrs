@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
 use crate::util::any_send_sync::AnySendSync;
+use std::ops::Deref;
 
 pub struct MapOp<SS, VBy, Src, F>
 {
@@ -10,29 +11,66 @@ pub struct MapOp<SS, VBy, Src, F>
     PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
 }
 
-pub trait ObsMapOp<'o, SS: YesNo, Dyn: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o, R> : Sized
+pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 {
-    fn map(self, f: F) -> R;
+    src: Box<Observable<'o, SS, By, EBy> + 's>,
+}
+
+impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By, EBy>
+{
+    pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Box::new(src) }}
+    pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
+}
+
+
+impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>
+{
+    type Target = Observable<'o, SS, By, EBy> + 's;
+
+    fn deref(&self) -> &Self::Target {
+        self.src.as_ref()
+    }
+}
+
+//impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Observable<'o, SS, By, EBy> for X<'s, 'o, SS, By, EBy>
+//{
+//    fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized {
+//        self.src.sub_dyn(box next, box err_or_comp)
+//    }
+//
+//    fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS> {
+//        self.src.sub_dyn(next, err_or_comp)
+//    }
+//}
+
+
+
+
+pub trait ObsMapOp<'o, SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o> : Sized
+{
+    fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData } }
+}
+pub trait DynObsMapOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
+{
+    fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>, EBy>;
 }
 
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'o, F: Act<SS, VBy, VOut>+'o>
-ObsMapOp<'o, SS, NO, VBy,EBy, VOut, F, MapOp<SS, VBy, Src, F>>
+ObsMapOp<'o, SS, VBy,EBy, VOut, F>
 for Src
-{
-    fn map(self, f: F) -> MapOp<SS, VBy, Src, F> { MapOp{ f: Arc::new(f), src: self, PhantomData } }
-}
+{}
 
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
-ObsMapOp<'o, SS, YES, VBy,EBy, VOut, F, Box<Observable<'o, SS, Val<VOut>, EBy>+'o>>
-for Box<Observable<'o, SS, VBy, EBy>+'o>
+DynObsMapOp<'o, SS, VBy,EBy, VOut, F>
+for DynObservable<'o, 'o, SS, VBy, EBy>
 {
-    fn map(self, f: F) -> Box<Observable<'o, SS, Val<VOut>, EBy>+'o>
+    fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>, EBy>
     {
-        let map = MapOp{ f: Arc::new(f), src: self, PhantomData };
-        let boxed: Box<Observable<'o, SS, Val<VOut>, EBy>+'o> = Box::new(map);
-        boxed
+        DynObservable::new(MapOp{ f: Arc::new(f), src: self.src, PhantomData })
     }
 }
+
+
 
 
 impl<'s, 'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>
@@ -74,9 +112,10 @@ mod test
         assert_eq!(n.get(), 246);
 
         let o = Of::value("B".to_owned());
-        let mapped = o.map(|s:&_| format!("A{}", *s)).map(|s| format!("{}C", s)).into_dyn();
 
         let result = RefCell::new(String::new());
+        let mapped = o.into_dyn().map(|s:&_| format!("A{}", *s)).map(|s| format!("{}C", s));
+
         mapped.sub_dyn(box |v:String| result.borrow_mut().push_str(&v), box());
 
         assert_eq!(result.borrow().as_str(), "ABC");
@@ -102,7 +141,8 @@ mod test
     {
         let o: Box<Observable<NO, Ref<i32>>> = Box::new(Of::value(123));
 
-        let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&_| v+1);
+        let o = DynObservable { src: o};
+        let o = o.map(|v:&_| v+1).map(|v| v*v);
         o.sub_dyn(box |v| println!("v={}", v), box ());
     }
 

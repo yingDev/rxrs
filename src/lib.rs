@@ -16,10 +16,10 @@ pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
 
-pub trait IntoDyn<'o, SS: YesNo, By: RefOrVal, EBy: RefOrVal> : Sized
+pub trait IntoDyn<'s, 'o, SS: YesNo, By: RefOrVal, EBy: RefOrVal> : Sized where Self: Observable<'o, SS, By, EBy>+'s
 {
     #[inline(always)]
-    fn into_dyn(self) -> Box<Self>  { box self }
+    fn into_dyn(self) -> DynObservable<'s, 'o, SS, By, EBy>  { DynObservable::new(self) }
 }
 
 pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : 'o
@@ -67,8 +67,8 @@ mod act_helpers;
 mod scheduler;
 
 
-impl<'a, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>+'a>
-IntoDyn<'o, SS, By, EBy>
+impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>+'s>
+IntoDyn<'s, 'o, SS, By, EBy>
 for O {}
 
 

@@ -46,9 +46,9 @@ mod test
 
         assert_eq!(n.get(), 123);
 
+        let n = std::cell::Cell::new(0);
         let o = o.into_dyn(); //Of::value_dyn(123);
 
-        let n = std::cell::Cell::new(0);
 
         o.sub_dyn(box |v:&_| { n.replace(*v + 1); }, box ());
 

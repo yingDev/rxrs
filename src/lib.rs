@@ -158,19 +158,7 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 }
 
 
-
-////todo:...
-//unsafe impl<SS:YesNo, A: Act<SS, Ref<Unsub<'static, SS>>>+'static>
-//SchActPeriodic<SS>
-//for A{}
-//
-//unsafe impl<SS:YesNo, A: ActOnce<SS, (), Unsub<'static, SS>>+'static>
-//SchActOnce<SS>
-//for A{}
-//
-//unsafe impl<SS:YesNo, A: ActBox<SS, (), Unsub<'static, SS>>+'static>
-//SchActBox<SS>
-//for A{}
+//todo: move
 
 pub unsafe trait SendSync<SS:YesNo> : Sized { }
 
@@ -260,6 +248,7 @@ impl<SS:YesNo, Caps: SendSync<SS>> Deref for SsForward<SS, Caps>
     fn deref(&self) -> &Caps { &self.captures }
 }
 
+//todo: rename & organize
 
 unsafe impl<'o, SS:YesNo, N: SendSync<SS>+'o, Caps:SendSync<SS>+'o, FBy: RefOrVal+'o>
 ActNext<'o, SS, FBy>

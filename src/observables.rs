@@ -40,21 +40,27 @@ for Arc<O>
     #[inline(always)]
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { Arc::as_ref(self).sub_dyn(next, ec) }
+
+    fn into_dyn<'x>(self) -> DynObservable<'x, 'o, SS, By, EBy> where Self: Sized+'x
+    { DynObservable::from_arc(self) }
 }
 
 
-//impl<'o, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>, SS:YesNo>
-//Observable<'o, SS, By, EBy>
-//for Box<O>
-//{
-//    #[inline(always)]
-//    fn sub(&self, next: impl ActNext<'o, SS, By>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
-//    { Box::as_ref(self).sub(next, ec) }
-//
-//    #[inline(always)]
-//    fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
-//    { Box::as_ref(self).sub_dyn(next, ec) }
-//}
+impl<'o, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>, SS:YesNo>
+Observable<'o, SS, By, EBy>
+for Box<O>
+{
+    #[inline(always)]
+    fn sub(&self, next: impl ActNext<'o, SS, By>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    { Box::as_ref(self).sub(next, ec) }
+
+    #[inline(always)]
+    fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    { Box::as_ref(self).sub_dyn(next, ec) }
+
+    fn into_dyn<'x>(self) -> DynObservable<'x, 'o, SS, By, EBy> where Self: Sized+'x
+    { DynObservable::from_box(self) }
+}
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 Observable<'o, SS, By, EBy>
@@ -81,4 +87,7 @@ for Arc<dyn Observable<'o, SS, By, EBy>+'s>
     #[inline(always)]
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
     { Arc::as_ref(self).sub_dyn(next, ec) }
+
+    fn into_dyn<'x>(self) -> DynObservable<'x, 'o, SS, By, EBy> where Self: Sized+'x
+    { DynObservable::from_arc(self) }
 }

@@ -17,6 +17,7 @@ pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
 
+#[derive(Clone)]
 pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 {
     src: Arc<Observable<'o, SS, By, EBy> + 's>,
@@ -25,10 +26,12 @@ pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 unsafe impl<'s, 'o, By: RefOrVal, EBy: RefOrVal> Send for DynObservable<'s, 'o, YES, By, EBy>{}
 unsafe impl<'s, 'o, By: RefOrVal, EBy: RefOrVal> Sync for DynObservable<'s, 'o, YES, By, EBy>{}
 
+
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By, EBy>
 {
     pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Arc::new(src) }}
     pub fn from_arc(src: Arc<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
+    pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src: src.into() }}
 }
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>

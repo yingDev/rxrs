@@ -28,6 +28,11 @@ impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By
     pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Arc::new(src) }}
     pub fn from_arc(src: Arc<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
     pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src: src.into() }}
+    fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    {
+        self.sub_dyn(box next, box err_or_comp)
+    }
+
 }
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>

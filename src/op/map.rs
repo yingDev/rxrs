@@ -76,7 +76,7 @@ mod test
         let result = RefCell::new(String::new());
         let mapped = o.into_dyn().map(|s:&_| format!("A{}", *s)).map(|s| format!("{}C", s));
 
-        mapped.sub_dyn(box |v:String| result.borrow_mut().push_str(&v), box());
+        mapped.sub(|v:String| result.borrow_mut().push_str(&v), ());
 
         assert_eq!(result.borrow().as_str(), "ABC");
     }

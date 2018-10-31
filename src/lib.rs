@@ -1,8 +1,5 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, optin_builtin_traits, fnbox,
-    test, cell_update, box_syntax, coerce_unsized, unsize,
-)]
-#![feature(impl_trait_in_bindings)]
-//#![feature(specialization)]
+    test, cell_update, box_syntax, impl_trait_in_bindings)]
 #![allow(non_snake_case)]
 
 
@@ -25,7 +22,6 @@ pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 
 unsafe impl<'s, 'o, By: RefOrVal, EBy: RefOrVal> Send for DynObservable<'s, 'o, YES, By, EBy>{}
 unsafe impl<'s, 'o, By: RefOrVal, EBy: RefOrVal> Sync for DynObservable<'s, 'o, YES, By, EBy>{}
-
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By, EBy>
 {

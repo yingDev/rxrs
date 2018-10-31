@@ -15,27 +15,22 @@ pub trait ObsMapOp<'o, SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS,
 {
     fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData } }
 }
+
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'o, F: Act<SS, VBy, VOut>+'o>
+ObsMapOp<'o, SS, VBy,EBy, VOut, F> for Src {}
+
 pub trait DynObsMapOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
 {
     fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>, EBy>;
 }
-
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'o, F: Act<SS, VBy, VOut>+'o>
-ObsMapOp<'o, SS, VBy,EBy, VOut, F>
-for Src
-{}
 
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
 DynObsMapOp<'o, SS, VBy,EBy, VOut, F>
 for DynObservable<'o, 'o, SS, VBy, EBy>
 {
     fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>, EBy>
-    {
-        DynObservable::new(MapOp{ f: Arc::new(f), src: self.src, PhantomData })
-    }
+    { MapOp{ f: Arc::new(f), src: self.src, PhantomData }.into_dyn() }
 }
-
-
 
 
 impl<'s, 'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>

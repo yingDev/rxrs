@@ -21,6 +21,20 @@ impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>+'o, SS:
 ObsTakeOp<SS, VBy,EBy>
 for Src {}
 
+
+pub trait DynObsTakeOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o>
+{
+    fn take(self, count: usize) -> Self;
+}
+
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o>
+DynObsTakeOp<'o, SS, VBy,EBy>
+for DynObservable<'o, 'o, SS, VBy, EBy>
+{
+    fn take(self, count: usize) -> Self
+    { TakeOp{ count, src: self.src, PhantomData }.into_dyn() }
+}
+
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
 Observable<'o, SS, VBy, EBy>
 for TakeOp<SS, Src>

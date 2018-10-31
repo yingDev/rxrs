@@ -18,6 +18,19 @@ impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Act
 ObsFilterOp<SS, VBy,EBy, F>
 for Src {}
 
+pub trait DynObsFilterOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
+{
+    fn filter(self, f: F) -> Self;
+}
+
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
+DynObsFilterOp<'o, SS, VBy,EBy, F>
+for DynObservable<'o, 'o, SS, VBy, EBy>
+{
+    fn filter(self, f: F) -> Self
+    { FilterOp{ f: Arc::new(f), src: self.src, PhantomData }.into_dyn() }
+}
+
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
 Observable<'o, SS, VBy, EBy>
 for FilterOp<SS, Src, F>
@@ -68,7 +81,7 @@ mod test
 
         let (n, n1) = Arc::new(AtomicUsize::new(0)).clones();
         let (input, output) = Rc::new(Subject::<YES, i32>::new()).clones();
-        output.filter(|v:&_| v % 2 == 0).sub(move |v:&_| { n.fetch_add(1, Ordering::SeqCst); }, ());
+        output.into_dyn().filter(|v:&_| v % 2 == 0).sub_dyn(box move |v:&_| { n.fetch_add(1, Ordering::SeqCst); }, box());
 
         input.next(1);
         input.next(2);

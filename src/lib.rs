@@ -16,21 +16,19 @@ pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
     fn into_dyn<'s>(self) -> DynObservable<'s, 'o, SS, By, EBy> where Self: Sized+'s { DynObservable::new(self) }
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
-//
-//pub trait IntoDyn<'s, 'o, SS: YesNo, By: RefOrVal, EBy: RefOrVal> : Sized where Self: Observable<'o, SS, By, EBy>+'s
-//{
-//    #[inline(always)]
-//}
 
 pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 {
-    src: Box<Observable<'o, SS, By, EBy> + 's>,
+    src: Arc<Observable<'o, SS, By, EBy> + 's>,
 }
+
+unsafe impl<'s, 'o, By: RefOrVal, EBy: RefOrVal> Send for DynObservable<'s, 'o, YES, By, EBy>{}
+unsafe impl<'s, 'o, By: RefOrVal, EBy: RefOrVal> Sync for DynObservable<'s, 'o, YES, By, EBy>{}
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By, EBy>
 {
-    pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Box::new(src) }}
-    pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
+    pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Arc::new(src) }}
+    pub fn from_arc(src: Arc<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
 }
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>
@@ -72,6 +70,7 @@ use std::marker::PhantomData;
 pub use crate::scheduler::*;
 use crate::util::any_send_sync::AnySendSync;
 use std::ops::Deref;
+use std::sync::Arc;
 
 mod observables;
 mod op;

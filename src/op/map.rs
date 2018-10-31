@@ -11,20 +11,6 @@ pub struct MapOp<SS, VBy, Src, F>
     PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
 }
 
-//impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Observable<'o, SS, By, EBy> for X<'s, 'o, SS, By, EBy>
-//{
-//    fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized {
-//        self.src.sub_dyn(box next, box err_or_comp)
-//    }
-//
-//    fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS> {
-//        self.src.sub_dyn(next, err_or_comp)
-//    }
-//}
-
-
-
-
 pub trait ObsMapOp<'o, SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o> : Sized
 {
     fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData } }
@@ -118,10 +104,7 @@ mod test
     #[test]
     fn boxed()
     {
-        let o: Box<Observable<NO, Ref<i32>>> = Box::new(Of::value(123));
-
-        let o = DynObservable { src: o};
-        let o = o.map(|v:&_| v+1).map(|v| v*v);
+        let o = Of::value(123).into_dyn().map(|v:&_| v+1).map(|v| v*v);
         o.sub_dyn(box |v| println!("v={}", v), box ());
     }
 

@@ -13,14 +13,14 @@ pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
         self.sub_dyn(box next, box err_or_comp)
     }
 
+    fn into_dyn<'s>(self) -> DynObservable<'s, 'o, SS, By, EBy> where Self: Sized+'s { DynObservable::new(self) }
     fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
-
-pub trait IntoDyn<'s, 'o, SS: YesNo, By: RefOrVal, EBy: RefOrVal> : Sized where Self: Observable<'o, SS, By, EBy>+'s
-{
-    #[inline(always)]
-    fn into_dyn(self) -> DynObservable<'s, 'o, SS, By, EBy>  { DynObservable::new(self) }
-}
+//
+//pub trait IntoDyn<'s, 'o, SS: YesNo, By: RefOrVal, EBy: RefOrVal> : Sized where Self: Observable<'o, SS, By, EBy>+'s
+//{
+//    #[inline(always)]
+//}
 
 pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 {
@@ -31,12 +31,6 @@ impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By
 {
     pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Box::new(src) }}
     pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
-
-    pub fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
-    {
-        self.src.sub(next, err_or_comp)
-    }
-
 }
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>
@@ -90,9 +84,9 @@ mod act_helpers;
 mod scheduler;
 
 
-impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>+'s>
-IntoDyn<'s, 'o, SS, By, EBy>
-for O {}
+//impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>+'s>
+//IntoDyn<'s, 'o, SS, By, EBy>
+//for O {}
 
 
 unsafe impl<'o, V, A: Fn(V)+'o>

@@ -5,7 +5,6 @@ pub struct Of<V>(Option<V>);
 impl<V> Of<V>
 {
     pub fn value(v: V) -> Self { Of(Some(v)) }
-    pub fn value_dyn(v: V) -> Box<Self>  { box Of(Some(v)) }
     pub fn empty() -> Self { Of(None) }
 }
 
@@ -46,13 +45,13 @@ mod test
 
         assert_eq!(n.get(), 123);
 
-        let o = o.into_dyn(); //Of::value_dyn(123);
         let n = std::cell::Cell::new(0);
+        let o = o.into_dyn(); //Of::value_dyn(123);
 
 
         o.sub_dyn(box |v:&_| { n.replace(*v + 1); }, box ());
 
-        Of::value_dyn(123).sub_dyn(box |v:&_| { n.replace(*v + 1); }, box());
+        Of::value(123).into_dyn().sub_dyn(box |v:&_| { n.replace(*v + 1); }, box());
 
         assert_eq!(n.get(), 124);
     }

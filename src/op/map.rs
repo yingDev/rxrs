@@ -11,27 +11,6 @@ pub struct MapOp<SS, VBy, Src, F>
     PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
 }
 
-pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
-{
-    src: Box<Observable<'o, SS, By, EBy> + 's>,
-}
-
-impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By, EBy>
-{
-    pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Box::new(src) }}
-    pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
-}
-
-
-impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>
-{
-    type Target = Observable<'o, SS, By, EBy> + 's;
-
-    fn deref(&self) -> &Self::Target {
-        self.src.as_ref()
-    }
-}
-
 //impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Observable<'o, SS, By, EBy> for X<'s, 'o, SS, By, EBy>
 //{
 //    fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized {

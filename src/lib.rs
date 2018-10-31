@@ -22,6 +22,29 @@ pub trait IntoDyn<'s, 'o, SS: YesNo, By: RefOrVal, EBy: RefOrVal> : Sized where 
     fn into_dyn(self) -> DynObservable<'s, 'o, SS, By, EBy>  { DynObservable::new(self) }
 }
 
+pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
+{
+    src: Box<Observable<'o, SS, By, EBy> + 's>,
+}
+
+impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By, EBy>
+{
+    pub fn new(src: impl Observable<'o, SS, By, EBy>+'s) -> Self { DynObservable{ src: Box::new(src) }}
+    pub fn from_box(src: Box<Observable<'o, SS, By, EBy>+'s>) -> Self { DynObservable{ src }}
+
+    pub fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    {
+        self.src.sub(next, err_or_comp)
+    }
+
+}
+
+impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> Deref for DynObservable<'s, 'o, SS, By, EBy>
+{
+    type Target = Observable<'o, SS, By, EBy> + 's;
+    fn deref(&self) -> &Self::Target { self.src.as_ref() }
+}
+
 pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : 'o
 {
     fn call(&self, v: BY::V);

@@ -3,45 +3,41 @@ use std::sync::Arc;
 use crate::*;
 use crate::util::any_send_sync::AnySendSync;
 
-pub struct MapOp<'s, 'o, SS, VBy, Src, F>
+pub struct MapOp<SS, VBy, Src, F>
 {
     f: Arc<F>,
     src: Src,
-    PhantomData: PhantomData<(&'o (),&'s SS, AnySendSync<VBy>)>
+    PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
 }
 
-pub trait ObsMapOp<'s, 'o, SS: YesNo, Dyn:YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o> : Sized
+pub trait ObsMapOp<'o, SS: YesNo, Dyn: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o, R> : Sized
 {
-    type Out;
-    fn map(self, f: F) -> Self::Out;
+    fn map(self, f: F) -> R;
 }
 
-impl<'s, 'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>
-ObsMapOp<'s, 'o, SS, NO, VBy,EBy, VOut, F>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'o, F: Act<SS, VBy, VOut>+'o>
+ObsMapOp<'o, SS, NO, VBy,EBy, VOut, F, MapOp<SS, VBy, Src, F>>
 for Src
 {
-    type Out = MapOp<'s, 'o, SS, VBy, Src, F>;
-    fn map(self, f: F) -> Self::Out { MapOp{ f: Arc::new(f), src: self, PhantomData } }
+    fn map(self, f: F) -> MapOp<SS, VBy, Src, F> { MapOp{ f: Arc::new(f), src: self, PhantomData } }
 }
 
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
+ObsMapOp<'o, SS, YES, VBy,EBy, VOut, F, Box<Observable<'o, SS, Val<VOut>, EBy>+'o>>
+for Box<Observable<'o, SS, VBy, EBy>+'o>
+{
+    fn map(self, f: F) -> Box<Observable<'o, SS, Val<VOut>, EBy>+'o>
+    {
+        let map = MapOp{ f: Arc::new(f), src: self, PhantomData };
+        let boxed: Box<Observable<'o, SS, Val<VOut>, EBy>+'o> = Box::new(map);
+        boxed
+    }
+}
 
-
-//impl<'s, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o>
-//ObsMapOp<'s, 'o, SS, YES, VBy,EBy, VOut, F>
-//for Box<dyn Observable<'o, SS, VBy, EBy>+'s>
-//{
-//    type Out = Box<dyn Observable<'o, SS, VBy, EBy> + 's>;
-//    fn map(self, f: F) -> Self::Out
-//    {
-//        self
-//        //let map = MapOp{ f: Arc::new(f), src: self, PhantomData };
-//        //Box::new(map)
-//    }
-//}
 
 impl<'s, 'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>
 Observable<'o, SS, Val<VOut>, EBy>
-for MapOp<'s, 'o, SS, VBy, Src, F>
+for MapOp<SS, VBy, Src, F>
 {
     fn sub(&self, next: impl ActNext<'o, SS, Val<VOut>>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
@@ -104,7 +100,7 @@ mod test
     #[test]
     fn boxed()
     {
-        let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
+        let o: Box<Observable<NO, Ref<i32>>> = Box::new(Of::value(123));
 
         let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&_| v+1);
         o.sub_dyn(box |v| println!("v={}", v), box ());

@@ -2,7 +2,7 @@
     test, cell_update, box_syntax, coerce_unsized, unsize,
 )]
 #![feature(impl_trait_in_bindings)]
-#![feature(specialization)]
+//#![feature(specialization)]
 #![allow(non_snake_case)]
 
 

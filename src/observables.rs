@@ -42,9 +42,9 @@ for Box<O>
     { Box::as_ref(self).sub_dyn(next, ec) }
 }
 
-impl<'o, By: RefOrVal, EBy: RefOrVal, SS:YesNo>
+impl<'s, 'o, By: RefOrVal, EBy: RefOrVal, SS:YesNo>
 Observable<'o, SS, By, EBy>
-for Box<dyn Observable<'o, SS, By, EBy>>
+for Box<dyn Observable<'o, SS, By, EBy>+'s>
 {
     #[inline(always)]
     fn sub(&self, next: impl ActNext<'o, SS, By>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized

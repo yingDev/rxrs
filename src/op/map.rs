@@ -3,25 +3,45 @@ use std::sync::Arc;
 use crate::*;
 use crate::util::any_send_sync::AnySendSync;
 
-pub struct MapOp<SS, VBy, Src, F>
+pub struct MapOp<'s, 'o, SS, VBy, Src, F>
 {
     f: Arc<F>,
     src: Src,
-    PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
+    PhantomData: PhantomData<(&'o (),&'s SS, AnySendSync<VBy>)>
 }
 
-pub trait ObsMapOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>> : Sized
+pub trait ObsMapOp<'s, 'o, SS: YesNo, Dyn:YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o> : Sized
 {
-    fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData} }
+    type Out;
+    fn map(self, f: F) -> Self::Out;
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, VOut, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, VBy, VOut>+'o, SS:YesNo>
-ObsMapOp<SS, VBy,EBy, VOut, F>
-for Src {}
+impl<'s, 'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>
+ObsMapOp<'s, 'o, SS, NO, VBy,EBy, VOut, F>
+for Src
+{
+    type Out = MapOp<'s, 'o, SS, VBy, Src, F>;
+    fn map(self, f: F) -> Self::Out { MapOp{ f: Arc::new(f), src: self, PhantomData } }
+}
 
-impl<'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, VBy, VOut>+'o>
+
+
+//impl<'s, 'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o>
+//ObsMapOp<'s, 'o, SS, YES, VBy,EBy, VOut, F>
+//for Box<dyn Observable<'o, SS, VBy, EBy>+'s>
+//{
+//    type Out = Box<dyn Observable<'o, SS, VBy, EBy> + 's>;
+//    fn map(self, f: F) -> Self::Out
+//    {
+//        self
+//        //let map = MapOp{ f: Arc::new(f), src: self, PhantomData };
+//        //Box::new(map)
+//    }
+//}
+
+impl<'s, 'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>
 Observable<'o, SS, Val<VOut>, EBy>
-for MapOp<SS, VBy, Src, F>
+for MapOp<'s, 'o, SS, VBy, Src, F>
 {
     fn sub(&self, next: impl ActNext<'o, SS, Val<VOut>>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
@@ -86,8 +106,8 @@ mod test
     {
         let o: Box<Observable<NO, Ref<i32>>> = Of::value_dyn(123);
 
-        let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&_| v+1).into_dyn();
-        o.sub(|v| println!("v={}", v), ());
+        let o: Box<Observable<NO, Val<i32>>> = o.map(|v:&_| v+1);
+        o.sub_dyn(box |v| println!("v={}", v), box ());
     }
 
     #[test]

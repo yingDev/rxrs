@@ -44,14 +44,15 @@
 
 ```bash
 src
-├── act.rs
-├── act_helpers.rs
+├── lib.rs
+├── observable.rs
+├── observer.rs
+├── by.rs
+├── unsub.rs
 ├── fac
 │   ├── mod.rs
 │   ├── of.rs
 │   └── timer.rs
-├── lib.rs
-├── observables.rs
 ├── op
 │   ├── filter.rs
 │   ├── map.rs
@@ -68,16 +69,14 @@ src
 │   ├── mod.rs
 │   └── subject.rs
 ├── sync
+│   ├── act.rs
+│   ├── any_send_sync.rs
 │   ├── mod.rs
-│   └── re_spin_lock.rs
-├── unsub.rs
+│   ├── re_spin_lock.rs
+│   ├── ss_mark.rs
+│   └── yesno.rs
 └── util
-    ├── alias.rs
-    ├── any_send_sync.rs
-    ├── by.rs
     ├── clones.rs
-    ├── mod.rs
-    └── yesno.rs
-
+    └── mod.rs
 
 ```

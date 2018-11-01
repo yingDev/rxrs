@@ -1,6 +1,6 @@
 [package]
 name = "rxrs"
-version = "0.2.0-beta0"
+version = "0.2.0-beta1"
 description="Reactive Extensions for Rust"
 license="MIT"
 repository="https://github.com/yingDev/rxrs"

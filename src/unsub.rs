@@ -8,14 +8,24 @@ struct State<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
-    cb: UnsafeCell<Option<Box<FnBox()+'a>>>,
-    cbs: UnsafeCell<Vec<Unsub<'a, SS>>>,
+    cb:   UnsafeCell<Option<Box<FnBox()+'a>>>,
+    cbs:  UnsafeCell<Vec<Unsub<'a, SS>>>,
 }
 
 impl<'a, SS:YesNo> Drop for State<'a, SS>
 {
     fn drop(&mut self) { self.unsub_then(||{}); }
 }
+
+pub struct Unsub<'a, SS:YesNo>
+{
+    state: Arc<State<'a, SS>>
+}
+
+unsafe impl Send for Unsub<'static, YES> {}
+unsafe impl Sync for Unsub<'static, YES> {}
+
+unsafe impl<'a, SS:YesNo> Ssmark<SS> for Unsub<'a, SS> {}
 
 impl<'a, SS:YesNo> State<'a, SS>
 {
@@ -75,13 +85,6 @@ impl<'a, SS:YesNo> State<'a, SS>
     }
 }
 
-pub struct Unsub<'a, SS:YesNo>
-{
-    state: Arc<State<'a, SS>>
-}
-
-unsafe impl<'a, SS:YesNo> Ssmark<SS> for Unsub<'a, SS> {}
-
 impl<'a, SS:YesNo> Clone for Unsub<'a, SS>
 {
     fn clone(&self) -> Unsub<'a, SS>
@@ -89,9 +92,6 @@ impl<'a, SS:YesNo> Clone for Unsub<'a, SS>
         Unsub { state: self.state.clone() }
     }
 }
-
-unsafe impl Send for Unsub<'static, YES> {}
-unsafe impl Sync for Unsub<'static, YES> {}
 
 impl<'a, SS:YesNo> Unsub<'a, SS>
 {

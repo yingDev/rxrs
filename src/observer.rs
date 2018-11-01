@@ -96,6 +96,7 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 }
 
 
+//todo: ergonomics
 
 pub struct SSActNextWrap<SS:YesNo, By, A>
 {

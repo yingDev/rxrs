@@ -38,6 +38,8 @@ impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By
 
 }
 
+
+
 impl<'o, By: RefOrVal, EBy: RefOrVal, O: Observable<'o, SS, By, EBy>, SS:YesNo>
 Observable<'o, SS, By, EBy>
 for Rc<O>

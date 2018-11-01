@@ -14,7 +14,7 @@ pub trait ObsFilterOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, F: Act<SS, Ref<VB
     fn filter(self, f: F) -> FilterOp<SS, Self, F> { FilterOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o, SS:YesNo>
+impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
 ObsFilterOp<SS, VBy,EBy, F>
 for Src {}
 

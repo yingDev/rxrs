@@ -58,7 +58,7 @@ unsafe impl<'o, SS:YesNo, By: RefOrVal>
 ActNext<'o, SS, By>
 for ()
 {
-    fn call(&self, by: By::V) { }
+    fn call(&self, _by: By::V) { }
 }
 
 unsafe impl<'o, SS:YesNo, BY: RefOrVal, N: ActNext<'o, SS, BY>, STOP: Act<SS, (), bool>+'o> ActNext<'o, SS, BY> for (N, STOP)
@@ -92,7 +92,7 @@ unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for Box<ActEcBox<'o,
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o> ActEc<'o, SS, BY> for ()
 {
-    fn call_once(self, e: Option<BY::V>) {}
+    fn call_once(self, _e: Option<BY::V>) {}
 }
 
 

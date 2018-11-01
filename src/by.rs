@@ -37,5 +37,5 @@ unsafe impl RefOrVal for ()
 
     #[inline(always)] fn as_ref(&self) -> &() { &self }
     #[inline(always)] fn into_v(self) -> Self::V { self }
-    #[inline(always)] unsafe fn from_v(v: Self::V) -> Self { () }
+    #[inline(always)] unsafe fn from_v(_: Self::V) -> Self { () }
 }

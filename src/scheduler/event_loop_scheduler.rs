@@ -236,7 +236,6 @@ impl Ord for ActItem
 #[cfg(test)]
 mod test
 {
-    use ::std::boxed::FnBox;
     use crate::*;
     use ::std::time::Duration;
     use std::sync::Arc;
@@ -248,7 +247,7 @@ mod test
 
         let sub = sch.schedule_periodic(Duration::from_millis(33), |_:&Unsub<'static, YES>| println!("shit"));
         ::std::thread::spawn(move ||{
-            ::std::thread::sleep_ms(700);
+            ::std::thread::sleep(Duration::from_millis(700));
             sub.unsub();
         });
 
@@ -275,22 +274,22 @@ mod test
 
         sch.schedule(Some(::std::time::Duration::from_millis(3)), || {
             println!("later...3");
-            ::std::thread::sleep_ms(200);
+            ::std::thread::sleep(Duration::from_millis(200));
             Unsub::done()
         });
         sch.schedule(Some(::std::time::Duration::from_millis(2)), || {
             println!("later... 2");
-            ::std::thread::sleep_ms(200);
+            ::std::thread::sleep(Duration::from_millis(200));
 
             Unsub::done()
         });
         sch.schedule(Some(::std::time::Duration::from_millis(1)), || {
             println!("later... 1");
-            ::std::thread::sleep_ms(200);
+            ::std::thread::sleep(Duration::from_millis(200));
 
             Unsub::done()
         });
 
-        ::std::thread::sleep_ms(2000);
+        ::std::thread::sleep(Duration::from_millis(2000));
     }
 }

@@ -1,8 +1,7 @@
+use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use crate::*;
 use std::cell::UnsafeCell;
-use std::cell::RefCell;
 
 pub struct TakeOp<SS, Src>
 {
@@ -63,7 +62,7 @@ for TakeOp<SS, Src>
                         sub.unsub_then(|| state.1.take().map_or((), |ec| ec.call_once(None)));
                     }
                 });
-            }, |s, (sub, state)| (s.stopped() || sub.is_done())),
+            }, |s, (sub, _state)| (s.stopped() || sub.is_done())),
 
                                                   forward_ec((sub, SSWrap::new(state)), |(sub, state), e:Option<EBy>| {
                 sub.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
@@ -92,7 +91,7 @@ mod test
 
         s.take(3).subscribe(
             |v:&_| { n.replace(*v); },
-            |e:Option<&_>| { n1.replace(n1.get() + 100); }
+            |_e:Option<&_>| { n1.replace(n1.get() + 100); }
         );
 
         s1.next(1);
@@ -115,7 +114,7 @@ mod test
     fn of()
     {
         let n = Cell::new(0);
-        Of::value(123).take(100).subscribe(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n.replace(n.get() + 100); });
+        Of::value(123).take(100).subscribe(|v:&_| { n.replace(*v); }, |_e:Option<&_>| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 223);
     }
@@ -124,7 +123,7 @@ mod test
     fn zero()
     {
         let n = Cell::new(0);
-        Of::value(123).take(0).subscribe(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n.replace(n.get() + 100); });
+        Of::value(123).take(0).subscribe(|v:&_| { n.replace(*v); }, |_e:Option<&_>| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 100);
     }

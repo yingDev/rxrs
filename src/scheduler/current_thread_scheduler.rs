@@ -1,6 +1,5 @@
 use crate::*;
 use std::time::Duration;
-use std::sync::Arc;
 use std::collections::BinaryHeap;
 use std::time::Instant;
 use std::rc::Rc;
@@ -75,10 +74,10 @@ impl Scheduler<NO> for CurrentThreadScheduler
 
         let (act, act1) = Rc::new(RefCell::new(Some(act))).clones();
         let (sub, sub1) = Unsub::<NO>::with(move|| { act1.borrow_mut().take(); }).clones();
-        let (act, act1) = Rc::new(move || {
+        let act = Rc::new(move || {
             let act = act.borrow_mut().take();
             act.map_or((), |a| { sub.add_each(a.call_once(())); })
-        }).clones();
+        });
 
         self.queue.borrow_mut().push(ActItem{
             due: Instant::now() + due.unwrap_or_else(|| Duration::new(0,0)),
@@ -95,11 +94,10 @@ impl SchedulerPeriodic<NO> for CurrentThreadScheduler
 {
     fn schedule_periodic(&self, period: Duration, act: impl Act<NO, Ref<Unsub<'static, NO>>> + 'static) -> Unsub<'static, NO> where Self: Sized
     {
-        let (act, act1) = Rc::new(act).clones();
-        let (sub, sub1, sub2) = Unsub::<NO>::new().clones();
-        let (act, act1) = Rc::new(move || {
+        let (sub1, sub2) = Unsub::<NO>::new().clones();
+        let act = Rc::new(move || {
             act.call(&sub2);
-        }).clones();
+        });
 
         self.queue.borrow_mut().push(ActItem{
             due: Instant::now() + period,
@@ -164,11 +162,11 @@ mod test
     #[test]
     fn recurse()
     {
-        let (n, n1, n2) = Rc::new(RefCell::new(String::new())).clones();
+        let (n, n2) = Rc::new(RefCell::new(String::new())).clones();
         let (s, s1, s2) = Arc::new(CurrentThreadScheduler::new()).clones();
 
         s.schedule(Some(Duration::from_millis(1)), move || {
-            let (n, n1, n2) = n.clones();
+            let (n, n1) = n.clones();
             n.borrow_mut().push_str("a");
 
             s1.schedule(Some(Duration::from_millis(3)), move || {
@@ -191,7 +189,7 @@ mod test
     fn periododic()
     {
         let (n, n1) = Rc::new(Cell::new(0)).clones();
-        let (s, s1, s2) = Arc::new(CurrentThreadScheduler::new()).clones();
+        let s = Arc::new(CurrentThreadScheduler::new());
 
         s.schedule_periodic(Duration::from_millis(10), move |unsub: &Unsub<NO>| {
             if n.replace(n.get() + 1) == 9 {

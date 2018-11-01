@@ -83,7 +83,7 @@ mod test
 
         let (n, n1) = Arc::new(AtomicUsize::new(0)).clones();
         let (input, output) = Rc::new(Subject::<YES, i32>::new()).clones();
-        output.into_dyn().filter(|v:&_| v % 2 == 0).subscribe_dyn(box move |v:&_| { n.fetch_add(1, Ordering::SeqCst); }, box());
+        output.into_dyn().filter(|v:&_| v % 2 == 0).subscribe_dyn(box move |_v:&_| { n.fetch_add(1, Ordering::SeqCst); }, box());
 
         input.next(1);
         input.next(2);

@@ -1,8 +1,5 @@
 use crate::*;
-use crate::util::clones::*;
 use std::sync::Arc;
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 
@@ -36,16 +33,16 @@ for UntilOp<Src, SVBy, SEBy, Sig>
         //no mutex here because access is protected by Unsub's internal lock
         let ec = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(ec))) });
 
-        sub.add_each(self.sig.subscribe(forward_next((), (sub.clone(), SSWrap::new(ec.clone())), |(), (sub, ec), v:SVBy|{
+        sub.add_each(self.sig.subscribe(forward_next((), (sub.clone(), SSWrap::new(ec.clone())), |(), (sub, ec), _v:SVBy|{
             sub.unsub_then(|| unsafe{ &mut *Arc::as_ref(&*ec).get() }.take().map_or((), |ec| ec.call_once(None)));
-        }, |(), (sub,_)| sub.is_done()), forward_ec(sub.clone(), |sub, e| sub.unsub())));
+        }, |(), (sub,_)| sub.is_done()), forward_ec(sub.clone(), |sub, _e| sub.unsub())));
 
         if sub.is_done() { return sub; }
 
         sub.clone().added_each(self.src.subscribe(
-            forward_next(next, (sub.clone()), |next, (sub), v: VBy| {
+            forward_next(next, sub.clone(), |next, sub, v: VBy| {
                 sub.if_not_done(|| next.call(v.into_v()))
-            }, |next, (sub)| next.stopped() || sub.is_done()),
+            }, |next, sub| next.stopped() || sub.is_done()),
 
             forward_ec((sub.clone(), SSWrap::new(ec)), |(sub, ec), e:Option<EBy>| {
                 sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec).get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
@@ -122,7 +119,7 @@ mod test
         let sig = Of::<()>::empty();
         let val = Of::value(123);
 
-        let sub = val.until(sig).subscribe(|v:&_| assert!(false, "shouldnt next"), |e:Option<&_>| assert!(false, "shouldnt complete"));
+        let sub = val.until(sig).subscribe(|_v:&_| assert!(false, "shouldnt next"), |_e:Option<&_>| assert!(false, "shouldnt complete"));
 
         assert!(sub.is_done());
     }

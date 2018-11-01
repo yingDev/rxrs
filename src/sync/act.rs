@@ -81,12 +81,12 @@ unsafe impl<'a, V, R, F: FnOnce(&V)->R+Send+Sync+'a> ActOnce<YES, Ref<V>, R> for
 
 unsafe impl<'a, R, F: FnOnce()->R+Send+Sync+'a> ActOnce<YES, (), R> for F
 {
-    #[inline(always)] fn call_once(self, v: ()) -> R { self() }
+    #[inline(always)] fn call_once(self, _v: ()) -> R { self() }
 }
 
 unsafe impl<'a, R, F: FnOnce()->R+'a> ActOnce<NO, (), R> for F
 {
-    #[inline(always)] fn call_once(self, v: ()) -> R { self() }
+    #[inline(always)] fn call_once(self, _v: ()) -> R { self() }
 }
 
 

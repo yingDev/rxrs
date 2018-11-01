@@ -1,11 +1,7 @@
 use std::time::Duration;
 use crate::*;
 use std::marker::PhantomData;
-use std::sync::Arc;
 use std::sync::atomic::*;
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct Timer<SS: YesNo, Sch: SchedulerPeriodic<SS>>
 {
@@ -27,7 +23,7 @@ impl<SS:YesNo, Sch: SchedulerPeriodic<SS>>
 Observable<'static, SS, Val<usize>>
 for Timer<SS, Sch>
 {
-    fn subscribe(&self, next: impl ActNext<'static, SS, Val<usize>>, ec: impl ActEc<'static, SS>) -> Unsub<'static, SS>
+    fn subscribe(&self, next: impl ActNext<'static, SS, Val<usize>>, _ec: impl ActEc<'static, SS>) -> Unsub<'static, SS>
     {
         let count = SSWrap::new(AtomicUsize::new(0));
         let next = SSActNextWrap::new(next);
@@ -54,7 +50,6 @@ mod test
     use std::time::Duration;
     use std::sync::Arc;
     use std::rc::Rc;
-    use std::cell::Cell;
     use std::sync::atomic::*;
     use std::sync::Mutex;
     use std::cell::RefCell;
@@ -71,7 +66,7 @@ mod test
         assert_ne!(n1.load(Ordering::SeqCst), 9);
 
 
-        ::std::thread::sleep_ms(1000);
+        ::std::thread::sleep(Duration::from_millis(1000));
         assert_eq!(n1.load(Ordering::SeqCst), 9);
     }
 
@@ -85,10 +80,10 @@ mod test
 
         timer.filter(|v: &_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).subscribe(
             move |v: String| { out.lock().unwrap().push_str(&*v); },
-            move |e: Option<&_>| out3.lock().unwrap().push_str("ok")
+            move |_e: Option<&_>| out3.lock().unwrap().push_str("ok")
         );
 
-        ::std::thread::sleep_ms(1000);
+        ::std::thread::sleep(Duration::from_millis(1000));
 
         assert_eq!(out1.lock().unwrap().as_str(), "02468ok");
     }
@@ -104,12 +99,12 @@ mod test
             let (n1, n2) = n.clone().clones();
             let t = t.clone();
             t.take(1).subscribe(
-                move |v| *n1.lock().unwrap() += i,
-                move |e:Option<&_>| *n2.lock().unwrap() += 1
+                move |_v| *n1.lock().unwrap() += i,
+                move |_e:Option<&_>| *n2.lock().unwrap() += 1
             );
         }
 
-        ::std::thread::sleep_ms(500);
+        ::std::thread::sleep(Duration::from_millis(500));
         assert_eq!(*n.lock().unwrap(), 10 + 5);
     }
 
@@ -123,7 +118,7 @@ mod test
 
         s.until(t).subscribe(
             move |v: &_| *n1.lock().unwrap() += v ,
-            move |e: Option<&_>| *n2.lock().unwrap() += 100
+            move |_e: Option<&_>| *n2.lock().unwrap() += 100
         );
 
         s1.next(1);
@@ -132,11 +127,11 @@ mod test
         s1.next(2);
         assert_eq!(*n.lock().unwrap(), 3);
 
-        ::std::thread::sleep_ms(10);
+        ::std::thread::sleep(Duration::from_millis(10));
         s1.next(3);
         assert_eq!(*n.lock().unwrap(), 6);
 
-        ::std::thread::sleep_ms(150);
+        ::std::thread::sleep(Duration::from_millis(150));
         assert_eq!(*n.lock().unwrap(), 106);
 
         s1.next(1234);
@@ -154,7 +149,7 @@ mod test
 
         timer.filter(|v:&_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).subscribe(
             move |v: String| { out.borrow_mut().push_str(&*v); },
-            move |e: Option<&_>| out3.borrow_mut().push_str("ok")
+            move |_e: Option<&_>| out3.borrow_mut().push_str("ok")
         );
 
         assert_eq!(out1.borrow().as_str(), "02468ok");

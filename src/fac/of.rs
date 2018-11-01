@@ -61,7 +61,7 @@ mod test
     {
         let n = Cell::new(0);
         let o = Of::empty();
-        o.subscribe(|v:&()| assert!(false, "shouldn't happend"), |e:Option<&_>| { n.replace(1); } );
+        o.subscribe(|_v:&()| assert!(false, "shouldn't happend"), |_e:Option<&_>| { n.replace(1); } );
 
         assert_eq!(n.get(), 1);
     }

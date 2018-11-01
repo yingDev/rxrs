@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
-use std::ops::Deref;
 
 pub struct MapOp<SS, VBy, Src, F>
 {

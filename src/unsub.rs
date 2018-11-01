@@ -1,5 +1,4 @@
 use crate::*;
-use crate::sync::*;
 use std::cell::UnsafeCell;
 use std::boxed::FnBox;
 use std::sync::{Arc, Once, ONCE_INIT};

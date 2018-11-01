@@ -5,13 +5,13 @@
 
 pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
 {
-    fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
-        self.sub_dyn(box next, box err_or_comp)
+        self.subscribe_dyn(box next, box err_or_comp)
     }
 
     fn into_dyn<'s>(self) -> DynObservable<'s, 'o, SS, By, EBy> where Self: Sized+'s { DynObservable::new(self) }
-    fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 }
 
 #[derive(Clone)]
@@ -31,11 +31,11 @@ impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal> DynObservable<'s, 'o, SS, By
 
     pub fn to_impl(&self) -> Arc<Observable<'o, SS, By, EBy>+'s> { self.src.clone() }
 
-    fn sub(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
-    { self.src.sub_dyn(box next, box err_or_comp) }
+    fn subscribe(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    { self.src.subscribe_dyn(box next, box err_or_comp) }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
-    { self.src.sub_dyn(next, err_or_comp) }
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    { self.src.subscribe_dyn(next, err_or_comp) }
 
 }
 
@@ -345,7 +345,7 @@ mod test
             .take(4)
             .map(|v:&_| format!("*{}", v));
 
-        evens.sub(
+        evens.subscribe(
             |v: String    | output.borrow_mut().push_str(&v),
             |e: Option<&_>| output.borrow_mut().push_str("ok")
         );

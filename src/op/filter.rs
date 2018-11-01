@@ -35,13 +35,13 @@ impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, V
 Observable<'o, SS, VBy, EBy>
 for FilterOp<SS, Src, F>
 {
-    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
         let next = SSActNextWrap::new(next);
         let f = act_sendsync(self.f.clone());
         let sub = Unsub::<SS>::new();
 
-        sub.clone().added_each(self.src.sub(
+        sub.clone().added_each(self.src.subscribe(
             forward_next(next, (f, sub), |n, (f, sub), v: VBy| {
                 if f.call(v.as_ref()) {
                     sub.if_not_done(|| n.call(v.into_v()));
@@ -51,8 +51,8 @@ for FilterOp<SS, Src, F>
         ))
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
-    { self.sub(next, ec) }
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    { self.subscribe(next, ec) }
 }
 
 
@@ -71,7 +71,7 @@ mod test
         let n = Cell::new(0);
         let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        output.filter(|v:&_| v % 2 == 0).sub(|v:&_| { n.replace(n.get() + *v); }, ());
+        output.filter(|v:&_| v % 2 == 0).subscribe(|v:&_| { n.replace(n.get() + *v); }, ());
 
         for i in 0..10 {
             input.next(i);
@@ -81,7 +81,7 @@ mod test
 
         let (n, n1) = Arc::new(AtomicUsize::new(0)).clones();
         let (input, output) = Rc::new(Subject::<YES, i32>::new()).clones();
-        output.into_dyn().filter(|v:&_| v % 2 == 0).sub_dyn(box move |v:&_| { n.fetch_add(1, Ordering::SeqCst); }, box());
+        output.into_dyn().filter(|v:&_| v % 2 == 0).subscribe_dyn(box move |v:&_| { n.fetch_add(1, Ordering::SeqCst); }, box());
 
         input.next(1);
         input.next(2);
@@ -99,7 +99,7 @@ mod test
         output.filter(move |v:&_| {
             side_effect.complete();
             v % 2 == 0
-        }).sub(|v:&_| { n.replace(n.get() + *v); }, ());
+        }).subscribe(|v:&_| { n.replace(n.get() + *v); }, ());
 
         for i in 0..10 {
             input.next(i);
@@ -114,7 +114,7 @@ mod test
         let (n1, n2, n3) = Rc::new(Cell::new(0)).clones();
         let (input, output) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        output.filter(move |_:&_| true).sub(
+        output.filter(move |_:&_| true).subscribe(
             move |v:&_| {  n1.replace(n1.get() + *v); },
             move |_:Option<&_>| {  n2.replace(n2.get() + 1);  });
 
@@ -135,7 +135,7 @@ mod test
         let filtered = s.filter(|i:&_| i % 2 == 0 );
 
         ::std::thread::spawn(move ||{
-            filtered.sub(|i:&_| println!("ok{}",i), ());
+            filtered.subscribe(|i:&_| println!("ok{}",i), ());
         }).join().ok();
     }
 }

@@ -51,29 +51,29 @@ impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
 
 impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for  BehaviorSubject<'o, NO, V, E>
 {
-    fn sub(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<E>>) -> Unsub<'o, NO> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<E>>) -> Unsub<'o, NO> where Self: Sized
     {
-        self.sub_dyn(box next, box ec)
+        self.subscribe_dyn(box next, box ec)
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO, Ref<E>>>) -> Unsub<'o, NO>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO, Ref<E>>>) -> Unsub<'o, NO>
     {
         let next: Arc<ActNext<'o, NO, Ref<V>>> = next.into();
-        self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:&_| next.call(v), ec))
+        self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
     }
 }
 
 impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, YES, Ref<V>, Ref<E>> for  BehaviorSubject<'static, YES, V, E>
 {
-    fn sub(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES, Ref<E>>) -> Unsub<'static, YES> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES, Ref<E>>) -> Unsub<'static, YES> where Self: Sized
     {
-        self.sub_dyn(box next, box ec)
+        self.subscribe_dyn(box next, box ec)
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
+    fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
         let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
-        self.sub_internal(next.clone(),  move || self.subj.sub_dyn(box move |v:&_| next.call(v), ec))
+        self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
     }
 }
 
@@ -130,7 +130,7 @@ mod test
 
         let s = BehaviorSubject::<NO, i32>::new(123);
 
-        s.sub(|v:&_| { n.replace(*v); }, ());
+        s.subscribe(|v:&_| { n.replace(*v); }, ());
         assert_eq!(n.get(), 123);
 
         s.next(456);
@@ -138,7 +138,7 @@ mod test
 
         s.next(789);
 
-        s.sub(|v:&_| { x.replace(*v); }, ());
+        s.subscribe(|v:&_| { x.replace(*v); }, ());
         assert_eq!(x.get(), 789);
         assert_eq!(n.get(), 789);
     }

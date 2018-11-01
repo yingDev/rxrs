@@ -39,7 +39,7 @@ impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, V
 Observable<'o, SS, VBy, EBy>
 for TakeOp<SS, Src>
 {
-    fn sub(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {
         if self.count == 0 {
             ec.call_once(None);
@@ -50,7 +50,7 @@ for TakeOp<SS, Src>
         let sub = Unsub::new();
         let state = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new((self.count, Some(ec)))) });
 
-        sub.clone().added_each(self.src.sub(forward_next(next, (sub.clone(), SSWrap::new(state.clone())), |next, (sub, state), v:VBy| {
+        sub.clone().added_each(self.src.subscribe(forward_next(next, (sub.clone(), SSWrap::new(state.clone())), |next, (sub, state), v:VBy| {
                 sub.if_not_done(|| {
                     let state = unsafe{ &mut *state.get() };
 
@@ -66,14 +66,14 @@ for TakeOp<SS, Src>
                 });
             }, |s, (sub, state)| (s.stopped() || sub.is_done())),
 
-            forward_ec((sub, SSWrap::new(state)), |(sub, state), e:Option<EBy>| {
+                                                  forward_ec((sub, SSWrap::new(state)), |(sub, state), e:Option<EBy>| {
                 sub.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
             })
         ))
     }
 
-    fn sub_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
-    { self.sub(next, ec) }
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    { self.subscribe(next, ec) }
 }
 
 #[cfg(test)]
@@ -89,7 +89,7 @@ mod test
         let (n, n1, n2) = Rc::new(Cell::new(0)).clones();
         let (s, s1) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        s.take(3).sub(
+        s.take(3).subscribe(
             |v:&_| { n.replace(*v); },
             |e:Option<&_>| { n1.replace(n1.get() + 100); }
         );
@@ -114,7 +114,7 @@ mod test
     fn of()
     {
         let n = Cell::new(0);
-        Of::value(123).take(100).sub(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n.replace(n.get() + 100); });
+        Of::value(123).take(100).subscribe(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 223);
     }
@@ -123,7 +123,7 @@ mod test
     fn zero()
     {
         let n = Cell::new(0);
-        Of::value(123).take(0).sub(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n.replace(n.get() + 100); });
+        Of::value(123).take(0).subscribe(|v:&_| { n.replace(*v); }, |e:Option<&_>| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 100);
     }

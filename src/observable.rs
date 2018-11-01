@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
 {
-    fn subscribe(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized;
+    fn subscribe    (&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS, EBy>   ) -> Unsub<'o, SS> where Self: Sized;
     fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>;
 
     fn into_dyn<'s>(self) -> DynObservable<'s, 'o, SS, By, EBy> where Self: Sized+'s { DynObservable::new(self) }

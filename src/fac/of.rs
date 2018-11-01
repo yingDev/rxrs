@@ -8,7 +8,9 @@ impl<V> Of<V>
     pub fn empty() -> Self { Of(None) }
 }
 
-impl<'o, V:'o> Observable<'o, NO, Ref<V>> for Of<V>
+impl<'o, V:'o>
+Observable<'o, NO, Ref<V>>
+for Of<V>
 {
     fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<()>>+'o) -> Unsub<'o, NO> where Self: Sized
     {

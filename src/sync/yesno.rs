@@ -4,8 +4,10 @@ pub trait YesNo : Send+Sync+Clone+ 'static
     const SELF: Self;
     const VALUE: bool;
 }
-#[derive(PartialEq, Copy, Clone)]pub struct YES;
-#[derive(PartialEq, Copy, Clone)]pub struct NO;
+#[derive(PartialEq, Copy, Clone)]
+pub struct YES;
+#[derive(PartialEq, Copy, Clone)]
+pub struct NO;
 
 impl YesNo for YES
 {

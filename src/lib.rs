@@ -1,7 +1,6 @@
 #![feature(fn_traits, unboxed_closures, integer_atomics, optin_builtin_traits, fnbox, test, cell_update, box_syntax, impl_trait_in_bindings)]
 #![allow(non_snake_case)]
 
-
 pub use crate::observable::*;
 pub use crate::observer::*;
 pub use crate::by::*;

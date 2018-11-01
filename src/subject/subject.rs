@@ -139,7 +139,9 @@ impl<'s, 'o, V, E:Clone+'o, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V,E>
     }
 }
 
-impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO, V, E>
+impl<'o, V:'o, E:Clone+'o>
+Observable<'o, NO, Ref<V>, Ref<E>>
+for Subject<'o, NO, V, E>
 {
     fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<E>>) -> Unsub<'o, NO> where Self: Sized {
         self.subscribe_dyn(box next, box ec)
@@ -153,7 +155,9 @@ impl<'o, V:'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for Subject<'o, NO
     }
 }
 
-impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static> Observable<'static, YES, Ref<V>, Ref<E>> for Subject<'static, YES, V, E>
+impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static>
+Observable<'static, YES, Ref<V>, Ref<E>>
+for Subject<'static, YES, V, E>
 {
     fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES, Ref<E>>) -> Unsub<'static, YES> where Self: Sized {
         self.subscribe_dyn(box next, box ec)

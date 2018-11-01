@@ -48,7 +48,9 @@ impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     }
 }
 
-impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for  BehaviorSubject<'o, NO, V, E>
+impl<'o, V:Clone+'o, E:Clone+'o>
+Observable<'o, NO, Ref<V>, Ref<E>>
+for BehaviorSubject<'o, NO, V, E>
 {
     fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<E>>) -> Unsub<'o, NO> where Self: Sized
     {
@@ -62,7 +64,9 @@ impl<'o, V:Clone+'o, E:Clone+'o> Observable<'o, NO, Ref<V>, Ref<E>> for  Behavio
     }
 }
 
-impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, YES, Ref<V>, Ref<E>> for  BehaviorSubject<'static, YES, V, E>
+impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync>
+Observable<'static, YES, Ref<V>, Ref<E>>
+for BehaviorSubject<'static, YES, V, E>
 {
     fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES, Ref<E>>) -> Unsub<'static, YES> where Self: Sized
     {

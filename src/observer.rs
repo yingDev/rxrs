@@ -26,30 +26,30 @@ for A
     fn call_box(self: Box<Self>, e: Option<BY::V>) { self.call_once(e) }
 }
 
-unsafe impl<'o, V, A: Fn(V)+'o>
+unsafe impl<'o, V, F: Fn(V)+'o>
 ActNext<'o, NO, Val<V>>
-for A
+for F
 {
     fn call(&self, by: V) { self.call((by,)) }
 }
 
-unsafe impl<'o, V, A: Fn(&V)+'o>
+unsafe impl<'o, V, F: Fn(&V)+'o>
 ActNext<'o, NO, Ref<V>>
-for A
+for F
 {
     fn call(&self, by: *const V) { self.call((unsafe{ &*by },)) }
 }
 
-unsafe impl<'o, V, A: Fn(V)+'o+Send+Sync>
+unsafe impl<'o, V, F: Fn(V)+'o+Send+Sync>
 ActNext<'o, YES, Val<V>>
-for A
+for F
 {
     fn call(&self, by: V) { self.call((by,)) }
 }
 
-unsafe impl<'o, V, A: Fn(&V)+'o+Send+Sync>
+unsafe impl<'o, V, F: Fn(&V)+'o+Send+Sync>
 ActNext<'o, YES, Ref<V>>
-for A
+for F
 {
     fn call(&self, by: *const V) { self.call((unsafe { &*by },)) }
 }

@@ -3,9 +3,9 @@ pub unsafe trait RefOrVal
     type V: Sized;
     type RAW: Sized;
 
-    #[inline(always)] fn as_ref(&self) -> &Self::RAW;
-    #[inline(always)] fn into_v(self) -> Self::V;
-    #[inline(always)] unsafe fn from_v(v: Self::V) -> Self;
+    fn as_ref(&self) -> &Self::RAW;
+    fn into_v(self) -> Self::V;
+    unsafe fn from_v(v: Self::V) -> Self;
 }
 
 pub struct Ref<V>(*const V);

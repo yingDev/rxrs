@@ -5,7 +5,7 @@ use std::boxed::FnBox;
 use std::sync::{Arc, Once, ONCE_INIT};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-struct UnsubState<'a, SS:YesNo>
+struct State<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
@@ -13,12 +13,12 @@ struct UnsubState<'a, SS:YesNo>
     cbs: UnsafeCell<Vec<Unsub<'a, SS>>>,
 }
 
-impl<'a, SS:YesNo> Drop for UnsubState<'a, SS>
+impl<'a, SS:YesNo> Drop for State<'a, SS>
 {
     fn drop(&mut self) { self.unsub_then(||{}); }
 }
 
-impl<'a, SS:YesNo> UnsubState<'a, SS>
+impl<'a, SS:YesNo> State<'a, SS>
 {
     #[inline(always)]
     fn is_done(&self) -> bool
@@ -78,7 +78,7 @@ impl<'a, SS:YesNo> UnsubState<'a, SS>
 
 pub struct Unsub<'a, SS:YesNo>
 {
-    state: Arc<UnsubState<'a, SS>>
+    state: Arc<State<'a, SS>>
 }
 
 unsafe impl<'a, SS:YesNo> Ssmark<SS> for Unsub<'a, SS> {}
@@ -99,7 +99,7 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
 
     pub fn new() -> Unsub<'a, SS>
     {
-        Unsub { state: Arc::new(UnsubState { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
+        Unsub { state: Arc::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 
     #[inline(never)]
@@ -108,8 +108,8 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
         unsafe {
             static mut VAL: *const () = ::std::ptr::null();
             static INIT: Once = ONCE_INIT;
-            INIT.call_once(|| VAL = ::std::mem::transmute(Arc::into_raw(Arc::<UnsubState<'a, SS>>::new(UnsubState { lock: ReSpinLock::new(), done: AtomicBool::new(true), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }))));
-            let arc = Arc::<UnsubState<'a, SS>>::from_raw(::std::mem::transmute(VAL));
+            INIT.call_once(|| VAL = ::std::mem::transmute(Arc::into_raw(Arc::<State<'a, SS>>::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(true), cb: UnsafeCell::new(None), cbs: UnsafeCell::new(Vec::new()) }))));
+            let arc = Arc::<State<'a, SS>>::from_raw(::std::mem::transmute(VAL));
             let sub = Unsub { state: arc.clone() };
             ::std::mem::forget(arc);
             return sub;
@@ -162,7 +162,7 @@ impl<'a> Unsub<'a, NO>
 {
     pub fn with(cb: impl FnOnce()+'a) -> Unsub<'a, NO>
     {
-        Unsub { state: Arc::new(UnsubState { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
+        Unsub { state: Arc::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 }
 
@@ -170,7 +170,7 @@ impl Unsub<'static, YES>
 {
     pub fn with(cb: impl FnOnce()+Send+Sync+'static) -> Unsub<'static, YES>
     {
-        Unsub { state: Arc::new(UnsubState { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
+        Unsub { state: Arc::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 }
 

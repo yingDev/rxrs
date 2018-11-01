@@ -17,10 +17,10 @@ pub unsafe trait ActBox<SS:YesNo, A: RefOrVal, R=()>
     fn call_box(self: Box<Self>, e: A::V) -> R;
 }
 
-pub fn act_sendsync<SS:YesNo, By: RefOrVal, R>(act: impl Act<SS, By, R>) -> impl Act<SS, By, R> + SendSync<SS>
+pub fn act_sendsync<SS:YesNo, By: RefOrVal, R>(act: impl Act<SS, By, R>) -> impl Act<SS, By, R> + Ssmark<SS>
 {
     struct X<A>(A);
-    unsafe impl<SS:YesNo, A> SendSync<SS> for X<A>{}
+    unsafe impl<SS:YesNo, A> Ssmark<SS> for X<A>{}
     unsafe impl<SS: YesNo, By:RefOrVal, R, A: Act<SS, By, R>> Act<SS, By, R> for X<A>
     {
         #[inline(always)]
@@ -107,11 +107,6 @@ unsafe impl<SS:YesNo, By: RefOrVal, R, A: Act<SS, By, R>> Act<SS, By, R> for Arc
     #[inline(always)]
     fn call(&self, v: <By as RefOrVal>::V) -> R { Arc::as_ref(self).call(v) }
 }
-
-//unsafe impl<'a, SS:YesNo, V, R, F: ActOnce<SS, Ref<V>, R>+'a> ActBox<SS, Ref<V>, R> for F
-//{
-//    #[inline(always)] fn call_box(self: Box<F>, v: *const V) -> R  { self.call_once(unsafe{ &*v }) }
-//}
 
 
 unsafe impl<SS:YesNo, A: RefOrVal> Act<SS, A> for ()

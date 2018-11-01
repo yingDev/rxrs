@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::cell::UnsafeCell;
 use crate::*;
-use crate::{util::alias::SSs, sync::ReSpinLock};
 
 pub struct BehaviorSubject<'o, SS:YesNo, V, E:Clone=()>
 {
@@ -10,8 +9,8 @@ pub struct BehaviorSubject<'o, SS:YesNo, V, E:Clone=()>
     subj: Subject<'o, SS, V, E>
 }
 
-unsafe impl<'o, V:SSs, E:SSs+Clone> Send for BehaviorSubject<'o, YES, V, E>{}
-unsafe impl<'o, V:SSs, E:SSs+Clone> Sync for BehaviorSubject<'o, YES, V, E>{}
+unsafe impl<'o, V:Send+Sync+'o, E:Send+Sync+Clone+'o> Send for BehaviorSubject<'o, YES, V, E>{}
+unsafe impl<'o, V:Send+Sync+'o, E:Send+Sync+Clone+'o> Sync for BehaviorSubject<'o, YES, V, E>{}
 
 impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
 {
@@ -72,7 +71,8 @@ impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync> Observable<'static, Y
 
     fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
-        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
+        let next: Box<ActNext<'static, YES, Ref<V>>+Send+Sync> = unsafe{ ::std::mem::transmute(next) };
+        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into();
         self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
     }
 }

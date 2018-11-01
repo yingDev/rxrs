@@ -4,7 +4,6 @@ use std::mem::forget;
 use std::sync::{Condvar, Mutex, Arc, atomic::*};
 use std::time::{Duration, Instant};
 use crate::*;
-use crate::any_send_sync::AnySendSync;
 
 pub struct EventLoopScheduler
 {

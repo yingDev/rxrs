@@ -1,11 +1,10 @@
+use crate::*;
 use std::sync::*;
 use std::cell::UnsafeCell;
 
-use crate::*;
-use crate::sync::ReSpinLock;
-use crate::util::{alias::{SSs}};
 
 use self::SubjectState::*;
+use std::sync::Arc;
 
 enum SubjectState<'o, SS:YesNo, V, E:Clone>
 {
@@ -22,15 +21,15 @@ struct Wrap<'o, SS:YesNo, V, E:Clone>
     state: UnsafeCell<*mut SubjectState<'o, SS, V, E>>
 }
 
-unsafe impl <'o, V:SSs, E:SSs+Clone> Send for Wrap<'o, YES, V, E> {}
-unsafe impl <'o, V:SSs, E:SSs+Clone> Sync for Wrap<'o, YES, V, E> {}
+unsafe impl <'o, V:Send+Sync+'o, E:Send+Sync+'o+Clone> Send for Wrap<'o, YES, V, E> {}
+unsafe impl <'o, V:Send+Sync+'o, E:Send+Sync+'o+Clone> Sync for Wrap<'o, YES, V, E> {}
 
 pub struct Subject<'o, SS:YesNo, V, E:Clone+'o=()>
 {
     state: Arc<Wrap<'o,SS,V,E>>,
 }
-unsafe impl<V:SSs, E:SSs+Clone> Send for Subject<'static, YES, V, E> {}
-unsafe impl<V:SSs, E:SSs+Clone> Sync for Subject<'static, YES, V, E> {}
+unsafe impl<'o, V:Send+Sync+'o, E:Send+Sync+'o+Clone> Send for Subject<'o, YES, V, E> {}
+unsafe impl<'o, V:Send+Sync+'o, E:Send+Sync+'o+Clone> Sync for Subject<'o, YES, V, E> {}
 
 impl<'o, V, E:Clone+'o, SS:YesNo> Subject<'o, SS, V, E>
 {
@@ -154,7 +153,8 @@ impl<V:Send+Sync+'static, E:Send+Sync+Clone+'static> Observable<'static, YES, Re
 {
     fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
     {
-        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = sendsync_next_box(next).into();
+        let next: Arc<ActNext<'static, YES, Ref<V>>> = next.into();
+        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = unsafe{ ::std::mem::transmute(next) };
         let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
         self.sub_internal(next, ec, move || Unsub::<YES>::with(move || Self::unsub(state, weak_next)))
     }
@@ -266,7 +266,6 @@ mod tests
     use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::*;
-    use crate::util::Clones;
 
     #[test]
     fn smoke()

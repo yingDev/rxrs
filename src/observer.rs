@@ -2,6 +2,8 @@ use crate::*;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
+//todo: just use crate::sync::Act's ?
+
 pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : 'o
 {
     fn call(&self, v: BY::V);

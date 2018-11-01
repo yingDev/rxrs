@@ -6,6 +6,7 @@ use std::time::Instant;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::cell::Cell;
+use crate::util::clones::*;
 
 
 type RcActFn = Rc<Fn()+'static>;
@@ -138,6 +139,8 @@ impl Ord for ActItem
 mod test
 {
     use crate::*;
+    use crate::util::clones::*;
+
     use std::time::Duration;
     use std::cell::Cell;
     use std::rc::Rc;

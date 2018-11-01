@@ -49,6 +49,8 @@ for Timer<SS, Sch>
 mod test
 {
     use crate::*;
+    use crate::util::clones::*;
+
     use std::time::Duration;
     use std::sync::Arc;
     use std::rc::Rc;

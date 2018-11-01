@@ -262,6 +262,8 @@ mod tests
 {
     //use test::Bencher;
     use crate::*;
+    use crate::util::clones::*;
+
     use std::cell::Cell;
     use std::rc::Rc;
     use std::sync::Arc;

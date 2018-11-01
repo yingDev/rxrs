@@ -1,4 +1,5 @@
 use crate::*;
+use crate::util::clones::*;
 use std::sync::Arc;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -33,10 +34,10 @@ for UntilOp<Src, SVBy, SEBy, Sig>
         let next = SSActNextWrap::new(next);
         let sub = Unsub::new();
         //no mutex here because access is protected by Unsub's internal lock
-        let ec = Arc::new(AnySendSync(UnsafeCell::new(Some(ec))));
+        let ec = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(ec))) });
 
         sub.add_each(self.sig.subscribe(forward_next((), (sub.clone(), SSWrap::new(ec.clone())), |(), (sub, ec), v:SVBy|{
-            sub.unsub_then(|| unsafe{ &mut *Arc::as_ref(&*ec).0.get() }.take().map_or((), |ec| ec.call_once(None)));
+            sub.unsub_then(|| unsafe{ &mut *Arc::as_ref(&*ec).get() }.take().map_or((), |ec| ec.call_once(None)));
         }, |(), (sub,_)| sub.is_done()), forward_ec(sub.clone(), |sub, e| sub.unsub())));
 
         if sub.is_done() { return sub; }
@@ -47,7 +48,7 @@ for UntilOp<Src, SVBy, SEBy, Sig>
             }, |next, (sub)| next.stopped() || sub.is_done()),
 
             forward_ec((sub.clone(), SSWrap::new(ec)), |(sub, ec), e:Option<EBy>| {
-                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec).0.get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
+                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec).get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
             })
         ))
     }
@@ -56,14 +57,12 @@ for UntilOp<Src, SVBy, SEBy, Sig>
     { self.subscribe(next, ec) }
 }
 
-struct AnySendSync<T>(UnsafeCell<T>);
-unsafe impl<T> Send for AnySendSync<T>{}
-unsafe impl<T> Sync for AnySendSync<T>{}
-
 #[cfg(test)]
 mod test
 {
     use crate::*;
+    use crate::util::clones::*;
+
     use std::rc::Rc;
     use std::cell::Cell;
 

@@ -56,6 +56,8 @@ for MapOp<SS, VBy, Src, F>
 mod test
 {
     use crate::*;
+    use crate::util::clones::*;
+
     use std::cell::RefCell;
     use std::cell::Cell;
     use std::rc::Rc;

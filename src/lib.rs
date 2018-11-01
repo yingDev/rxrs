@@ -4,21 +4,23 @@
 
 pub use crate::observable::*;
 pub use crate::observer::*;
+pub use crate::by::*;
 pub use crate::unsub::*;
 pub use crate::op::*;
 pub use crate::sync::*;
 pub use crate::fac::*;
 pub use crate::scheduler::*;
-
-pub use crate::util::*;
 pub use crate::subject::*;
+
+pub mod util;
 
 mod observable;
 mod observer;
 mod sync;
 mod op;
-mod util;
 mod subject;
 mod unsub;
 mod fac;
 mod scheduler;
+mod by;
+

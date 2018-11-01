@@ -60,6 +60,8 @@ for FilterOp<SS, Src, F>
 mod test
 {
     use crate::*;
+    use crate::util::clones::*;
+
     use std::cell::Cell;
     use std::sync::atomic::*;
     use std::rc::Rc;

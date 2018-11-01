@@ -93,7 +93,6 @@ for Box<dyn Observable<'o, SS, By, EBy>+'s>
     { Box::as_ref(self).subscribe_dyn(next, ec) }
 }
 
-
 impl<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
 Observable<'o, SS, By, EBy>
 for std::sync::Arc<dyn Observable<'o, SS, By, EBy>+'s>

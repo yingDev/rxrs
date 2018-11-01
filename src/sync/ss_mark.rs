@@ -1,5 +1,6 @@
 use crate::*;
 use std::ops::Deref;
+use std::marker::PhantomData;
 
 /// Send+Sync Mark
 pub unsafe trait Ssmark<SS:YesNo> : Sized { }
@@ -30,4 +31,32 @@ impl<V: Send+Sync> Deref for SSWrap<V>
 {
     type Target = V;
     fn deref(&self) -> &V { &self.0 }
+}
+
+pub struct SsForward<SS:YesNo, Caps: Ssmark<SS>>
+{
+    pub captures: Caps,
+    PhantomData: PhantomData<SS>
+}
+
+impl<SS:YesNo, Caps: Ssmark<SS>> SsForward<SS, Caps>
+{
+    pub fn new(value: Caps) -> Self
+    {
+        SsForward { captures: value, PhantomData }
+    }
+
+    pub fn into_inner(self) -> Caps { self.captures }
+}
+
+unsafe impl<SS:YesNo, Caps: Ssmark<SS>>
+Ssmark<SS>
+for SsForward<SS, Caps> {}
+
+impl<SS:YesNo, Caps: Ssmark<SS>>
+Deref
+for SsForward<SS, Caps>
+{
+    type Target = Caps;
+    fn deref(&self) -> &Caps { &self.captures }
 }

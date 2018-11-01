@@ -1,6 +1,5 @@
 use crate::*;
 use std::marker::PhantomData;
-use std::ops::Deref;
 
 //todo: just use crate::sync::Act's ?
 
@@ -154,33 +153,7 @@ Ssmark<SS>
 for SSActEcWrap<By, A> {}
 
 
-pub struct SsForward<SS:YesNo, Caps: Ssmark<SS>>
-{
-    captures: Caps,
-    PhantomData: PhantomData<SS>
-}
 
-impl<SS:YesNo, Caps: Ssmark<SS>> SsForward<SS, Caps>
-{
-    pub fn new(value: Caps) -> Self
-    {
-        SsForward { captures: value, PhantomData }
-    }
-
-    pub fn into_inner(self) -> Caps { self.captures }
-}
-
-unsafe impl<SS:YesNo, Caps: Ssmark<SS>>
-Ssmark<SS>
-for SsForward<SS, Caps> {}
-
-impl<SS:YesNo, Caps: Ssmark<SS>>
-Deref
-for SsForward<SS, Caps>
-{
-    type Target = Caps;
-    fn deref(&self) -> &Caps { &self.captures }
-}
 
 //todo: rename & organize
 

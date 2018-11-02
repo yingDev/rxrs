@@ -9,7 +9,7 @@ pub trait Observable<'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
 }
 
 #[derive(Clone)]
-pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal>
+pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal, EBy: RefOrVal=Ref<()>>
 {
     pub(crate) src: std::sync::Arc<Observable<'o, SS, By, EBy> + 's>,
 }

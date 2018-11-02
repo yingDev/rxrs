@@ -22,6 +22,22 @@ impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal+'o, SEBy: RefOrV
 ObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy, Sig>
 for Src {}
 
+
+pub trait DynObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal, Sig: Observable<'o, SS, SVBy, SEBy>> : Sized
+{
+    fn until(self, signal: Sig) -> DynObservable<'o, 'o, SS, VBy, EBy>;
+}
+
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Sig: Observable<'o, SS, SVBy, SEBy>+'o>
+DynObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy, Sig>
+for DynObservable<'o, 'o, SS, VBy, EBy>
+{
+    fn until(self, signal: Sig) -> DynObservable<'o, 'o, SS, VBy, EBy>
+    {
+        UntilOp{ src: self.src, sig: Arc::new(signal), PhantomData }.into_dyn()
+    }
+}
+
 impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o,  SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, SVBy, SEBy>>
 Observable<'o, SS, VBy, EBy>
 for UntilOp<Src, SVBy, SEBy, Sig>

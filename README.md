@@ -9,8 +9,6 @@
 </p>
 <br>
 
-### 🌱 WIP: rewriting everything ...
-
 
 ```rust
     use rxrs::*;

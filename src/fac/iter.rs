@@ -94,7 +94,7 @@ mod test
         let obs = iter_clone(vec.iter());
 
         let n = Cell::new(0);
-        obs.subscribe(|i:&_|{ n.replace(*i); }, |_e: Option<&_>|{ n.replace(n.get()+100); });
+        obs.subscribe(|i:&_| n.replace(*i), |_e: Option<&_>| n.replace(n.get()+100) );
         assert_eq!(n.get(), 103);
 
         n.replace(0);

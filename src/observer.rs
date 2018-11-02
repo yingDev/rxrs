@@ -25,32 +25,32 @@ for A
     fn call_box(self: Box<Self>, e: Option<BY::V>) { self.call_once(e) }
 }
 
-unsafe impl<'o, V, F: Fn(V)+'o>
+unsafe impl<'o, V, R, F: Fn(V)->R+'o>
 ActNext<'o, NO, Val<V>>
 for F
 {
-    fn call(&self, by: V) { self.call((by,)) }
+    fn call(&self, by: V) { self.call((by,)); }
 }
 
-unsafe impl<'o, V, F: Fn(&V)+'o>
+unsafe impl<'o, V, R, F: Fn(&V)->R+'o>
 ActNext<'o, NO, Ref<V>>
 for F
 {
-    fn call(&self, by: *const V) { self.call((unsafe{ &*by },)) }
+    fn call(&self, by: *const V) { self.call((unsafe{ &*by },)); }
 }
 
-unsafe impl<'o, V, F: Fn(V)+'o+Send+Sync>
+unsafe impl<'o, V, R, F: Fn(V)->R+'o+Send+Sync>
 ActNext<'o, YES, Val<V>>
 for F
 {
-    fn call(&self, by: V) { self.call((by,)) }
+    fn call(&self, by: V) { self.call((by,)); }
 }
 
-unsafe impl<'o, V, F: Fn(&V)+'o+Send+Sync>
+unsafe impl<'o, V, R, F: Fn(&V)->R+'o+Send+Sync>
 ActNext<'o, YES, Ref<V>>
 for F
 {
-    fn call(&self, by: *const V) { self.call((unsafe { &*by },)) }
+    fn call(&self, by: *const V) { self.call((unsafe { &*by },)); }
 }
 
 unsafe impl<'o, SS:YesNo, By: RefOrVal>
@@ -69,18 +69,18 @@ for (N, STOP)
 }
 
 
-unsafe impl<'o, SS:YesNo, E, F:FnOnce(Option<E>)+'o>
+unsafe impl<'o, SS:YesNo, E, R, F:FnOnce(Option<E>)->R+'o>
 ActEc<'o, SS, Val<E>>
 for F
 {
-    fn call_once(self, e: Option<E>) { self(e) }
+    fn call_once(self, e: Option<E>) { self(e); }
 }
 
-unsafe impl<'o, SS:YesNo, E, F:FnOnce(Option<&E>)+'o>
+unsafe impl<'o, SS:YesNo, E, R, F:FnOnce(Option<&E>)->R+'o>
 ActEc<'o, SS, Ref<E>>
 for F
 {
-    fn call_once(self, e: Option<*const E>) { self(e.map(|e| unsafe{ &*e })) }
+    fn call_once(self, e: Option<*const E>) { self(e.map(|e| unsafe{ &*e })); }
 }
 
 

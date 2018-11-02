@@ -9,7 +9,7 @@
 </p>
 <br>
 
-`⚠️ WIP: rxrs is not ready for production & is under heavy development`
+`⚠️ WIP: rxrs is under heavy development & not ready for production`
 
 ```rust
     use rxrs::*;

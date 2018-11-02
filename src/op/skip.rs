@@ -1,7 +1,5 @@
 use crate::*;
 use std::marker::PhantomData;
-use std::sync::Arc;
-use std::cell::UnsafeCell;
 use std::cell::Cell;
 
 pub struct SkipOp<SS, Src>
@@ -48,7 +46,7 @@ for SkipOp<SS, Src>
         let next = SSActNextWrap::new(next);
         let sub = Unsub::new();
 
-        sub.clone().added_each(self.src.subscribe(
+        sub.added_each(self.src.subscribe(
             forward_next(next, SSWrap::new(count), |next, count, v:VBy| {
                 if count.get() == 0 {
                     next.call(v.into_v());

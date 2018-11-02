@@ -9,6 +9,7 @@
 </p>
 <br>
 
+`⚠️ WIP: rxrs is not ready for production & is under heavy development`
 
 ```rust
     use rxrs::*;

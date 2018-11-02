@@ -3,44 +3,44 @@ use std::sync::Arc;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 
-pub struct UntilOp<Src, SVBy, SEBy, Sig>
+pub struct UntilOp<'o, SS:YesNo, Src, SVBy: RefOrVal, SEBy: RefOrVal>
 {
     src: Src,
-    sig: Arc<Sig>,
+    sig: DynObservable<'o, 'o, SS, SVBy, SEBy>,
     PhantomData: PhantomData<(SEBy, SVBy)>
 }
 
-pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal, Sig: Observable<'o, SS, SVBy, SEBy>> : Sized
+pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal> : Sized
 {
-    fn until(self, signal: Sig) -> UntilOp<Self, SVBy, SEBy, Sig>
+    fn until(self, sig: impl Observable<'o, SS, SVBy, SEBy>+'o) -> UntilOp<'o, SS, Self, SVBy, SEBy>
     {
-        UntilOp{ src: self, sig: Arc::new(signal), PhantomData }
+        UntilOp{ src: self, sig: sig.into_dyn(), PhantomData }
     }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, SVBy, SEBy>>
-ObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy, Sig>
+impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
+ObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy>
 for Src {}
 
 
-pub trait DynObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal, Sig: Observable<'o, SS, SVBy, SEBy>> : Sized
+pub trait DynObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal> : Sized
 {
-    fn until(self, signal: Sig) -> DynObservable<'o, 'o, SS, VBy, EBy>;
+    fn until(self, signal: impl Observable<'o, SS, SVBy, SEBy>+'o) -> DynObservable<'o, 'o, SS, VBy, EBy>;
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Sig: Observable<'o, SS, SVBy, SEBy>+'o>
-DynObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy, Sig>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o>
+DynObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy>
 for DynObservable<'o, 'o, SS, VBy, EBy>
 {
-    fn until(self, signal: Sig) -> DynObservable<'o, 'o, SS, VBy, EBy>
+    fn until(self, sig: impl Observable<'o, SS, SVBy, SEBy>+'o) -> DynObservable<'o, 'o, SS, VBy, EBy>
     {
-        UntilOp{ src: self.src, sig: Arc::new(signal), PhantomData }.into_dyn()
+        UntilOp{ src: self.src, sig: sig.into_dyn(), PhantomData }.into_dyn()
     }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o,  SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, Sig: Observable<'o, SS, SVBy, SEBy>>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o,  SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
 Observable<'o, SS, VBy, EBy>
-for UntilOp<Src, SVBy, SEBy, Sig>
+for UntilOp<'o, SS, Src, SVBy, SEBy>
 {
     fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
     {

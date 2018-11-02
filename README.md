@@ -27,7 +27,7 @@
             .take(4)
             .map(|v:&_| format!("*{}", v));
 
-        evens.sub(
+        evens.subscribe(
             |v: String    | output.borrow_mut().push_str(&v),
             |e: Option<&_>| output.borrow_mut().push_str("ok")
         );

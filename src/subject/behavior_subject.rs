@@ -48,7 +48,7 @@ impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     }
 }
 
-impl<'o, V:Clone+'o, E:Clone+'o>
+impl<'o, V:'o, E:Clone+'o>
 Observable<'o, NO, Ref<V>, Ref<E>>
 for BehaviorSubject<'o, NO, V, E>
 {

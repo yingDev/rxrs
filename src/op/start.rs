@@ -36,25 +36,17 @@ impl<'o, V, SS:YesNo, Src: Observable<'o, SS, Val<V>>>
 ObsStartValOp<'o, V, SS>
 for Src
 {
-    fn start_once(self, v: V) -> StartOp<Self, Mutex<Option<V>>, ONCE>
-    { StartOp{ src: self, v: Mutex::new(Some(v)), PhantomData } }
-
-    fn start(self, v: V) -> StartOp<Self, V, CLONE> where V: Clone + 'o
-    { StartOp{ src: self, v, PhantomData} }
-
-    fn start_fn<F>(self, f: F) -> StartOp<Self, F, FN> where F: Fn() -> V + 'o
-    { StartOp{ src: self, v: f, PhantomData} }
+    fn start_once(self, v: V) -> StartOp<Self, Mutex<Option<V>>, ONCE> { StartOp{ src: self, v: Mutex::new(Some(v)), PhantomData } }
+    fn start(self, v: V) -> StartOp<Self, V, CLONE> where V: Clone + 'o { StartOp{ src: self, v, PhantomData} }
+    fn start_fn<F>(self, f: F) -> StartOp<Self, F, FN> where F: Fn() -> V + 'o { StartOp{ src: self, v: f, PhantomData} }
 }
 
 impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Ref<V>>>
 ObsStartRefOp<'o, V, SS>
 for Src
 {
-    fn start(self, v: V) -> StartOp<Self, V, VALREF>
-    { StartOp{ src: self, v, PhantomData} }
-
-    fn start_ref(self, v: &'o V) -> StartOp<Self, &'o V, REF>
-    { StartOp{ src: self, v, PhantomData} }
+    fn start(self, v: V) -> StartOp<Self, V, VALREF> { StartOp{ src: self, v, PhantomData} }
+    fn start_ref(self, v: &'o V) -> StartOp<Self, &'o V, REF> { StartOp{ src: self, v, PhantomData} }
 }
 
 //dyn ===
@@ -76,25 +68,17 @@ impl<'o, V:'o, SS:YesNo>
 DynObsStartValOp<'o, V, SS>
 for DynObservable<'o, 'o, SS, Val<V>>
 {
-    fn start_once(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>>
-    { StartOp{ src: self.src, v: Mutex::new(Some(v)), PhantomData }.into_dyn() }
-
-    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>> where V: Clone + 'o
-    { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
-
-    fn start_fn<F>(self, f: F) -> DynObservable<'o, 'o, SS, Val<V>> where F: Fn() -> V + 'o
-    { StartOp{ src: self.src, v: f, PhantomData}.into_dyn() }
+    fn start_once(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>> { StartOp{ src: self.src, v: Mutex::new(Some(v)), PhantomData }.into_dyn() }
+    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>> where V: Clone + 'o { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
+    fn start_fn<F>(self, f: F) -> DynObservable<'o, 'o, SS, Val<V>> where F: Fn() -> V + 'o { StartOp{ src: self.src, v: f, PhantomData}.into_dyn() }
 }
 
 impl<'o, V:'o, SS:YesNo>
 DynObsStartRefOp<'o, V, SS>
 for DynObservable<'o, 'o, SS, Ref<V>>
 {
-    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Ref<V>>
-    { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
-
-    fn start_ref(self, v: &'o V) -> DynObservable<'o, 'o, SS, Ref<V>>
-    { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
+    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Ref<V>> { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
+    fn start_ref(self, v: &'o V) -> DynObservable<'o, 'o, SS, Ref<V>> { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
 }
 
 

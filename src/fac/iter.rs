@@ -1,8 +1,5 @@
 use crate::*;
 use std::sync::Mutex;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::error::Error;
 
 pub fn iter_clone<It: Iterator+Clone>(it: It) -> Iter<It>
 {

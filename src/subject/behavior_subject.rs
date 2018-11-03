@@ -1,7 +1,6 @@
+use crate::*;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-use crate::*;
-use std::error::Error;
 
 pub struct BehaviorSubject<'o, SS:YesNo, V>
 {

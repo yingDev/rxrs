@@ -1,7 +1,6 @@
+use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use crate::*;
-use std::error::Error;
 
 pub struct MapOp<SS, VBy, Src, F>
 {

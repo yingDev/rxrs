@@ -1,16 +1,13 @@
 use crate::*;
 use self::StartOpType::*;
-use std::error::Error;
-use std::fmt::Display;
 use std::marker::PhantomData;
-use std::sync::Arc;
 use std::sync::Mutex;
 
 pub mod StartOpType {
     pub struct ONCE;
     pub struct CLONE;
     pub struct FN;
-    pub struct VAL_REF;
+    pub struct VALREF;
     pub struct REF;
 }
 
@@ -31,7 +28,7 @@ pub trait ObsStartValOp<'o, V, SS:YesNo> : Sized
 
 pub trait ObsStartRefOp<'o, V:'o, SS:YesNo> : Sized
 {
-    fn start(self, v: V) -> StartOp<Self, V, VAL_REF>;
+    fn start(self, v: V) -> StartOp<Self, V, VALREF>;
     fn start_ref(self, v: &'o V) -> StartOp<Self, &'o V, REF>;
 }
 
@@ -53,7 +50,7 @@ impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Ref<V>>>
 ObsStartRefOp<'o, V, SS>
 for Src
 {
-    fn start(self, v: V) -> StartOp<Self, V, VAL_REF>
+    fn start(self, v: V) -> StartOp<Self, V, VALREF>
     { StartOp{ src: self, v, PhantomData} }
 
     fn start_ref(self, v: &'o V) -> StartOp<Self, &'o V, REF>
@@ -131,7 +128,7 @@ for StartOp<Src, F, FN>
 
 impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Ref<V>>+'o>
 Observable<'o, SS, Ref<V>>
-for StartOp<Src, V, VAL_REF>
+for StartOp<Src, V, VALREF>
 {
     fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, err_or_comp: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized {
         if ! next.stopped() {
@@ -177,7 +174,6 @@ for StartOp<Src, &'o V, REF>
 mod test
 {
     use crate::*;
-    use std::cell::Cell;
     use std::cell::RefCell;
 
     #[test]
@@ -194,7 +190,7 @@ mod test
     {
         let n = RefCell::new(String::new());
         let o = Of::value(1).start(2).start(3).start(4).start(5);
-        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |e| n.borrow_mut().push_str("*"));
+        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |_e| n.borrow_mut().push_str("*"));
         assert_eq!(n.borrow().as_str(), "54321*");
 
         o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), ());
@@ -206,7 +202,7 @@ mod test
     {
         let n = RefCell::new(String::new());
         let o: DynObservable<NO, Ref<i32>> = Of::value(1).start(2).into_dyn();
-        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |e| n.borrow_mut().push_str("*"));
+        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |_e| n.borrow_mut().push_str("*"));
         assert_eq!(n.borrow().as_str(), "21*");
     }
 }

@@ -1,9 +1,6 @@
 use crate::*;
 use std::sync::*;
 use std::cell::UnsafeCell;
-
-use ::std::error::Error as StdError;
-
 use self::SubjectState::*;
 use std::sync::Arc;
 
@@ -22,15 +19,15 @@ struct Wrap<'o, SS:YesNo, V>
     state: UnsafeCell<*mut SubjectState<'o, SS, V>>
 }
 
-unsafe impl <'o, V:Send+Sync+'o+Send+Sync+'o> Send for Wrap<'o, YES, V> {}
-unsafe impl <'o, V:Send+Sync+'o+Send+Sync+'o> Sync for Wrap<'o, YES, V> {}
+unsafe impl <'o, V:Send+Sync+'o> Send for Wrap<'o, YES, V> {}
+unsafe impl <'o, V:Send+Sync+'o> Sync for Wrap<'o, YES, V> {}
 
 pub struct Subject<'o, SS:YesNo, V>
 {
     state: Arc<Wrap<'o,SS,V>>,
 }
-unsafe impl<'o, V:Send+Sync+'o+Send+Sync+'o> Send for Subject<'o, YES, V> {}
-unsafe impl<'o, V:Send+Sync+'o+Send+Sync+'o> Sync for Subject<'o, YES, V> {}
+unsafe impl<'o, V:Send+Sync+'o> Send for Subject<'o, YES, V> {}
+unsafe impl<'o, V:Send+Sync+'o> Sync for Subject<'o, YES, V> {}
 
 impl<'o, V, SS:YesNo> Subject<'o, SS, V>
 {

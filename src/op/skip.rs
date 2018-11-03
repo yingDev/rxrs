@@ -1,7 +1,6 @@
 use crate::*;
 use std::marker::PhantomData;
 use std::cell::Cell;
-use std::error::Error;
 
 pub struct SkipOp<SS, Src>
 {

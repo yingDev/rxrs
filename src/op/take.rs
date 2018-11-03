@@ -2,7 +2,6 @@ use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-use std::error::Error;
 
 pub struct TakeOp<SS, Src>
 {

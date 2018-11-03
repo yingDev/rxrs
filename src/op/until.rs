@@ -1,8 +1,6 @@
 use crate::*;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-use std::marker::PhantomData;
-use std::error::Error;
 
 pub struct UntilOp<'o, SS:YesNo, Src, SVBy: RefOrVal>
 {

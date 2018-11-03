@@ -1,5 +1,4 @@
 use crate::*;
-use std::error::Error;
 use std::marker::PhantomData;
 
 //todo: just use crate::sync::Act's ?
@@ -98,7 +97,7 @@ unsafe impl<'o, SS:YesNo>
 ActEc<'o, SS>
 for ()
 {
-    fn call_once(self, e: Option<RxError>) { }
+    fn call_once(self, _e: Option<RxError>) { }
 }
 
 

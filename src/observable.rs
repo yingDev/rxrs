@@ -1,5 +1,4 @@
 use crate::*;
-use std::error::Error;
 
 pub trait Observable<'o, SS:YesNo, By: RefOrVal>
 {

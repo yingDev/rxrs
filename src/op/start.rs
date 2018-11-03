@@ -57,6 +57,49 @@ for Src
     { StartOp{ src: self, v, PhantomData} }
 }
 
+//dyn ===
+
+pub trait DynObsStartValOp<'o, V, SS:YesNo> : Sized
+{
+    fn start_once(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>>;
+    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>> where V: Clone+'o;
+    fn start_fn<F>(self, f: F) -> DynObservable<'o, 'o, SS, Val<V>> where F: 'o+Fn()->V;
+}
+
+pub trait DynObsStartRefOp<'o, V:'o, SS:YesNo> : Sized
+{
+    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Ref<V>>;
+    fn start_ref(self, v: &'o V) -> DynObservable<'o, 'o, SS, Ref<V>>;
+}
+
+impl<'o, V:'o, SS:YesNo>
+DynObsStartValOp<'o, V, SS>
+for DynObservable<'o, 'o, SS, Val<V>>
+{
+    fn start_once(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>>
+    { StartOp{ src: self.src, v: Mutex::new(Some(v)), PhantomData }.into_dyn() }
+
+    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Val<V>> where V: Clone + 'o
+    { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
+
+    fn start_fn<F>(self, f: F) -> DynObservable<'o, 'o, SS, Val<V>> where F: Fn() -> V + 'o
+    { StartOp{ src: self.src, v: f, PhantomData}.into_dyn() }
+}
+
+impl<'o, V:'o, SS:YesNo>
+DynObsStartRefOp<'o, V, SS>
+for DynObservable<'o, 'o, SS, Ref<V>>
+{
+    fn start(self, v: V) -> DynObservable<'o, 'o, SS, Ref<V>>
+    { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
+
+    fn start_ref(self, v: &'o V) -> DynObservable<'o, 'o, SS, Ref<V>>
+    { StartOp{ src: self.src, v, PhantomData}.into_dyn() }
+}
+
+
+
+
 impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Val<V>>+'o>
 Observable<'o, SS, Val<V>>
 for StartOp<Src, Mutex<Option<V>>, ONCE>
@@ -201,7 +244,7 @@ mod test
     fn into_dyn()
     {
         let n = RefCell::new(String::new());
-        let o: DynObservable<NO, Ref<i32>> = Of::value(1).start(2).into_dyn();
+        let o: DynObservable<NO, Ref<i32>> = Of::value(1).into_dyn().start(2);
         o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |_e| n.borrow_mut().push_str("*"));
         assert_eq!(n.borrow().as_str(), "21*");
     }

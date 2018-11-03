@@ -1,6 +1,7 @@
 use crate::*;
 use std::marker::PhantomData;
 use std::cell::Cell;
+use std::error::Error;
 
 pub struct SkipOp<SS, Src>
 {
@@ -9,34 +10,34 @@ pub struct SkipOp<SS, Src>
     PhantomData: PhantomData<(SS)>
 }
 
-pub trait ObsSkipOp<SS, VBy, EBy> : Sized
+pub trait ObsSkipOp<SS, VBy> : Sized
 {
     fn skip(self, count: usize) -> SkipOp<SS, Self> { SkipOp{ count, src: self, PhantomData} }
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>+'o, SS:YesNo>
-ObsSkipOp<SS, VBy,EBy>
+impl<'o, VBy: RefOrVal, Src: Observable<'o, SS, VBy>+'o, SS:YesNo>
+ObsSkipOp<SS, VBy>
 for Src {}
 
 
-pub trait DynObsSkipOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o>
+pub trait DynObsSkipOp<'o, SS: YesNo, VBy: RefOrVal+'o>
 {
     fn skip(self, count: usize) -> Self;
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o>
-DynObsSkipOp<'o, SS, VBy,EBy>
-for DynObservable<'o, 'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o>
+DynObsSkipOp<'o, SS, VBy>
+for DynObservable<'o, 'o, SS, VBy>
 {
     fn skip(self, count: usize) -> Self
     { SkipOp{ count, src: self.src, PhantomData }.into_dyn() }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
-Observable<'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, Src: Observable<'o, SS, VBy>>
+Observable<'o, SS, VBy>
 for SkipOp<SS, Src>
 {
-    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         if self.count == 0 {
             return self.src.subscribe(next, ec);
@@ -59,7 +60,7 @@ for SkipOp<SS, Src>
         ))
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, ec) }
 }
 
@@ -80,7 +81,7 @@ mod test
 
         s.skip(3).subscribe(
             |v:&_| { n.replace(*v); },
-            |_e:Option<&_>| { n1.replace(n1.get() + 100); }
+            |_e| { n1.replace(n1.get() + 100); }
         );
 
         s1.next(1);
@@ -105,7 +106,7 @@ mod test
         let n = Cell::new(0);
         Of::value(123).skip(100).subscribe(
             |v:&_| { n.replace(*v); },
-            |_e:Option<&_>| { n.replace(n.get() + 100); }
+            |_e| { n.replace(n.get() + 100); }
         );
 
         assert_eq!(n.get(), 100);
@@ -117,7 +118,7 @@ mod test
         let n = Cell::new(0);
         Of::value(123).skip(0).subscribe(
             |v:&_| { n.replace(*v); },
-            |_e:Option<&_>| { n.replace(n.get() + 100); }
+            |_e| { n.replace(n.get() + 100); }
         );
 
         assert_eq!(n.get(), 223);

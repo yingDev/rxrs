@@ -12,7 +12,7 @@ impl<'o, V:'o>
 Observable<'o, NO, Ref<V>>
 for Of<V>
 {
-    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<()>>+'o) -> Unsub<'o, NO> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO>+'o) -> Unsub<'o, NO> where Self: Sized
     {
         if ! next.stopped() {
             if let Some(v) = self.0.as_ref() {
@@ -26,7 +26,7 @@ for Of<V>
         Unsub::done()
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o,NO, Ref<()>>>) -> Unsub<'o, NO>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o,NO>>) -> Unsub<'o, NO>
     { self.subscribe(next, ec) }
 }
 
@@ -63,7 +63,7 @@ mod test
     {
         let n = Cell::new(0);
         let o = Of::empty();
-        o.subscribe(|_v:&()| assert!(false, "shouldn't happend"), |_e:Option<&_>| { n.replace(1); } );
+        o.subscribe(|_v:&()| assert!(false, "shouldn't happend"), |_e| { n.replace(1); } );
 
         assert_eq!(n.get(), 1);
     }

@@ -2,47 +2,47 @@ use crate::*;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
+use std::error::Error;
 
-pub struct UntilOp<'o, SS:YesNo, Src, SVBy: RefOrVal, SEBy: RefOrVal>
+pub struct UntilOp<'o, SS:YesNo, Src, SVBy: RefOrVal>
 {
     src: Src,
-    sig: DynObservable<'o, 'o, SS, SVBy, SEBy>,
-    PhantomData: PhantomData<(SEBy, SVBy)>
+    sig: DynObservable<'o, 'o, SS, SVBy>,
 }
 
-pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal> : Sized
+pub trait ObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, SVBy: RefOrVal> : Sized
 {
-    fn until(self, sig: impl Observable<'o, SS, SVBy, SEBy>+'o) -> UntilOp<'o, SS, Self, SVBy, SEBy>
+    fn until(self, sig: impl Observable<'o, SS, SVBy>+'o) -> UntilOp<'o, SS, Self, SVBy>
     {
-        UntilOp{ src: self, sig: sig.into_dyn(), PhantomData }
+        UntilOp{ src: self, sig: sig.into_dyn() }
     }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
-ObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy>
+impl<'o, SS:YesNo, VBy: RefOrVal, SVBy: RefOrVal+'o, Src: Observable<'o, SS, VBy>>
+ObsUntilOp<'o, SS, VBy, SVBy>
 for Src {}
 
 
-pub trait DynObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, SVBy: RefOrVal, SEBy: RefOrVal> : Sized
+pub trait DynObsUntilOp<'o, SS:YesNo, VBy: RefOrVal, SVBy: RefOrVal> : Sized
 {
-    fn until(self, signal: impl Observable<'o, SS, SVBy, SEBy>+'o) -> DynObservable<'o, 'o, SS, VBy, EBy>;
+    fn until(self, signal: impl Observable<'o, SS, SVBy>+'o) -> DynObservable<'o, 'o, SS, VBy>;
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, SVBy: RefOrVal+'o, SEBy: RefOrVal+'o>
-DynObsUntilOp<'o, SS, VBy, EBy, SVBy, SEBy>
-for DynObservable<'o, 'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o+'o, SVBy: RefOrVal+'o>
+DynObsUntilOp<'o, SS, VBy, SVBy>
+for DynObservable<'o, 'o, SS, VBy>
 {
-    fn until(self, sig: impl Observable<'o, SS, SVBy, SEBy>+'o) -> DynObservable<'o, 'o, SS, VBy, EBy>
+    fn until(self, sig: impl Observable<'o, SS, SVBy>+'o) -> DynObservable<'o, 'o, SS, VBy>
     {
-        UntilOp{ src: self.src, sig: sig.into_dyn(), PhantomData }.into_dyn()
+        UntilOp{ src: self.src, sig: sig.into_dyn() }.into_dyn()
     }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o,  SVBy: RefOrVal+'o, SEBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
-Observable<'o, SS, VBy, EBy>
-for UntilOp<'o, SS, Src, SVBy, SEBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o+'o,  SVBy: RefOrVal+'o, Src: Observable<'o, SS, VBy>>
+Observable<'o, SS, VBy>
+for UntilOp<'o, SS, Src, SVBy>
 {
-    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         let next = SSActNextWrap::new(next);
         let sub = Unsub::new();
@@ -60,13 +60,13 @@ for UntilOp<'o, SS, Src, SVBy, SEBy>
                 sub.if_not_done(|| next.call(v.into_v()))
             }, |next, sub| next.stopped() || sub.is_done()),
 
-            forward_ec((sub.clone(), SSWrap::new(ec)), |(sub, ec), e:Option<EBy>| {
-                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec).get() }.take().map_or((), |ec| ec.call_once(e.map(|e|e.into_v()))))
+            forward_ec((sub.clone(), SSWrap::new(ec)), |(sub, ec), e:Option<RxError>| {
+                sub.if_not_done(||unsafe{ &mut *Arc::as_ref(&*ec).get() }.take().map_or((), |ec| ec.call_once(e)))
             })
         ))
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, ec) }
 }
 
@@ -87,22 +87,22 @@ mod test
         let (o, o2) = Rc::new(Of::value(123)).clones();
         let (sig, sig2) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        o.until(sig).subscribe(|_:&_| { n.replace(n.get()+1); }, |_: Option<&_>| { n.replace(n.get()+1); } );
+        o.until(sig).subscribe(|_:&_| { n.replace(n.get()+1); }, |_| { n.replace(n.get()+1); } );
         assert_eq!(n.get(), 2);
 
         n.replace(0);
         sig2.complete();
-        o2.until(sig2).subscribe(|_:&_| { n.replace(n.get()+1); }, |_: Option<&_>| { n.replace(n.get()+1); } );
+        o2.until(sig2).subscribe(|_:&_| { n.replace(n.get()+1); }, |_| { n.replace(n.get()+1); } );
         assert_eq!(n.get(), 0);
 
-        Of::value(123).until(Of::value(456)).subscribe(|_: &_| { n.replace(n.get()+1); }, |_: Option<&_>| { n.replace(n.get()+1); } );
+        Of::value(123).until(Of::value(456)).subscribe(|_: &_| { n.replace(n.get()+1); }, |_| { n.replace(n.get()+1); } );
         assert_eq!(n.get(), 1);
 
         n.replace(0);
         let (src, src1) = Rc::new(Subject::<NO, i32>::new()).clones();
         let (sig, sig1) = Rc::new(Subject::<NO, i32>::new()).clones();
 
-        src.until(sig).subscribe(|_: &_| { n.replace(n.get()+1); }, |_: Option<&_>| { n.replace(n.get()+1); } );
+        src.until(sig).subscribe(|_: &_| { n.replace(n.get()+1); }, |_| { n.replace(n.get()+1); } );
         src1.next(1);
         assert_eq!(n.get(), 1);
         src1.next(1);
@@ -122,7 +122,7 @@ mod test
 
         s1.until(s2).subscribe(
             |_: &_| { n.replace(n.get()+1); },
-            |_:Option<&_>| { n.replace(n.get()+100); }
+            |_| { n.replace(n.get()+100); }
         );
 
         s3.next(1);
@@ -138,7 +138,7 @@ mod test
         let sig = Of::<()>::empty();
         let val = Of::value(123);
 
-        let sub = val.until(sig).subscribe(|_v:&_| assert!(false, "shouldnt next"), |_e:Option<&_>| assert!(false, "shouldnt complete"));
+        let sub = val.until(sig).subscribe(|_v:&_| assert!(false, "shouldnt next"), |_e| assert!(false, "shouldnt complete"));
 
         assert!(sub.is_done());
     }

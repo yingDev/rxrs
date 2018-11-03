@@ -2,6 +2,7 @@ use crate::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
+use std::error::Error;
 
 pub struct TakeOp<SS, Src>
 {
@@ -10,34 +11,34 @@ pub struct TakeOp<SS, Src>
     PhantomData: PhantomData<(SS)>
 }
 
-pub trait ObsTakeOp<SS, VBy, EBy> : Sized
+pub trait ObsTakeOp<SS, VBy> : Sized
 {
     fn take(self, count: usize) -> TakeOp<SS, Self> { TakeOp{ count, src: self, PhantomData} }
 }
 
-impl<'o, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>+'o, SS:YesNo>
-ObsTakeOp<SS, VBy,EBy>
+impl<'o, VBy: RefOrVal, Src: Observable<'o, SS, VBy>+'o, SS:YesNo>
+ObsTakeOp<SS, VBy>
 for Src {}
 
 
-pub trait DynObsTakeOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o>
+pub trait DynObsTakeOp<'o, SS: YesNo, VBy: RefOrVal+'o>
 {
     fn take(self, count: usize) -> Self;
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o>
-DynObsTakeOp<'o, SS, VBy,EBy>
-for DynObservable<'o, 'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o>
+DynObsTakeOp<'o, SS, VBy>
+for DynObservable<'o, 'o, SS, VBy>
 {
     fn take(self, count: usize) -> Self
     { TakeOp{ count, src: self.src, PhantomData }.into_dyn() }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>>
-Observable<'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, Src: Observable<'o, SS, VBy>>
+Observable<'o, SS, VBy>
 for TakeOp<SS, Src>
 {
-    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         if self.count == 0 {
             ec.call_once(None);
@@ -65,13 +66,13 @@ for TakeOp<SS, Src>
                 });
             }, |s, (sub, _state)| (s.stopped() || sub.is_done())),
 
-            forward_ec((sub, SSWrap::new(state)), |(sub, state), e:Option<EBy>| {
-                sub.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e.map(|e| e.into_v()))))
+            forward_ec((sub, SSWrap::new(state)), |(sub, state), e:Option<RxError>| {
+                sub.unsub_then(|| unsafe{ &mut *state.get() }.1.take().map_or((), |ec| ec.call_once(e)))
             })
         ))
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, ec) }
 }
 
@@ -92,7 +93,7 @@ mod test
 
         s.take(3).subscribe(
             |v:&_| { n.replace(*v); },
-            |_e:Option<&_>| { n1.replace(n1.get() + 100); }
+            |_e| { n1.replace(n1.get() + 100); }
         );
 
         s1.next(1);
@@ -115,7 +116,7 @@ mod test
     fn of()
     {
         let n = Cell::new(0);
-        Of::value(123).take(100).subscribe(|v:&_| { n.replace(*v); }, |_e:Option<&_>| { n.replace(n.get() + 100); });
+        Of::value(123).take(100).subscribe(|v:&_| { n.replace(*v); }, |_e| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 223);
     }
@@ -124,7 +125,7 @@ mod test
     fn zero()
     {
         let n = Cell::new(0);
-        Of::value(123).take(0).subscribe(|v:&_| { n.replace(*v); }, |_e:Option<&_>| { n.replace(n.get() + 100); });
+        Of::value(123).take(0).subscribe(|v:&_| { n.replace(*v); }, |_e| { n.replace(n.get() + 100); });
 
         assert_eq!(n.get(), 100);
     }

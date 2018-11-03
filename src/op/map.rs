@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
+use std::error::Error;
 
 pub struct MapOp<SS, VBy, Src, F>
 {
@@ -9,33 +10,33 @@ pub struct MapOp<SS, VBy, Src, F>
     PhantomData: PhantomData<(SS, AnySendSync<VBy>)>
 }
 
-pub trait ObsMapOp<'o, SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o> : Sized
+pub trait ObsMapOp<'o, SS: YesNo, VBy: RefOrVal, VOut, F: Act<SS, VBy, VOut>+'o> : Sized
 {
     fn map(self, f: F) -> MapOp<SS, VBy, Self, F> { MapOp{ f: Arc::new(f), src: self, PhantomData } }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy, EBy>+'o, F: Act<SS, VBy, VOut>+'o>
-ObsMapOp<'o, SS, VBy,EBy, VOut, F> for Src {}
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, VOut, Src: Observable<'o, SS, VBy>+'o, F: Act<SS, VBy, VOut>+'o>
+ObsMapOp<'o, SS, VBy, VOut, F> for Src {}
 
-pub trait DynObsMapOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
+pub trait DynObsMapOp<'o, SS: YesNo, VBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
 {
-    fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>, EBy>;
+    fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>>;
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
-DynObsMapOp<'o, SS, VBy,EBy, VOut, F>
-for DynObservable<'o, 'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, VOut:'o, F: Act<SS, VBy, VOut>+'o>
+DynObsMapOp<'o, SS, VBy, VOut, F>
+for DynObservable<'o, 'o, SS, VBy>
 {
-    fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>, EBy>
+    fn map(self, f: F) -> DynObservable<'o, 'o, SS, Val<VOut>>
     { MapOp{ f: Arc::new(f), src: self.src, PhantomData }.into_dyn() }
 }
 
 
-impl<'s, 'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>+'s, F: Act<SS, VBy, VOut>+'o>
-Observable<'o, SS, Val<VOut>, EBy>
+impl<'s, 'o, SS:YesNo, VOut: 'o, VBy: RefOrVal+'o, Src: Observable<'o, SS, VBy>+'s, F: Act<SS, VBy, VOut>+'o>
+Observable<'o, SS, Val<VOut>>
 for MapOp<SS, VBy, Src, F>
 {
-    fn subscribe(&self, next: impl ActNext<'o, SS, Val<VOut>>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, Val<VOut>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         let next = SSActNextWrap::new(next);
         let f = act_sendsync(self.f.clone());
@@ -47,7 +48,7 @@ for MapOp<SS, VBy, Src, F>
         }, |s,_|s.stopped()), ec))
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Val<VOut>>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Val<VOut>>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, ec) }
 }
 
@@ -145,7 +146,7 @@ mod test
 
         output.map(move |v:&_| *v).subscribe(
             move |v| {  n1.replace(n1.get() + v); },
-            move |_:Option<&_>| {  n2.replace(n2.get() + 1);  });
+            move |_| {  n2.replace(n2.get() + 1);  });
 
         input.next(1);
         input.next(2);

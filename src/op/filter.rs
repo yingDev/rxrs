@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::*;
+use std::error::Error;
 
 pub struct FilterOp<SS, Src, F>
 {
@@ -9,33 +10,33 @@ pub struct FilterOp<SS, Src, F>
     PhantomData: PhantomData<(SS)>
 }
 
-pub trait ObsFilterOp<SS: YesNo, VBy: RefOrVal, EBy: RefOrVal, F: Act<SS, Ref<VBy::RAW>, bool>> : Sized
+pub trait ObsFilterOp<SS: YesNo, VBy: RefOrVal, F: Act<SS, Ref<VBy::RAW>, bool>> : Sized
 {
     fn filter(self, f: F) -> FilterOp<SS, Self, F> { FilterOp{ f: Arc::new(f), src: self, PhantomData} }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal, EBy: RefOrVal, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
-ObsFilterOp<SS, VBy,EBy, F>
+impl<'o, SS:YesNo, VBy: RefOrVal, Src: Observable<'o, SS, VBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
+ObsFilterOp<SS, VBy, F>
 for Src {}
 
-pub trait DynObsFilterOp<'o, SS: YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
+pub trait DynObsFilterOp<'o, SS: YesNo, VBy: RefOrVal+'o, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
 {
     fn filter(self, f: F) -> Self;
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
-DynObsFilterOp<'o, SS, VBy,EBy, F>
-for DynObservable<'o, 'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
+DynObsFilterOp<'o, SS, VBy, F>
+for DynObservable<'o, 'o, SS, VBy>
 {
     fn filter(self, f: F) -> Self
     { FilterOp{ f: Arc::new(f), src: self.src, PhantomData }.into_dyn() }
 }
 
-impl<'o, SS:YesNo, VBy: RefOrVal+'o, EBy: RefOrVal+'o, Src: Observable<'o, SS, VBy, EBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
-Observable<'o, SS, VBy, EBy>
+impl<'o, SS:YesNo, VBy: RefOrVal+'o, Src: Observable<'o, SS, VBy>, F: Act<SS, Ref<VBy::RAW>, bool>+'o>
+Observable<'o, SS, VBy>
 for FilterOp<SS, Src, F>
 {
-    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS, EBy>) -> Unsub<'o, SS> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, SS, VBy>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         let next = SSActNextWrap::new(next);
         let f = act_sendsync(self.f.clone());
@@ -51,7 +52,7 @@ for FilterOp<SS, Src, F>
         ))
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS, EBy>>) -> Unsub<'o, SS>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, VBy>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, ec) }
 }
 
@@ -118,7 +119,7 @@ mod test
 
         output.filter(move |_:&_| true).subscribe(
             move |v:&_| {  n1.replace(n1.get() + *v); },
-            move |_:Option<&_>| {  n2.replace(n2.get() + 1);  });
+            move |_| {  n2.replace(n2.get() + 1);  });
 
         input.next(1);
         input.next(2);

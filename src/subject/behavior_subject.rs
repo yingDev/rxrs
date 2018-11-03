@@ -1,21 +1,22 @@
 use std::sync::Arc;
 use std::cell::UnsafeCell;
 use crate::*;
+use std::error::Error;
 
-pub struct BehaviorSubject<'o, SS:YesNo, V, E:Clone=()>
+pub struct BehaviorSubject<'o, SS:YesNo, V>
 {
     lock: ReSpinLock<SS>,
     val: UnsafeCell<Option<V>>,
-    subj: Subject<'o, SS, V, E>
+    subj: Subject<'o, SS, V>
 }
 
-unsafe impl<'o, V:Send+Sync+'o, E:Send+Sync+Clone+'o> Send for BehaviorSubject<'o, YES, V, E>{}
-unsafe impl<'o, V:Send+Sync+'o, E:Send+Sync+Clone+'o> Sync for BehaviorSubject<'o, YES, V, E>{}
+unsafe impl<'o, V:Send+Sync+'o> Send for BehaviorSubject<'o, YES, V>{}
+unsafe impl<'o, V:Send+Sync+'o> Sync for BehaviorSubject<'o, YES, V>{}
 
-impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
+impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
 {
     #[inline(always)]
-    pub fn new(value: V) -> BehaviorSubject<'o, SS, V, E>
+    pub fn new(value: V) -> BehaviorSubject<'o, SS, V>
     {
         BehaviorSubject{ lock: ReSpinLock::new(), val: UnsafeCell::new(Some(value)), subj: Subject::new() }
     }
@@ -48,32 +49,32 @@ impl<'o, V:'o, E:Clone, SS:YesNo> BehaviorSubject<'o, SS, V, E>
     }
 }
 
-impl<'o, V:'o, E:Clone+'o>
-Observable<'o, NO, Ref<V>, Ref<E>>
-for BehaviorSubject<'o, NO, V, E>
+impl<'o, V:'o>
+Observable<'o, NO, Ref<V>>
+for BehaviorSubject<'o, NO, V>
 {
-    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO, Ref<E>>) -> Unsub<'o, NO> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO>) -> Unsub<'o, NO> where Self: Sized
     {
         self.subscribe_dyn(box next, box ec)
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO, Ref<E>>>) -> Unsub<'o, NO>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO>>) -> Unsub<'o, NO>
     {
         let next: Arc<ActNext<'o, NO, Ref<V>>> = next.into();
         self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
     }
 }
 
-impl<V:Clone+'static+Send+Sync, E:Clone+'static+Send+Sync>
-Observable<'static, YES, Ref<V>, Ref<E>>
-for BehaviorSubject<'static, YES, V, E>
+impl<V:Clone+'static+Send+Sync>
+Observable<'static, YES, Ref<V>>
+for BehaviorSubject<'static, YES, V>
 {
-    fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES, Ref<E>>) -> Unsub<'static, YES> where Self: Sized
+    fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES>) -> Unsub<'static, YES> where Self: Sized
     {
         self.subscribe_dyn(box next, box ec)
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES, Ref<E>>>) -> Unsub<'static, YES>
+    fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES>>) -> Unsub<'static, YES>
     {
         let next: Box<ActNext<'static, YES, Ref<V>>+Send+Sync> = unsafe{ ::std::mem::transmute(next) };
         let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into();
@@ -82,7 +83,7 @@ for BehaviorSubject<'static, YES, V, E>
 }
 
 
-impl<'o, V:'o, E:Clone+'o, SS:YesNo> BehaviorSubject<'o, SS, V, E>
+impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
 {
     pub fn next(&self, v:V)
     {
@@ -95,7 +96,7 @@ impl<'o, V:'o, E:Clone+'o, SS:YesNo> BehaviorSubject<'o, SS, V, E>
 
     }
 
-    pub fn error(&self, e:E)
+    pub fn error(&self, e:RxError)
     {
         self.lock.enter();
         let _ = if unsafe { &mut *self.val.get() }.is_some() {

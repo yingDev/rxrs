@@ -80,7 +80,7 @@ mod test
 
         timer.filter(|v: &_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).subscribe(
             move |v: String| { out.lock().unwrap().push_str(&*v); },
-            move |_e: Option<&_>| out3.lock().unwrap().push_str("ok")
+            move |_e| out3.lock().unwrap().push_str("ok")
         );
 
         ::std::thread::sleep(Duration::from_millis(1000));
@@ -100,7 +100,7 @@ mod test
             let t = t.clone();
             t.take(1).subscribe(
                 move |_v| *n1.lock().unwrap() += i,
-                move |_e:Option<&_>| *n2.lock().unwrap() += 1
+                move |_e| *n2.lock().unwrap() += 1
             );
         }
 
@@ -118,7 +118,7 @@ mod test
 
         s.until(t).subscribe(
             move |v: &_| *n1.lock().unwrap() += v ,
-            move |_e: Option<&_>| *n2.lock().unwrap() += 100
+            move |_e| *n2.lock().unwrap() += 100
         );
 
         s1.next(1);
@@ -149,7 +149,7 @@ mod test
 
         timer.filter(|v:&_| v % 2 == 0 ).take(5).map(|v| format!("{}", v)).subscribe(
             move |v: String| { out.borrow_mut().push_str(&*v); },
-            move |_e: Option<&_>| out3.borrow_mut().push_str("ok")
+            move |_e| out3.borrow_mut().push_str("ok")
         );
 
         assert_eq!(out1.borrow().as_str(), "02468ok");

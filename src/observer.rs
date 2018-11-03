@@ -1,4 +1,5 @@
 use crate::*;
+use std::error::Error;
 use std::marker::PhantomData;
 
 //todo: just use crate::sync::Act's ?
@@ -9,20 +10,21 @@ pub unsafe trait ActNext <'o, SS:YesNo, BY: RefOrVal> : 'o
     fn stopped(&self) -> bool { false }
 }
 
-pub unsafe trait ActEc<'o, SS:YesNo, BY: RefOrVal=Ref<()> > : 'o
+pub unsafe trait ActEc<'o, SS:YesNo> : 'o
 {
-    fn call_once(self, e: Option<BY::V>);
-}
-pub unsafe trait ActEcBox<'o, SS:YesNo, BY: RefOrVal=Ref<()>> : 'o
-{
-    fn call_box(self: Box<Self>, e: Option<BY::V>);
+    fn call_once(self, e: Option<RxError>);
 }
 
-unsafe impl<'o, SS:YesNo, BY:RefOrVal, A: ActEc<'o, SS, BY>>
-ActEcBox<'o, SS, BY>
+pub unsafe trait ActEcBox<'o, SS:YesNo> : 'o
+{
+    fn call_box(self: Box<Self>, e: Option<RxError>);
+}
+
+unsafe impl<'o, SS:YesNo, A: ActEc<'o, SS>>
+ActEcBox<'o, SS>
 for A
 {
-    fn call_box(self: Box<Self>, e: Option<BY::V>) { self.call_once(e) }
+    fn call_box(self: Box<Self>, e:  Option<RxError>) { self.call_once(e) }
 }
 
 unsafe impl<'o, V, R, F: Fn(V)->R+'o>
@@ -69,18 +71,11 @@ for (N, STOP)
 }
 
 
-unsafe impl<'o, SS:YesNo, E, R, F:FnOnce(Option<E>)->R+'o>
-ActEc<'o, SS, Val<E>>
+unsafe impl<'o, SS:YesNo, R, F:FnOnce(Option<RxError>)->R+'o>
+ActEc<'o, SS>
 for F
 {
-    fn call_once(self, e: Option<E>) { self(e); }
-}
-
-unsafe impl<'o, SS:YesNo, E, R, F:FnOnce(Option<&E>)->R+'o>
-ActEc<'o, SS, Ref<E>>
-for F
-{
-    fn call_once(self, e: Option<*const E>) { self(e.map(|e| unsafe{ &*e })); }
+    fn call_once(self, e: Option<RxError>) { self(e); }
 }
 
 
@@ -92,18 +87,18 @@ for Box<ActNext<'o, SS, BY>>
     fn stopped(&self) -> bool { Box::as_ref(self).stopped() }
 }
 
-unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o>
-ActEc<'o, SS, BY>
-for Box<ActEcBox<'o, SS, BY>>
+unsafe impl<'o, SS:YesNo>
+ActEc<'o, SS>
+for Box<ActEcBox<'o, SS>>
 {
-    fn call_once(self, e: Option<BY::V>) { self.call_box(e) }
+    fn call_once(self, e: Option<RxError>) { self.call_box(e) }
 }
 
-unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o>
-ActEc<'o, SS, BY>
+unsafe impl<'o, SS:YesNo>
+ActEc<'o, SS>
 for ()
 {
-    fn call_once(self, _e: Option<BY::V>) {}
+    fn call_once(self, e: Option<RxError>) { }
 }
 
 
@@ -134,23 +129,22 @@ for SSActNextWrap<SS, By, A>
 }
 
 
-pub struct SSActEcWrap<By, A>
+pub struct SSActEcWrap<A>
 {
     pub ec: A,
-    PhantomData: PhantomData<By>
 }
 
-impl<By: RefOrVal, A> SSActEcWrap<By, A>
+impl<A> SSActEcWrap<A>
 {
-    pub fn new<'o, SS:YesNo>(ec: A) -> Self where A: ActEc<'o, SS, By>
-    { SSActEcWrap{ ec, PhantomData } }
+    pub fn new<'o, SS:YesNo>(ec: A) -> Self where A: ActEc<'o, SS>
+    { SSActEcWrap{ ec } }
 
     pub fn into_inner(self) -> A { self.ec }
 }
 
-unsafe impl<'o, SS:YesNo, By: RefOrVal, A: ActEc<'o, SS, By>>
+unsafe impl<'o, SS:YesNo, A: ActEc<'o, SS>>
 Ssmark<SS>
-for SSActEcWrap<By, A> {}
+for SSActEcWrap<A> {}
 
 
 
@@ -186,23 +180,23 @@ pub fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: Ssmark<SS>+'o, Caps: Ssmar
 
 
 #[inline(always)]
-pub fn forward_ec<'o, SS:YesNo, By: RefOrVal+'o, Caps: Ssmark<SS>+'o>
-(captures: Caps, fec: fn(Caps, Option<By>))
- -> SsForward<SS, (Caps, fn(Caps, Option<By>))>
+pub fn forward_ec<'o, SS:YesNo, Caps: Ssmark<SS>+'o>
+(captures: Caps, fec: fn(Caps, Option<RxError>))
+ -> SsForward<SS, (Caps, fn(Caps, Option<RxError>))>
 {
     SsForward::new((captures, fec))
 }
 
 
-unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, Caps: Ssmark<SS>+'o>
-ActEc<'o, SS, By>
-for SsForward<SS, (Caps, fn(Caps, Option<By>))>
+unsafe impl<'o, SS:YesNo, Caps: Ssmark<SS>+'o>
+ActEc<'o, SS>
+for SsForward<SS, (Caps, fn(Caps, Option<RxError>))>
 {
     #[inline(always)]
-    fn call_once(self, v: Option<By::V>)
+    fn call_once(self, e: Option<RxError>)
     {
         let (caps, fec) = self.captures;
-        fec(caps,  v.map(|v| unsafe { By::from_v(v) }))
+        fec(caps,  e)
     }
 }
 

@@ -29,7 +29,7 @@ __WIP: rxrs is under heavy development & not ready for production__
 
         evens.subscribe(
             |v: String    | output.borrow_mut().push_str(&v),
-            |e: Option<&_>| output.borrow_mut().push_str("ok")
+            |e| output.borrow_mut().push_str("ok")
         );
 
         for i in 0..10 {

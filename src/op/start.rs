@@ -179,27 +179,35 @@ mod test
 {
     use crate::*;
     use std::cell::Cell;
+    use std::cell::RefCell;
 
     #[test]
     fn val_ref()
     {
-        let n = Cell::new(0);
+        let n = RefCell::new(String::new());
         let o = Of::value(1).start(2);
-        o.subscribe(|v:&_| n.replace(n.get() * 10 + *v), ());
-        assert_eq!(n.get(), 21);
-
-        n.replace(0);
-        o.subscribe(|v:&_| n.replace(n.get() * 10 + *v), ());
-        assert_eq!(n.get(), 21);
+        o.subscribe(|v:&_| n.borrow_mut().push_str(&format!("{}", v)), ());
+        assert_eq!(n.borrow().as_str(), "21");
     }
 
     #[test]
-    fn start_ref()
+    fn chain()
     {
-        let n = Cell::new(0);
-        let o = Of::value(1).start_ref(&2);
-        o.subscribe(|v:&_| n.replace(n.get() * 10 + *v), ());
-        assert_eq!(n.get(), 21);
+        let n = RefCell::new(String::new());
+        let o = Of::value(1).start(2).start(3).start(4).start(5);
+        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |e| n.borrow_mut().push_str("*"));
+        assert_eq!(n.borrow().as_str(), "54321*");
 
+        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), ());
+        assert_eq!(n.borrow().as_str(), "54321*54321");
+    }
+
+    #[test]
+    fn into_dyn()
+    {
+        let n = RefCell::new(String::new());
+        let o: DynObservable<NO, Ref<i32>> = Of::value(1).start(2).into_dyn();
+        o.subscribe(|v: &_| n.borrow_mut().push_str(&format!("{}", v)), |e| n.borrow_mut().push_str("*"));
+        assert_eq!(n.borrow().as_str(), "21*");
     }
 }

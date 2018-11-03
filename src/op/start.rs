@@ -23,11 +23,11 @@ pub struct StartOp<Src, V, TYPE>
     PhantomData: PhantomData<TYPE>
 }
 
-pub trait ObsStartValOp<'o, V:'o, SS:YesNo> : Sized
+pub trait ObsStartValOp<'o, V, SS:YesNo> : Sized
 {
     fn start_once(self, v: V) -> StartOp<Self, Mutex<Option<V>>, ONCE>;
     fn start(self, v: V) -> StartOp<Self, V, CLONE> where V: Clone+'o;
-    fn start_fn(self, f: V) -> StartOp<Self, V, FN> where V: Fn()->V+'o;
+    fn start_fn<F>(self, f: F) -> StartOp<Self, F, FN> where F: 'o+Fn()->V;
 }
 
 pub trait ObsStartRefOp<'o, V:'o, SS:YesNo> : Sized
@@ -36,7 +36,7 @@ pub trait ObsStartRefOp<'o, V:'o, SS:YesNo> : Sized
     fn start_ref(self, v: &'o V) -> StartOp<Self, &'o V, REF>;
 }
 
-impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Val<V>>>
+impl<'o, V, SS:YesNo, Src: Observable<'o, SS, Val<V>>>
 ObsStartValOp<'o, V, SS>
 for Src
 {
@@ -46,7 +46,7 @@ for Src
     fn start(self, v: V) -> StartOp<Self, V, CLONE> where V: Clone + 'o
     { StartOp{ src: self, v, PhantomData} }
 
-    fn start_fn(self, f: V) -> StartOp<Self, V, FN> where V: Fn() -> V + 'o
+    fn start_fn<F>(self, f: F) -> StartOp<Self, F, FN> where F: Fn() -> V + 'o
     { StartOp{ src: self, v: f, PhantomData} }
 }
 
@@ -83,4 +83,123 @@ for StartOp<Src, Mutex<Option<V>>, ONCE>
 
     fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Val<V>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, err_or_comp) }
+}
+
+impl<'o, V:Clone+'o, SS:YesNo, Src: Observable<'o, SS, Val<V>>+'o>
+Observable<'o, SS, Val<V>>
+for StartOp<Src, V, CLONE>
+{
+    fn subscribe(&self, next: impl ActNext<'o, SS, Val<V>>, err_or_comp: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized {
+        if ! next.stopped() {
+            let v = self.v.clone();
+            if !next.stopped() {
+                next.call(v);
+                if ! next.stopped() {
+                    return self.src.subscribe(next, err_or_comp);
+                }
+            }
+        }
+
+        Unsub::done()
+    }
+
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Val<V>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
+    { self.subscribe(next, err_or_comp) }
+}
+
+
+impl<'o, V:'o, F:'o+Fn()->V, SS:YesNo, Src: Observable<'o, SS, Val<V>>+'o>
+Observable<'o, SS, Val<V>>
+for StartOp<Src, F, FN>
+{
+    fn subscribe(&self, next: impl ActNext<'o, SS, Val<V>>, err_or_comp: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized {
+        if ! next.stopped() {
+            let v = (self.v)();
+            if !next.stopped() {
+                next.call(v);
+                if ! next.stopped() {
+                    return self.src.subscribe(next, err_or_comp);
+                }
+            }
+        }
+
+        Unsub::done()
+    }
+
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Val<V>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
+    { self.subscribe(next, err_or_comp) }
+}
+
+impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Ref<V>>+'o>
+Observable<'o, SS, Ref<V>>
+for StartOp<Src, V, VAL_REF>
+{
+    fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, err_or_comp: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized {
+        if ! next.stopped() {
+            let v = &self.v;
+            if !next.stopped() {
+                next.call(v);
+                if ! next.stopped() {
+                    return self.src.subscribe(next, err_or_comp);
+                }
+            }
+        }
+
+        Unsub::done()
+    }
+
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
+    { self.subscribe(next, err_or_comp) }
+}
+
+impl<'o, V:'o, SS:YesNo, Src: Observable<'o, SS, Ref<V>>+'o>
+Observable<'o, SS, Ref<V>>
+for StartOp<Src, &'o V, REF>
+{
+    fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, err_or_comp: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized {
+        if ! next.stopped() {
+            if !next.stopped() {
+                next.call(self.v);
+                if ! next.stopped() {
+                    return self.src.subscribe(next, err_or_comp);
+                }
+            }
+        }
+
+        Unsub::done()
+    }
+
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
+    { self.subscribe(next, err_or_comp) }
+}
+
+
+#[cfg(test)]
+mod test
+{
+    use crate::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn val_ref()
+    {
+        let n = Cell::new(0);
+        let o = Of::value(1).start(2);
+        o.subscribe(|v:&_| n.replace(n.get() * 10 + *v), ());
+        assert_eq!(n.get(), 21);
+
+        n.replace(0);
+        o.subscribe(|v:&_| n.replace(n.get() * 10 + *v), ());
+        assert_eq!(n.get(), 21);
+    }
+
+    #[test]
+    fn start_ref()
+    {
+        let n = Cell::new(0);
+        let o = Of::value(1).start_ref(&2);
+        o.subscribe(|v:&_| n.replace(n.get() * 10 + *v), ());
+        assert_eq!(n.get(), 21);
+
+    }
 }

@@ -44,11 +44,11 @@ __WIP: rxrs is under heavy development & not ready for production__
 
 ```bash
 src
-├── lib.rs
 ├── observable.rs
 ├── observer.rs
+├── error.rs
 ├── by.rs
-├── unsub.rs
+├── lib.rs
 ├── fac
 │   ├── iter.rs
 │   ├── mod.rs
@@ -59,6 +59,7 @@ src
 │   ├── map.rs
 │   ├── mod.rs
 │   ├── skip.rs
+│   ├── start.rs
 │   ├── take.rs
 │   └── until.rs
 ├── scheduler
@@ -77,6 +78,7 @@ src
 │   ├── re_spin_lock.rs
 │   ├── ss_mark.rs
 │   └── yesno.rs
+├── unsub.rs
 └── util
     ├── clones.rs
     └── mod.rs

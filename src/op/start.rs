@@ -1,9 +1,10 @@
 use crate::*;
-use std::sync::Mutex;
-use std::marker::PhantomData;
+use self::StartOpType::*;
 use std::error::Error;
 use std::fmt::Display;
+use std::marker::PhantomData;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 pub mod StartOpType {
     pub struct ONCE;
@@ -12,8 +13,6 @@ pub mod StartOpType {
     pub struct VAL_REF;
     pub struct REF;
 }
-
-use self::StartOpType::*;
 
 
 pub struct StartOp<Src, V, TYPE>

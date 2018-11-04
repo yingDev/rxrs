@@ -23,7 +23,7 @@ impl<'s, 'o, SS:YesNo, By: RefOrVal> DynObservable<'s, 'o, SS, By>
     pub fn from_arc(src: std::sync::Arc<Observable<'o, SS, By>+'s>) -> Self { DynObservable{ src }}
     pub fn from_box(src: Box<Observable<'o, SS, By>+'s>) -> Self { DynObservable{ src: src.into() }}
 
-    pub fn as_obs(&self) -> std::sync::Arc<Observable<'o, SS, By>+'s> { self.src.clone() }
+    pub fn as_impl(&self) -> std::sync::Arc<Observable<'o, SS, By>+'s> { self.src.clone() }
 
     pub fn subscribe(&self, next: impl ActNext<'o, SS, By>, err_or_comp: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     { self.src.subscribe_dyn(box next, box err_or_comp) }

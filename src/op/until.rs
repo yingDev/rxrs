@@ -82,7 +82,7 @@ mod test
     {
         let n = Cell::new(0);
 
-        let (o, o2) = Rc::new(Of::value(123)).clones();
+        let (o, o2) = Rc::new(Of::<NO, i32>::value(123)).clones();
         let (sig, sig2) = Rc::new(Subject::<NO, i32>::new()).clones();
 
         o.until(sig).subscribe(|_:&_| { n.replace(n.get()+1); }, |_| { n.replace(n.get()+1); } );

@@ -1,5 +1,6 @@
 use crate::*;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 //todo: just use crate::sync::Act's ?
 
@@ -70,13 +71,19 @@ for (N, STOP)
 }
 
 
-unsafe impl<'o, SS:YesNo, R, F:FnOnce(Option<RxError>)->R+'o>
-ActEc<'o, SS>
+unsafe impl<'o, R, F:FnOnce(Option<RxError>)->R+'o>
+ActEc<'o, NO>
 for F
 {
     fn call_once(self, e: Option<RxError>) { self(e); }
 }
 
+unsafe impl<'o, R, F:FnOnce(Option<RxError>)->R+'o+Send+Sync>
+ActEc<'o, YES>
+for F
+{
+    fn call_once(self, e: Option<RxError>) { self(e); }
+}
 
 unsafe impl<'o, SS:YesNo, BY:RefOrVal+'o>
 ActNext<'o, SS, BY>
@@ -127,6 +134,13 @@ for SSActNextWrap<SS, By, A>
     #[inline(always)] fn stopped(&self) -> bool { self.next.stopped() }
 }
 
+unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, A: ActNext<'o, SS, By>>
+ActNext<'o, SS, By>
+for Arc<SSActNextWrap<SS, By, A>>
+{
+    #[inline(always)] fn call(&self, v: <By as RefOrVal>::V) { Arc::as_ref(self).next.call(v) }
+    #[inline(always)] fn stopped(&self) -> bool { Arc::as_ref(self).next.stopped() }
+}
 
 pub struct SSActEcWrap<A>
 {
@@ -177,6 +191,13 @@ pub fn forward_next<'o, SS:YesNo, By: RefOrVal+'o, N: Ssmark<SS>+'o, Caps: Ssmar
     SsForward::new((next, captures, fnext, fstop))
 }
 
+unsafe impl<'o, SS:YesNo, By: RefOrVal+'o, N: Ssmark<SS>+'o, Caps: Ssmark<SS>+'o>
+ActNext<'o, SS, By>
+for Arc<SsForward<SS, (N, Caps, fn(&N, &Caps, By), fn(&N, &Caps) ->bool)>>
+{
+    #[inline(always)] fn call(&self, v: <By as RefOrVal>::V) { Arc::as_ref(self).call(v) }
+    #[inline(always)] fn stopped(&self) -> bool { Arc::as_ref(self).stopped() }
+}
 
 #[inline(always)]
 pub fn forward_ec<'o, SS:YesNo, Caps: Ssmark<SS>+'o>

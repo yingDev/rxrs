@@ -39,7 +39,9 @@ for Merge<'s, 'o, SS, By>
                     }
                 });
             });
-            unsub.add(o.subscribe(next.clone(), ec));
+            unsub.if_not_done(|| {
+                unsub.add(o.subscribe(next.clone(), ec));
+            });
         }
         
         unsub
@@ -53,11 +55,33 @@ for Merge<'s, 'o, SS, By>
 mod test
 {
     use crate::*;
+    use std::rc::Rc;
+    use crate::util::clones::Clones;
+    use std::cell::RefCell;
     
     #[test]
     fn smoke()
     {
         let vals = Merge::new(vec![Of::value(123).into_dyn(), Of::value(456).into_dyn()]);
         vals.subscribe(|v:&_| println!("v={}", *v), |e| println!("complete"));
+    }
+    
+    #[test]
+    fn ops()
+    {
+        let (r1, r2, r3) = Rc::new(RefCell::new(String::new())).clones();
+        
+        let a = Of::value_clone(1).into_dyn();
+        let b = a.clone().map(|v| v+1);
+        let c = b.clone().map(|v| v+1);
+        let d = c.clone().take(0);
+        
+        Merge::new(vec![a, b, c, d]).map(|v| format!("{}", v)).subscribe(move |v:String| {
+            r1.borrow_mut().push_str(&v);
+        }, move |e| {
+            r2.borrow_mut().push_str("ok");
+        });
+        
+        assert_eq!("123ok", r3.borrow().as_str());
     }
 }

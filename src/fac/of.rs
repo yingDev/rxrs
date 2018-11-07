@@ -5,6 +5,10 @@ pub struct Of<V>(Option<V>);
 impl<V> Of<V>
 {
     pub fn value(v: V) -> Self { Of(Some(v)) }
+    pub fn value_clone<'o>(v: V) -> impl Observable<'o, NO, Val<V>> where V: Clone+'o
+    {
+        Self::value(v).map(|v:&V| v.clone())
+    }
     pub fn empty() -> Self { Of(None) }
 }
 

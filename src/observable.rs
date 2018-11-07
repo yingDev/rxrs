@@ -8,10 +8,14 @@ pub trait Observable<'o, SS:YesNo, By: RefOrVal>
     fn into_dyn<'s>(self) -> DynObservable<'s, 'o, SS, By> where Self: Sized+'s { DynObservable::new(self) }
 }
 
-#[derive(Clone)]
 pub struct DynObservable<'s, 'o, SS:YesNo, By: RefOrVal>
 {
     pub(crate) src: std::sync::Arc<Observable<'o, SS, By> + 's>,
+}
+
+impl<'s, 'o, SS:YesNo, By: RefOrVal> Clone for DynObservable<'s, 'o, SS, By>
+{
+    fn clone(&self) -> Self { Self::from_arc(self.src.clone()) }
 }
 
 unsafe impl<'s, 'o, By: RefOrVal> Send for DynObservable<'s, 'o, YES, By>{}

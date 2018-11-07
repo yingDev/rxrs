@@ -24,20 +24,18 @@ for Merge<'s, 'o, SS, By>
     fn subscribe(&self, next: impl ActNext<'o, SS, By>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         let unsub = Unsub::<SS>::new();
-        
         let next = Arc::new(SSActNextWrap::new(next));
-        let ec = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(ec))) });
-        let count = Arc::new(AtomicUsize::new(self.obs.len()));
+        let state = Arc::new((unsafe{ AnySendSync::new(UnsafeCell::new(Some(ec))) }, AtomicUsize::new(self.obs.len())));
         
         for o in self.obs.iter() {
-            let ec = forward_ec((unsub.clone(), SSWrap::new(ec.clone()), SSWrap::new(count.clone())), |(unsub, ec, count), e| {
+            let ec = forward_ec((unsub.clone(), SSWrap::new(state.clone())), |(unsub, state), e| {
                 unsub.if_not_done(||{
                     if e.is_some() {
                         unsub.unsub();
-                        unsafe { &mut *ec.get() }.take().map_or((), |ec| ec.call_once(e))
-                    } else if count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                        unsafe { &mut *state.0.get() }.take().map_or((), |ec| ec.call_once(e))
+                    } else if state.1.fetch_sub(1, Ordering::Relaxed) == 1 {
                         unsub.unsub();
-                        unsafe { &mut *ec.get() }.take().map_or((), |ec| ec.call_once(e))
+                        unsafe { &mut *state.0.get() }.take().map_or((), |ec| ec.call_once(e))
                     }
                 });
             });
@@ -48,9 +46,7 @@ for Merge<'s, 'o, SS, By>
     }
     
     fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, By>>, err_or_comp: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
-    {
-        unimplemented!()
-    }
+    { self.subscribe(next, err_or_comp) }
 }
 
 #[cfg(test)]

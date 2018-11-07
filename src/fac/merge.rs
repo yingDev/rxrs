@@ -57,6 +57,9 @@ mod test
     use std::rc::Rc;
     use crate::util::clones::Clones;
     use std::cell::RefCell;
+    use std::time::Duration;
+    use std::sync::Arc;
+    use std::sync::atomic::*;
     
     #[test]
     fn smoke()
@@ -82,5 +85,28 @@ mod test
         });
         
         assert_eq!("123ok", r3.borrow().as_str());
+    }
+    
+    #[test]
+    fn asynced()
+    {
+        let (n, n1, n2) = Arc::new(AtomicUsize::new(0)).clones();
+        let sch = Arc::new(NewThreadScheduler::new(Arc::new(DefaultThreadFac)));
+        
+        let a = Of::<YES, usize>::value(1).map(|v:&_| *v).into_dyn();
+        let b = Timer::new(Duration::from_millis(10), sch.clone()).take(10).into_dyn();
+        let c = Of::<YES, usize>::value(2).map(|v:&_| *v).into_dyn();
+        let d = Timer::new(Duration::from_millis(20), sch.clone()).take(10).into_dyn();
+    
+        Merge::new(vec![a, b, c, d]).subscribe(move |v| {
+            n1.fetch_add(v, Ordering::SeqCst);
+        }, move |_| {
+            n2.store(n2.load(Ordering::SeqCst) * 10, Ordering::SeqCst);
+        });
+        
+        ::std::thread::sleep(Duration::from_millis(250));
+        
+        assert_eq!(n.load(Ordering::SeqCst), 930);
+        
     }
 }

@@ -1,7 +1,7 @@
 use crate::*;
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::rc::Rc;
+use std::cell::UnsafeCell;
+use std::sync::atomic::*;
 
 pub struct Merge<'s, 'o, SS:YesNo, By: RefOrVal>
 {
@@ -23,20 +23,25 @@ for Merge<'s, 'o, SS, By>
 {
     fn subscribe(&self, next: impl ActNext<'o, SS, By>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
-        let next = Arc::new(SSActNextWrap::new(next));
-        
-        let ec = Arc::new(Mutex::new(Some(ec)));
-        
         let unsub = Unsub::<SS>::new();
-        for obs in self.obs.iter() {
-            unsub.if_not_done(|| {
-                let ec = ec.clone();
-                let unsub2 = unsub.clone();
-
-//                unsub.add_each(obs.subscribe(next.clone(), move |e:Option<RxError>| {
-//                    unsub2.unsub_then(|| ec.lock().unwrap().take().map_or((), |ec| ec.call_once(e)))
-//                }));
+        
+        let next = Arc::new(SSActNextWrap::new(next));
+        let ec = Arc::new(unsafe{ AnySendSync::new(UnsafeCell::new(Some(ec))) });
+        let count = Arc::new(AtomicUsize::new(self.obs.len()));
+        
+        for o in self.obs.iter() {
+            let ec = forward_ec((unsub.clone(), SSWrap::new(ec.clone()), SSWrap::new(count.clone())), |(unsub, ec, count), e| {
+                unsub.if_not_done(||{
+                    if e.is_some() {
+                        unsub.unsub();
+                        unsafe { &mut *ec.get() }.take().map_or((), |ec| ec.call_once(e))
+                    } else if count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                        unsub.unsub();
+                        unsafe { &mut *ec.get() }.take().map_or((), |ec| ec.call_once(e))
+                    }
+                });
             });
+            unsub.add(o.subscribe(next.clone(), ec));
         }
         
         unsub
@@ -56,7 +61,6 @@ mod test
     #[test]
     fn smoke()
     {
-        
         let vals = Merge::new(vec![Of::value(123).into_dyn(), Of::value(456).into_dyn()]);
         vals.subscribe(|v:&_| println!("v={}", *v), |e| println!("complete"));
     }

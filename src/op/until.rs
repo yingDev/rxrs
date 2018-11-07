@@ -133,8 +133,8 @@ mod test
     #[test]
     fn empty_sig()
     {
-        let sig = Of::<()>::empty();
-        let val = Of::value(123);
+        let sig = Of::<NO, ()>::empty();
+        let val = Of::<NO, i32>::value(123);
 
         let sub = val.until(sig).subscribe(|_v:&_| assert!(false, "shouldnt next"), |_e| assert!(false, "shouldnt complete"));
 

@@ -99,7 +99,7 @@ mod test
     #[test]
     fn boxed()
     {
-        let o = Of::value(123).into_dyn().map(|v:&_| v+1).map(|v| v*v);
+        let o = Of::<NO, i32>::value(123).into_dyn().map(|v:&_| v+1).map(|v| v*v);
         o.subscribe_dyn(box |v| println!("v={}", v), box ());
     }
 

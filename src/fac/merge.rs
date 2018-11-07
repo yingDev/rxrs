@@ -10,10 +10,9 @@ pub struct Merge<'s, 'o, SS:YesNo, By: RefOrVal>
 
 impl<'s, 'o, SS:YesNo, By: RefOrVal> Merge<'s, 'o, SS, By>
 {
-    pub fn new(obs: impl Into<Vec<DynObservable<'s, 'o, SS, By>>>) -> Merge<'s, 'o, SS, By>
+    pub fn new(obs: impl Into<Vec<DynObservable<'s, 'o, SS, By>>>) -> Self
     {
-        let obs = obs.into();
-        Merge{ obs }
+        Merge{ obs: obs.into() }
     }
 }
 
@@ -62,7 +61,7 @@ mod test
     #[test]
     fn smoke()
     {
-        let vals = Merge::new(vec![Of::value(123).into_dyn(), Of::value(456).into_dyn()]);
+        let vals = Merge::new(vec![Of::<NO, i32>::value(123).into_dyn(), Of::<NO, i32>::value(456).into_dyn()]);
         vals.subscribe(|v:&_| println!("v={}", *v), |e| println!("complete"));
     }
     
@@ -71,7 +70,7 @@ mod test
     {
         let (r1, r2, r3) = Rc::new(RefCell::new(String::new())).clones();
         
-        let a = Of::value_clone(1).into_dyn();
+        let a = Of::<NO, i32>::value(1).map(|v:&_| *v).into_dyn();
         let b = a.clone().map(|v| v+1);
         let c = b.clone().map(|v| v+1);
         let d = c.clone().take(0);

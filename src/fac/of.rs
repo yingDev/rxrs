@@ -1,25 +1,26 @@
 use crate::*;
+use std::marker::PhantomData;
 
-pub struct Of<V>(Option<V>);
-
-impl<V> Of<V>
+pub struct Of<SS:YesNo, V>
 {
-    pub fn value(v: V) -> Self { Of(Some(v)) }
-    pub fn value_clone<'o>(v: V) -> impl Observable<'o, NO, Val<V>> where V: Clone+'o
-    {
-        Self::value(v).map(|v:&V| v.clone())
-    }
-    pub fn empty() -> Self { Of(None) }
+    v: Option<V>,
+    PhantomData: PhantomData<SS>
 }
 
-impl<'o, V:'o>
-Observable<'o, NO, Ref<V>>
-for Of<V>
+impl<V, SS:YesNo> Of<SS, V>
 {
-    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO>+'o) -> Unsub<'o, NO> where Self: Sized
+    pub fn value(v: V) -> Self { Of{ v: Some(v), PhantomData }}
+    pub fn empty() -> Self { Of{ v: None, PhantomData } }
+}
+
+impl<'o, V:'o, SS:YesNo>
+Observable<'o, SS, Ref<V>>
+for Of<SS, V>
+{
+    fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, ec: impl ActEc<'o, SS>+'o) -> Unsub<'o, SS> where Self: Sized
     {
         if ! next.stopped() {
-            if let Some(v) = self.0.as_ref() {
+            if let Some(v) = self.v.as_ref() {
                 next.call(v);
             }
             if !next.stopped() {
@@ -30,7 +31,7 @@ for Of<V>
         Unsub::done()
     }
 
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o,NO>>) -> Unsub<'o, NO>
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, ec: Box<ActEcBox<'o,SS>>) -> Unsub<'o, SS>
     { self.subscribe(next, ec) }
 }
 

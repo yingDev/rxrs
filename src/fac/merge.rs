@@ -62,7 +62,7 @@ mod test
     fn smoke()
     {
         let vals = Merge::new(vec![Of::<NO, i32>::value(123).into_dyn(), Of::<NO, i32>::value(456).into_dyn()]);
-        vals.subscribe(|v:&_| println!("v={}", *v), |e| println!("complete"));
+        vals.subscribe(|v:&_| println!("v={}", *v), |_| println!("complete"));
     }
     
     #[test]
@@ -77,7 +77,7 @@ mod test
         
         Merge::new(vec![a, b, c, d]).map(|v| format!("{}", v)).subscribe(move |v:String| {
             r1.borrow_mut().push_str(&v);
-        }, move |e| {
+        }, move |_| {
             r2.borrow_mut().push_str("ok");
         });
         

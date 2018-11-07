@@ -48,15 +48,18 @@ src
 ├── observer.rs
 ├── error.rs
 ├── by.rs
+├── unsub.rs
 ├── lib.rs
 ├── fac
 │   ├── iter.rs
+│   ├── merge.rs
 │   ├── mod.rs
 │   ├── of.rs
 │   └── timer.rs
 ├── op
 │   ├── filter.rs
 │   ├── map.rs
+│   ├── merge.rs
 │   ├── mod.rs
 │   ├── skip.rs
 │   ├── start.rs
@@ -78,9 +81,9 @@ src
 │   ├── re_spin_lock.rs
 │   ├── ss_mark.rs
 │   └── yesno.rs
-├── unsub.rs
 └── util
     ├── clones.rs
     └── mod.rs
+
 
 ```

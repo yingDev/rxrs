@@ -27,6 +27,8 @@ for Merge<'s, 'o, SS, By>
         let state = Arc::new((unsafe{ AnySendSync::new(UnsafeCell::new(Some(ec))) }, AtomicUsize::new(self.obs.len())));
         
         for o in self.obs.iter() {
+            if unsub.is_done() { break; }
+            
             let ec = forward_ec((unsub.clone(), SSWrap::new(state.clone())), |(unsub, state), e| {
                 unsub.if_not_done(||{
                     if e.is_some() {

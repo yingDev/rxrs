@@ -28,7 +28,7 @@ __WIP: rxrs is under heavy development & not ready for production__
             .map(|v:&_| format!("*{}", v));
 
         evens.subscribe(
-            |v: String    | output.borrow_mut().push_str(&v),
+            |v: String| output.borrow_mut().push_str(&v),
             |e| output.borrow_mut().push_str("ok")
         );
 

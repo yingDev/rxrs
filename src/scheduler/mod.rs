@@ -28,7 +28,7 @@ impl<SS:YesNo, S: Scheduler<SS>> Scheduler<SS> for Arc<S>
 impl<SS:YesNo, S: SchedulerPeriodic<SS>> SchedulerPeriodic<SS> for Arc<S>
 {
     #[inline(always)]
-    fn schedule_periodic(&self, period: Duration, act: impl Act<SS, Ref<Unsub<'static, SS>>>+'static) -> Unsub<'static, SS> where Self: Sized {
+    fn schedule_periodic(&self, period: Duration, act: impl Act<SS, Ref<Unsub<'static, SS>>>+'static) -> Unsub<'static, SS> {
         Arc::as_ref(self).schedule_periodic(period, act)
     }
 }

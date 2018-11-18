@@ -21,13 +21,12 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     }
 
     #[inline(always)]
-    pub fn value(&self) -> Option<&V>
+    pub fn value(&self, f: impl FnOnce(Option<&V>))
     {
         self.lock.enter();
         let val = unsafe{ (&*self.val.get()) }.as_ref();
+        f(val);
         self.lock.exit();
-
-        val
     }
 
     #[inline(never)]

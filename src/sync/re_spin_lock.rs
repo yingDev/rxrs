@@ -10,7 +10,7 @@ pub struct ReSpinLock<SS: YesNo>
     held: AtomicUsize,
     owner: AtomicUsize,
 
-    recur_nss: UnsafeCell<usize>,
+    //recur_nss: UnsafeCell<usize>,
 
     PhantomData: PhantomData<SS>
 
@@ -25,7 +25,7 @@ impl<SS: YesNo> ReSpinLock<SS>
     {
         ReSpinLock{
             recur: UnsafeCell::new(0), owner: AtomicUsize::new(0), held: AtomicUsize::new(0),
-            recur_nss: UnsafeCell::new(0),
+            //recur_nss: UnsafeCell::new(0),
             PhantomData
         }
     }
@@ -52,8 +52,8 @@ impl<SS: YesNo> ReSpinLock<SS>
             }
         } else {
             unsafe {
-                let r = *self.recur_nss.get();
-                *self.recur_nss.get() += 1;
+                let r = *self.recur.get();
+                *self.recur.get() += 1;
                 r
             }
         }
@@ -62,21 +62,23 @@ impl<SS: YesNo> ReSpinLock<SS>
     #[inline(always)]
     pub fn exit(&self)
     {
+        unsafe { *self.recur.get() -= 1; }
+        
         if SS::VALUE {
             debug_assert_eq!(self.held.load(Ordering::SeqCst), 1);
             debug_assert_eq!(self.owner.load(Ordering::SeqCst), Self::tid());
 
-            unsafe { *self.recur.get() -= 1; }
 
             if unsafe { *self.recur.get() } == 0 {
                 self.owner.store(0, Ordering::Relaxed);
                 self.held.store(0, Ordering::Release);
             }
-        } else {
-            unsafe {
-                *self.recur_nss.get() -= 1;
-            }
-        }
+        } 
+    }
+    
+    pub fn recur(&self) -> usize
+    {
+        unsafe { *self.recur.get() }
     }
 
     #[inline(always)]

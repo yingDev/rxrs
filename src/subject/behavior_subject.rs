@@ -4,6 +4,7 @@ use std::cell::UnsafeCell;
 use std::sync::atomic::*;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::collections::VecDeque;
 
 pub struct MutexSlim<SS:YesNo, V>
 {
@@ -58,12 +59,15 @@ impl<SS:YesNo, V> MutexSlim<SS, V>
         }
         Guard{ lock: &self.lock, val: unsafe{ &mut *self.value.get() } }
     }
+    
+    pub fn is_recur(&self) -> bool { self.lock.recur() != 0 }
 }
 
 
 pub struct BehaviorSubject<'o, SS:YesNo, V>
 {
-    val: MutexSlim<SS, Option<V>>,
+    lock: ReSpinLock<SS>,
+    val: UnsafeCell<Arc<Option<V>>>,
     subj: Subject<'o, SS, V>,
 }
 
@@ -75,26 +79,35 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     #[inline(always)]
     pub fn new(value: V) -> BehaviorSubject<'o, SS, V>
     {
-        BehaviorSubject{ val: MutexSlim::new(Some(value)), subj: Subject::new() }
+        BehaviorSubject{
+            val: UnsafeCell::new(Arc::new(Some(value))),
+            lock: ReSpinLock::new(),
+            subj: Subject::new()
+        }
     }
 
-    pub fn value(&self) -> Guard<SS, Option<V>>
+    pub fn value<U>(&self, map: impl FnOnce(&Option<V>) -> U) -> U
     {
-        self.val.lock()
+        self.lock.enter();
+        let val = unsafe { (&*self.val.get()) }.clone();
+        self.lock.exit();
+        map(Arc::as_ref(&val))
+        
     }
 
     #[inline(never)]
     fn sub_internal(&self, next: Arc<ActNext<'o, SS, Ref<V>>>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
-        let mut val = self.value();
+        self.lock.enter();
         
-        if val.is_none() {
-            return Unsub::done();
+        let sub = make_sub();
+        if ! sub.is_done() {
+            let val = unsafe { &*self.val.get() }.clone();
+            next.call(Option::as_ref(&val).unwrap());
         }
 
-        let sub = make_sub();
-        next.call(val.as_ref().unwrap());
-
+        self.lock.exit();
+        
         sub
     }
 }
@@ -111,6 +124,7 @@ for BehaviorSubject<'o, NO, V>
     fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO>>) -> Unsub<'o, NO>
     {
         let next: Arc<ActNext<'o, NO, Ref<V>>> = next.into();
+        //fixme: forward
         self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
     }
 }
@@ -137,23 +151,58 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
 {
     pub fn next(&self, v:V)
     {
-        let mut val = self.value();
+        self.lock.enter();
+        
+        let val = unsafe{ &mut *self.val.get() };
         
         if val.is_some() {
-            val.replace(v);
-            self.subj.next_ref(val.as_ref().unwrap());
+            if let Some(val) = Arc::get_mut(val) {
+                *val = Some(v);
+            } else {
+                *val = Arc::new(Some(v));
+            }
+            let val = val.clone();
+            self.lock.exit();
+            self.subj.next_ref(Option::as_ref(&val).unwrap());
+            return;
         }
+        
+        self.lock.exit();
     }
 
     pub fn error(&self, e:RxError)
     {
-        { self.value().take(); }
+        self.lock.enter();
+    
+        let val = unsafe{ &mut *self.val.get() };
+        let to_drop;
+        if val.is_some() {
+            if let Some(val) = Arc::get_mut(val) {
+                to_drop = val.take();
+            } else {
+                *val = Arc::new(None);
+            }
+        }
+        self.lock.exit();
+        
         self.subj.error(e);
     }
 
     pub fn complete(&self)
     {
-        { self.value().take(); }
+        self.lock.enter();
+    
+        let val = unsafe{ &mut *self.val.get() };
+        let to_drop;
+        if val.is_some() {
+            if let Some(val) = Arc::get_mut(val) {
+                to_drop = val.take();
+            } else {
+                *val = Arc::new(None);
+            }
+        }
+        self.lock.exit();
+    
         self.subj.complete();
     }
 }
@@ -189,12 +238,20 @@ mod test
     }
     
     #[test]
-    #[should_panic]
-    fn value()
+    fn recurse()
     {
+        let (n, n1) = Rc::new(Cell::new(0)).clones();
+        
         let s = Rc::new(BehaviorSubject::<NO, i32>::new(1));
         s.clone().subscribe(move |v: &i32| {
-            s.next(2);
+            if *v == 1 {
+                s.next(2);
+            }
+            n.replace(n.get() + v);
         }, ());
+        
+        assert_eq!(n1.get(), 3);
     }
+    
+    
 }

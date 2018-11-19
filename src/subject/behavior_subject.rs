@@ -1,12 +1,70 @@
 use crate::*;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
+use std::sync::atomic::*;
+use std::ops::Deref;
+use std::ops::DerefMut;
+
+pub struct MutexSlim<SS:YesNo, V>
+{
+    lock: ReSpinLock<SS>,
+    value: UnsafeCell<V>,
+}
+
+pub struct Guard<'a, SS:YesNo, V>
+{
+    lock: &'a ReSpinLock<SS>,
+    val: &'a mut V,
+}
+
+impl<'a, SS:YesNo, V> Deref for Guard<'a, SS, V>
+{
+    type Target = V;
+    
+    fn deref(&self) -> &V
+    {
+        self.val
+    }
+}
+
+impl<'a, SS:YesNo, V> DerefMut for Guard<'a, SS, V>
+{
+    fn deref_mut(&mut self) -> &mut V
+    {
+        self.val
+    }
+}
+
+impl<'a, SS:YesNo, V> Drop for Guard<'a, SS, V>
+{
+    fn drop(&mut self)
+    {
+        self.lock.exit();
+    }
+}
+
+impl<SS:YesNo, V> MutexSlim<SS, V>
+{
+    pub fn new(value: V) -> Self
+    {
+        MutexSlim { lock: ReSpinLock::new(), value: UnsafeCell::new(value) }
+    }
+    
+    pub fn lock(&self) -> Guard<SS, V>
+    {
+        let recur = self.lock.enter();
+        if recur != 0 {
+            panic!("MutexSlim is not reentrant; please drop the guard first.");
+        }
+        Guard{ lock: &self.lock, val: unsafe{ &mut *self.value.get() } }
+    }
+}
+
 
 pub struct BehaviorSubject<'o, SS:YesNo, V>
 {
-    lock: ReSpinLock<SS>,
-    val: UnsafeCell<Option<V>>,
-    subj: Subject<'o, SS, V>
+    val: MutexSlim<SS, Option<V>>,
+    subj: Subject<'o, SS, V>,
 }
 
 unsafe impl<'o, V:Send+Sync+'o> Send for BehaviorSubject<'o, YES, V>{}
@@ -17,32 +75,26 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     #[inline(always)]
     pub fn new(value: V) -> BehaviorSubject<'o, SS, V>
     {
-        BehaviorSubject{ lock: ReSpinLock::new(), val: UnsafeCell::new(Some(value)), subj: Subject::new() }
+        BehaviorSubject{ val: MutexSlim::new(Some(value)), subj: Subject::new() }
     }
 
-    #[inline(always)]
-    pub fn value(&self, f: impl FnOnce(Option<&V>))
+    pub fn value(&self) -> Guard<SS, Option<V>>
     {
-        self.lock.enter();
-        let val = unsafe{ (&*self.val.get()) }.as_ref();
-        f(val);
-        self.lock.exit();
+        self.val.lock()
     }
 
     #[inline(never)]
     fn sub_internal(&self, next: Arc<ActNext<'o, SS, Ref<V>>>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
     {
-        self.lock.enter();
-        let val = unsafe { &mut *self.val.get() };
+        let mut val = self.value();
+        
         if val.is_none() {
-            self.lock.exit();
             return Unsub::done();
         }
 
         let sub = make_sub();
         next.call(val.as_ref().unwrap());
 
-        self.lock.exit();
         sub
     }
 }
@@ -85,34 +137,23 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
 {
     pub fn next(&self, v:V)
     {
-        self.lock.enter();
-        if unsafe { &*self.val.get() }.is_some() {
-            unsafe { &mut *self.val.get() }.replace(v);
-            self.subj.next_ref(unsafe { &*self.val.get() }.as_ref().unwrap());
+        let mut val = self.value();
+        
+        if val.is_some() {
+            val.replace(v);
+            self.subj.next_ref(val.as_ref().unwrap());
         }
-        self.lock.exit();
-
     }
 
     pub fn error(&self, e:RxError)
     {
-        self.lock.enter();
-        let _ = if unsafe { &mut *self.val.get() }.is_some() {
-            unsafe { &mut *self.val.get() }.take()
-        } else { None };
-        self.lock.exit();
-
+        { self.value().take(); }
         self.subj.error(e);
     }
 
     pub fn complete(&self)
     {
-        self.lock.enter();
-        let _ = if unsafe { &mut *self.val.get() }.is_some() {
-            unsafe { &mut *self.val.get()}.take()
-        }else { None };
-        self.lock.exit();
-
+        { self.value().take(); }
         self.subj.complete();
     }
 }
@@ -124,7 +165,8 @@ mod test
 
     use std::cell::Cell;
     use crate::*;
-
+    use std::rc::Rc;
+    
     #[test]
     fn shoudl_emit_on_sub()
     {
@@ -144,5 +186,15 @@ mod test
         s.subscribe(|v:&_| { x.replace(*v); }, ());
         assert_eq!(x.get(), 789);
         assert_eq!(n.get(), 789);
+    }
+    
+    #[test]
+    #[should_panic]
+    fn value()
+    {
+        let s = Rc::new(BehaviorSubject::<NO, i32>::new(1));
+        s.clone().subscribe(move |v: &i32| {
+            s.next(2);
+        }, ());
     }
 }

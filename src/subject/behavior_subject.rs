@@ -1,39 +1,20 @@
 use crate::*;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-use std::ops::Deref;
-use std::ops::DerefMut;
 use std::ptr;
 use std::cell::Cell;
+use std::ops::Deref;
 
-pub struct MutexSlim<SS:YesNo, V>
+pub struct ReSpinMutex<SS:YesNo, V>
 {
     lock: ReSpinLock<SS>,
-    value: UnsafeCell<V>,
+    value: RecurCell<V>,
 }
 
 pub struct Guard<'a, SS:YesNo, V>
 {
-    lock: &'a ReSpinLock<SS>,
-    val: &'a mut V,
-}
-
-impl<'a, SS:YesNo, V> Deref for Guard<'a, SS, V>
-{
-    type Target = V;
-    
-    fn deref(&self) -> &V
-    {
-        self.val
-    }
-}
-
-impl<'a, SS:YesNo, V> DerefMut for Guard<'a, SS, V>
-{
-    fn deref_mut(&mut self) -> &mut V
-    {
-        self.val
-    }
+    value: &'a RecurCell<V>,
+    lock: &'a ReSpinLock<SS>
 }
 
 impl<'a, SS:YesNo, V> Drop for Guard<'a, SS, V>
@@ -44,24 +25,24 @@ impl<'a, SS:YesNo, V> Drop for Guard<'a, SS, V>
     }
 }
 
+impl<'a, SS:YesNo, V> Deref for Guard<'a, SS, V>
+{
+    type Target = RecurCell<V>;
+    fn deref(&self) -> &Self::Target { self.value }
+}
 
-impl<SS:YesNo, V> MutexSlim<SS, V>
+impl<SS:YesNo, V> ReSpinMutex<SS, V>
 {
     pub fn new(value: V) -> Self
     {
-        MutexSlim { lock: ReSpinLock::new(), value: UnsafeCell::new(value) }
+        ReSpinMutex { lock: ReSpinLock::new(), value: RecurCell::new(value) }
     }
     
     pub fn lock(&self) -> Guard<SS, V>
     {
-        let recur = self.lock.enter();
-        if recur != 0 {
-            panic!("MutexSlim is not reentrant; please drop the guard first.");
-        }
-        Guard{ lock: &self.lock, val: unsafe{ &mut *self.value.get() } }
+        self.lock.enter();
+        Guard{ value: &self.value, lock: &self.lock }
     }
-    
-    pub fn is_recur(&self) -> bool { self.lock.recur() != 0 }
 }
 
 
@@ -94,6 +75,7 @@ impl<V> RecurCell<V>
         
         if self.cur.get() == &val {
             self.cur.replace(ptr::null());
+            assert!(unsafe{ &*self.val.get() }.is_none());
             *unsafe{ &mut *self.val.get() } = val;
         }
         
@@ -110,8 +92,8 @@ impl<V> RecurCell<V>
 
 pub struct BehaviorSubject<'o, SS:YesNo, V>
 {
-    lock: ReSpinLock<SS>,
-    val: RecurCell<Option<V>>,
+    //lock: ReSpinLock<SS>,
+    val: ReSpinMutex<SS, Option<V>>,
     subj: Subject<'o, SS, V>,
 }
 
@@ -124,19 +106,15 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     pub fn new(value: V) -> BehaviorSubject<'o, SS, V>
     {
         BehaviorSubject{
-            val: RecurCell::new(Some(value)),
-            lock: ReSpinLock::new(),
+            val: ReSpinMutex::new(Some(value)),
+            //lock: ReSpinLock::new(),
             subj: Subject::new()
         }
     }
 
     pub fn value<U>(&self, map: impl FnOnce(&Option<V>) -> U) -> U
     {
-        self.lock.enter();
-        let u = self.val.map(map);
-        self.lock.exit();
-        
-        u
+        self.val.lock().map(map)
     }
 }
 
@@ -146,14 +124,13 @@ for BehaviorSubject<'o, SS, V>
 {
     fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
-        self.lock.enter();
-        
-        let sub = if self.val.map(|v:&_| v.is_some()) {
+        let val = self.val.lock();
+        if val.map(|v:&_| v.is_some()) {
             let next = Arc::new(SSActNextWrap::new(next));
             let sub = self.subj.subscribe( next.clone(), ec);
             sub.if_not_done(||{
                 if ! next.stopped() {
-                    self.val.map(|v: &Option<V>| {
+                    val.map(|v: &Option<V>| {
                         next.call(v.as_ref().unwrap());
                     });
                 }
@@ -161,11 +138,7 @@ for BehaviorSubject<'o, SS, V>
             sub
         } else {
             self.subj.subscribe( next, ec)
-        };
-        
-        self.lock.exit();
-        
-        sub
+        }
     }
 
     fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
@@ -179,46 +152,38 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
 {
     pub fn next(&self, v:V)
     {
-        self.lock.enter();
-        
-        self.val.map(|val: &Option<V>| {
+        let cell = self.val.lock();
+        cell.map(|val: &Option<V>| {
             if val.is_some() {
-                self.val.replace(Some(v));
-                self.val.map(|val: &Option<V>| {
+                cell.replace(Some(v));
+                cell.map(|val: &Option<V>| {
                     self.subj.next_ref(val.as_ref().unwrap());
                 });
             }
-        });
-        
-        self.lock.exit();
+        })
     }
 
     pub fn error(&self, e:RxError)
     {
-        self.lock.enter();
-        
-        self.val.map(|val: &Option<V>| {
+        let cell = self.val.lock();
+        cell.map(|val: &Option<V>| {
             if val.is_some() {
-                self.val.replace(None);
+                cell.replace(None);
                 self.subj.error(e);
             }
         });
-        
-        self.lock.exit();
     }
 
     pub fn complete(&self)
     {
-        self.lock.enter();
-    
-        self.val.map(|val: &Option<V>| {
+        let cell = self.val.lock();
+        cell.map(|val: &Option<V>| {
             if val.is_some() {
-                self.val.replace(None);
+                cell.replace(None);
                 self.subj.complete();
             }
         });
         
-        self.lock.exit();
     }
 }
 

@@ -1,98 +1,8 @@
 use crate::*;
 use std::sync::Arc;
-use std::cell::UnsafeCell;
-use std::ptr;
-use std::cell::Cell;
-use std::ops::Deref;
-
-pub struct ReSpinMutex<SS:YesNo, V>
-{
-    lock: ReSpinLock<SS>,
-    value: RecurCell<V>,
-}
-
-pub struct Guard<'a, SS:YesNo, V>
-{
-    value: &'a RecurCell<V>,
-    lock: &'a ReSpinLock<SS>
-}
-
-impl<'a, SS:YesNo, V> Drop for Guard<'a, SS, V>
-{
-    fn drop(&mut self)
-    {
-        self.lock.exit();
-    }
-}
-
-impl<'a, SS:YesNo, V> Deref for Guard<'a, SS, V>
-{
-    type Target = RecurCell<V>;
-    fn deref(&self) -> &Self::Target { self.value }
-}
-
-impl<SS:YesNo, V> ReSpinMutex<SS, V>
-{
-    pub fn new(value: V) -> Self
-    {
-        ReSpinMutex { lock: ReSpinLock::new(), value: RecurCell::new(value) }
-    }
-    
-    pub fn lock(&self) -> Guard<SS, V>
-    {
-        self.lock.enter();
-        Guard{ value: &self.value, lock: &self.lock }
-    }
-}
-
-
-
-//todo: move
-pub struct RecurCell<V>
-{
-    val: UnsafeCell<Option<V>>,
-    cur: Cell<*const Option<V>>,
-}
-
-impl<V> RecurCell<V>
-{
-    pub fn new(val: V) -> Self
-    {
-        RecurCell { val: UnsafeCell::new(Some(val)), cur: Cell::new(ptr::null()) }
-    }
-    
-    pub fn map<U>(&self, f: impl FnOnce(&V) -> U) -> U
-    {
-        let val = unsafe{ &mut *self.val.get() }.take();
-        let u = if val.is_some() {
-            assert_eq!(self.cur.get(), ptr::null());
-            self.cur.replace(&val);
-            f(val.as_ref().unwrap())
-        } else {
-            assert_ne!(self.cur.get(), ptr::null());
-            f(unsafe{ &*self.cur.get() }.as_ref().unwrap())
-        };
-        
-        if self.cur.get() == &val {
-            self.cur.replace(ptr::null());
-            assert!(unsafe{ &*self.val.get() }.is_none());
-            *unsafe{ &mut *self.val.get() } = val;
-        }
-        
-        u
-    }
-    
-    pub fn replace(&self, val: V) -> Option<V>
-    {
-        self.cur.replace(ptr::null());
-        unsafe{ &mut *self.val.get() }.replace(val)
-    }
-}
-
 
 pub struct BehaviorSubject<'o, SS:YesNo, V>
 {
-    //lock: ReSpinLock<SS>,
     val: ReSpinMutex<SS, Option<V>>,
     subj: Subject<'o, SS, V>,
 }
@@ -105,11 +15,7 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     #[inline(always)]
     pub fn new(value: V) -> BehaviorSubject<'o, SS, V>
     {
-        BehaviorSubject{
-            val: ReSpinMutex::new(Some(value)),
-            //lock: ReSpinLock::new(),
-            subj: Subject::new()
-        }
+        BehaviorSubject{ val: ReSpinMutex::new(Some(value)), subj: Subject::new() }
     }
 
     pub fn value<U>(&self, map: impl FnOnce(&Option<V>) -> U) -> U

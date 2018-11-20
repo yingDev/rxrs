@@ -12,12 +12,10 @@ enum SubjectState<'o, SS:YesNo, V>
     Drop
 }
 
-//todo: use RecurCell
 struct Wrap<'o, SS:YesNo, V>
 {
     lock: ReSpinLock<SS>,
-    to_drop:UnsafeCell<Vec<*mut SubjectState<'o, SS, V>>>,
-    state: UnsafeCell<*mut SubjectState<'o, SS, V>>
+    state: RecurCell<UnsafeCell<SubjectState<'o, SS, V>>>
 }
 
 unsafe impl <'o, V:Send+Sync+'o> Send for Wrap<'o, YES, V> {}
@@ -34,8 +32,7 @@ impl<'o, V, SS:YesNo> Subject<'o, SS, V>
 {
     pub fn new() -> Subject<'o, SS, V>
     {
-        let state_ptr = Box::into_raw(box Next(Vec::new()));
-        Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), to_drop: UnsafeCell::new(Vec::new()), state: UnsafeCell::new(state_ptr) })  }
+        Subject{ state: Arc::new(Wrap{lock: ReSpinLock::new(), state: RecurCell::new(UnsafeCell::new(Next(Vec::new()))) })  }
     }
 
     pub fn new_dyn() -> Box<Self>
@@ -43,81 +40,33 @@ impl<'o, V, SS:YesNo> Subject<'o, SS, V>
         box Subject::new()
     }
 
-    unsafe fn COMPLETE() -> *mut SubjectState<'o, SS, V>
-    {
-        static mut VAL: *const u8 = ::std::ptr::null();
-        static INIT: Once = ONCE_INIT;
-        INIT.call_once(|| VAL = ::std::mem::transmute(Box::leak(box (Complete as SubjectState<'o, SS, V>))));
-        ::std::mem::transmute(VAL)
-    }
-
-    unsafe fn DROP() -> *mut SubjectState<'o, SS, V>
-    {
-        static mut VAL: *const u8 = ::std::ptr::null();
-        static INIT: Once = ONCE_INIT;
-        INIT.call_once(|| VAL = ::std::mem::transmute(Box::leak(box (Drop as SubjectState<'o, SS, V>))));
-        ::std::mem::transmute(VAL)
-    }
-
-//    #[inline(never)]
-//    fn sub_internal(&self, next: Arc<ActNext<'o,SS, Ref<V>>>, ec: Box<ActEcBox<'o, SS>>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
-//    {
-//        let Wrap{lock, to_drop, state} = self.state.as_ref();
-//        let recur = lock.enter();
-//
-//        match unsafe { &mut **state.get() } {
-//            Next(obs) => {
-//                let sub = make_sub();
-//                if recur == 0 {
-//                    obs.push((next, UnsafeCell::new(Some(ec)), sub.clone()));
-//                } else {
-//                    let mut vec = Vec::with_capacity(obs.len() + 1);
-//                    vec.extend( obs.iter().map(|(n, ec, sub)| (n.clone(), UnsafeCell::new(unsafe{ &mut *ec.get() }.take()), sub.clone())));
-//                    vec.push((next, UnsafeCell::new(Some(ec)), sub.clone()));
-//                    unsafe { Self::change_state(to_drop, state, Box::into_raw(box Next(vec))); }
-//                }
-//                lock.exit();
-//                return sub;
-//            },
-//            Error(e) => ec.call_box(Some(e.clone())),
-//            Complete => ec.call_box(None),
-//            Drop => {}
-//        }
-//        lock.exit();
-//        return Unsub::done()
-//    }
-
     #[inline(never)]
     fn unsub(state: &Weak<Wrap<'o,SS,V>>, observer: &Weak<ActNext<'o, SS, Ref<V>>>)
     {
         if let Some(state) = state.upgrade() {
             if let Some(observer) = observer.upgrade() {
-                let Wrap{lock, to_drop, state} = state.as_ref();
+                let Wrap{lock, state} = state.as_ref();
                 let recur = lock.enter();
 
-                if let Next(obs) = unsafe { &mut **state.get() } {
-                    if recur == 0 {
-                        obs.iter().position(|(n,_,_)| Arc::ptr_eq(n, &observer)).map(|i| obs.remove(i))
-                            .expect("the observer is expected to be in the vec");
-                    } else {
-                        let mut vec = Vec::with_capacity(obs.len() - 1 );
-                        vec.extend(obs.iter()
-                            .filter(|(n,_,_)| ! Arc::ptr_eq(n, &observer))
-                            .map(|(n, ec, sub)| (n.clone(), UnsafeCell::new(unsafe{ &mut *ec.get() }.take()), sub.clone() ))
-                        );
-                        unsafe { Self::change_state(to_drop, state, Box::into_raw(box Next(vec))); }
-                    }
-                }
-                lock.exit();
+                state.map(|s: &UnsafeCell<_>|{
+                    if let Next(obs) = unsafe{ &mut *s.get() } {
+                        if recur == 0 {
+                            let to_drop = obs.iter().position(|(n,_,_)| Arc::ptr_eq(n, &observer)).map(|i| obs.remove(i))
+                                .expect("the observer is expected to be in the vec");
+                            lock.exit();
+                        } else {
+                            let mut vec = Vec::with_capacity(obs.len() - 1 );
+                            vec.extend(obs.iter()
+                                .filter(|(n,_,_)| ! Arc::ptr_eq(n, &observer))
+                                .map(|(n, ec, sub)| (n.clone(), UnsafeCell::new(unsafe{ &mut *ec.get() }.take()), sub.clone() ))
+                            );
+                            let to_drop = state.replace(UnsafeCell::new(SubjectState::Next(vec)));
+                            lock.exit();
+                        }
+                    } else { lock.exit(); }
+                });
             }
         }
-    }
-
-    unsafe fn change_state(to_drop: &UnsafeCell<Vec<*mut SubjectState<'o, SS, V>>>, state: &UnsafeCell<*mut SubjectState<'o, SS, V>>, new: *mut SubjectState<'o, SS, V> )
-    {
-        let old = *state.get();
-        *state.get() = new;
-        (&mut *to_drop.get()).push(old);
     }
 }
 
@@ -126,15 +75,17 @@ impl<'s, 'o, V, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V>
 {
     fn drop(&mut self)
     {
-        let Wrap{lock, to_drop, state} = self.state.as_ref();
+        let Wrap{lock, state} = self.state.as_ref();
         let _ = lock.enter();
 
-        if let Next(vec) = unsafe { &**state.get() } {
-            unsafe { Self::change_state(to_drop, state, Self::DROP()); }
-            for (_, _, sub) in vec { sub.unsub(); }
-        }
-
-        lock.exit();
+        state.map(|s: &UnsafeCell<_>| {
+            let mut to_drop;
+            if let Next(vec) = unsafe{ &mut *s.get() } {
+                to_drop = state.replace(UnsafeCell::new(Drop));
+                for (_, _, sub) in vec { sub.unsub(); }
+            }
+            lock.exit();
+        });
     }
 }
 
@@ -144,73 +95,46 @@ for Subject<'o, SS, V>
 {
     fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
-        let Wrap{lock, to_drop, state} = self.state.as_ref();
+        let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
-        
-        match unsafe { &mut **state.get() } {
-            Next(obs) => {
-                let next : Arc<ActNext<'o, SS, Ref<V>>> = Arc::new(next);
-                let ec = Box::new(ec);
-                let weak_state = unsafe{ AnySendSync::new(Arc::downgrade(&self.state)) };
-                let weak_next = unsafe{ AnySendSync::new(Arc::downgrade(&next)) };
     
-                let sub = Unsub::with(forward_act_once((SSWrap::new(weak_state), SSWrap::new(weak_next)), |(weak_state, weak_next), ()| {
-                    Self::unsub(&*weak_state, &*weak_next);
-                }));
-                if recur == 0 {
-                    obs.push((next, UnsafeCell::new(Some(ec)), sub.clone()));
-                } else {
-                    let mut vec = Vec::with_capacity(obs.len() + 1);
-                    vec.extend( obs.iter().map(|(n, ec, sub)| (n.clone(), UnsafeCell::new(unsafe{ &mut *ec.get() }.take()), sub.clone())));
-                    vec.push((next, UnsafeCell::new(Some(ec)), sub.clone()));
-                    unsafe { Self::change_state(to_drop, state, Box::into_raw(box Next(vec))); }
-                }
-                lock.exit();
-                return sub;
-            },
-            Error(e) => ec.call_once(Some(e.clone())),
-            Complete => ec.call_once(None),
-            Drop => {}
-        }
-        lock.exit();
-        return Unsub::done()
+        state.map(|s: &UnsafeCell<_>|{
+            match unsafe { &mut *s.get() } {
+                Next(obs) => {
+                    let next : Arc<ActNext<'o, SS, Ref<V>>> = Arc::new(next);
+                    let ec = Box::new(ec);
+                    let weak_state = unsafe{ AnySendSync::new(Arc::downgrade(&self.state)) };
+                    let weak_next = unsafe{ AnySendSync::new(Arc::downgrade(&next)) };
+            
+                    let sub = Unsub::with(forward_act_once((SSWrap::new(weak_state), SSWrap::new(weak_next)), |(weak_state, weak_next), ()| {
+                        Self::unsub(&*weak_state, &*weak_next);
+                    }));
+                    if recur == 0 {
+                        obs.push((next, UnsafeCell::new(Some(ec)), sub.clone()));
+                    } else {
+                        let mut vec = Vec::with_capacity(obs.len() + 1);
+                        vec.extend( obs.iter().map(|(n, ec, sub)| (n.clone(), UnsafeCell::new(unsafe{ &mut *ec.get() }.take()), sub.clone())));
+                        vec.push((next, UnsafeCell::new(Some(ec)), sub.clone()));
+                        
+                        state.replace(UnsafeCell::new(Next(vec)));
+                    }
+                    lock.exit();
+                    return sub;
+                },
+                Error(e) => ec.call_once(Some(e.clone())),
+                Complete => ec.call_once(None),
+                Drop => {}
+            }
+            
+            lock.exit();
+            return Unsub::done()
+        })
     }
 
     fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     {
         self.subscribe(next, ec)
     }
-}
-
-//impl<V:Send+Sync+'static>
-//Observable<'static, YES, Ref<V>>
-//for Subject<'static, YES, V>
-//{
-//    fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES>) -> Unsub<'static, YES> where Self: Sized {
-//        self.subscribe_dyn(box next, box ec)
-//    }
-//
-//    fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES>>) -> Unsub<'static, YES>
-//    {
-//        let next: Arc<ActNext<'static, YES, Ref<V>>> = next.into();
-//        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = unsafe{ ::std::mem::transmute(next) };
-//        let (state, weak_next) = (Arc::downgrade(&self.state), Arc::downgrade(&next));
-//        self.sub_internal(next, ec, move || Unsub::<YES>::with(move || Self::unsub(state, weak_next)))
-//    }
-//}
-
-
-#[inline(never)]
-fn drop_garbage<'o, V:'o+'o, SS:YesNo>(to_drop: &UnsafeCell<Vec<*mut SubjectState<'o, SS, V>>>, lock:&ReSpinLock<SS>)
-{
-    let to_drop = unsafe { (&mut *to_drop.get()) };
-    if to_drop.len() > 0 {
-        let old = to_drop.clone();
-        to_drop.clear();
-        lock.exit();
-
-        for ptr in old.into_iter() { unsafe { Box::from_raw(ptr); } }
-    } else { lock.exit(); }
 }
 
 impl<'o, V:'o+'o, SS:YesNo> Subject<'o, SS, V>
@@ -231,69 +155,59 @@ impl<'o, V:'o+'o, SS:YesNo> Subject<'o, SS, V>
 
     pub fn next_ref(&self, v: &V)
     {
-        let Wrap{lock, to_drop, state} = self.state.as_ref();
+        let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
-
-        if let Next(vec) = unsafe { &**state.get() } {
-            for (n,_,sub) in vec {
-                if ! sub.is_done() { n.call(v,); }
+        
+        state.map(|s: &UnsafeCell<_>|{
+            if let Next(vec) = unsafe { & *s.get() } {
+                for (n,_,sub) in vec {
+                    if ! sub.is_done() { n.call(v,); }
+                }
             }
-
-            if recur == 0 {
-                drop_garbage(to_drop, lock);
-                return;
-            }
-        }
-
-        lock.exit();
+            lock.exit();
+        });
     }
 
     pub fn error(&self, e: RxError)
     {
         let e = e.set_handled();
-        let Wrap{lock, to_drop, state} = self.state.as_ref();
+        let Wrap{lock, state} = self.state.as_ref();
         let recur = lock.enter();
 
-        if let Next(vec) = unsafe { &**state.get() } {
-            unsafe { Self::change_state(to_drop, state, Box::into_raw(box Error(e.clone())) ) };
-
-            for (_,ec,sub) in vec.iter() {
-                if sub.is_done() { continue; }
-                sub.unsub();
-                unsafe{ &mut *ec.get()}.take().map(|ec| ec.call_box(Some(e.clone())));
+        state.map(|s:&UnsafeCell<_>|{
+            if let Next(vec) = unsafe { &*s.get() } {
+                let to_drop = state.replace(UnsafeCell::new(Error(e.clone())));
+        
+                for (_,ec,sub) in vec.iter() {
+                    if sub.is_done() { continue; }
+                    sub.unsub();
+                    unsafe{ &mut *ec.get()}.take().map(|ec| ec.call_box(Some(e.clone())));
+                }
             }
-
-            if recur == 0 {
-                drop_garbage(to_drop, lock);
-                return;
-            }
-        }
-
-        lock.exit();
+            lock.exit();
+        });
     }
 
     pub fn complete(&self)
     {
-        let Wrap{lock, to_drop, state} = self.state.as_ref();
+        let Wrap{lock, state} = self.state.as_ref();
+        
         let recur = lock.enter();
-
-        let old = unsafe { *state.get() };
-
-        if let Next(vec) = unsafe { &*old } {
-            unsafe { Self::change_state(to_drop, state, Self::COMPLETE()); }
-
-            for (_, ec, sub) in vec.iter() {
-                if sub.is_done() { continue; }
-                sub.unsub();
-                unsafe{ &mut *ec.get() }.take().map(|ec| ec.call_box(None));
+        
+        state.map(|s:&UnsafeCell<_>|{
+            
+            if let Next(vec) = unsafe { &*s.get() } {
+                let to_drop = state.replace(UnsafeCell::new(Complete));
+        
+                for (_, ec, sub) in vec.iter() {
+                    if sub.is_done() { continue; }
+                    sub.unsub();
+                    unsafe{ &mut *ec.get() }.take().map(|ec| ec.call_box(None));
+                }
             }
-            if recur == 0 {
-                drop_garbage(to_drop, lock);
-                return;
-            }
-        }
-
-        lock.exit();
+    
+            lock.exit();
+        });
     }
 }
 

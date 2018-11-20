@@ -8,7 +8,7 @@ struct State<'a, SS:YesNo>
 {
     lock: ReSpinLock<SS>,
     done: AtomicBool,
-    cb:   UnsafeCell<Option<Box<FnBox()+'a>>>,
+    cb:   UnsafeCell<Option<Box<ActBox<SS, ()>+'a>>>,
     cbs:  UnsafeCell<Vec<Unsub<'a, SS>>>,
 }
 
@@ -157,21 +157,21 @@ impl<'a, SS:YesNo> Unsub<'a, SS>
     }
 }
 
-impl<'a> Unsub<'a, NO>
+impl<'a, SS:YesNo> Unsub<'a, SS>
 {
-    pub fn with(cb: impl FnOnce()+'a) -> Unsub<'a, NO>
+    pub fn with(cb: impl ActOnce<SS, ()>+'a) -> Unsub<'a, SS>
     {
         Unsub { state: Arc::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
     }
 }
 
-impl Unsub<'static, YES>
-{
-    pub fn with(cb: impl FnOnce()+Send+Sync+'static) -> Unsub<'static, YES>
-    {
-        Unsub { state: Arc::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
-    }
-}
+//impl Unsub<'static, YES>
+//{
+//    pub fn with(cb: impl FnOnce()+Send+Sync+'static) -> Unsub<'static, YES>
+//    {
+//        Unsub { state: Arc::new(State { lock: ReSpinLock::new(), done: AtomicBool::new(false), cb:UnsafeCell::new(Some(box cb)), cbs: UnsafeCell::new(Vec::new()) }) }
+//    }
+//}
 
 impl<'o, SS: YesNo> FnOnce<()> for Unsub<'o, SS>
 {

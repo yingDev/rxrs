@@ -141,56 +141,39 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
         
         u
     }
+}
 
-    #[inline(never)]
-    fn sub_internal(&self, next: Arc<ActNext<'o, SS, Ref<V>>>, make_sub: impl FnOnce()->Unsub<'o, SS>) -> Unsub<'o, SS>
+impl<'o, V:'o, SS:YesNo>
+Observable<'o, SS, Ref<V>>
+for BehaviorSubject<'o, SS, V>
+{
+    fn subscribe(&self, next: impl ActNext<'o, SS, Ref<V>>, ec: impl ActEc<'o, SS>) -> Unsub<'o, SS> where Self: Sized
     {
         self.lock.enter();
         
-        let sub = if self.val.map(|v:&_| v.is_some()) {  make_sub() } else { Unsub::done() };
-        if ! sub.is_done() {
-            self.val.map(|v: &Option<V>| {
-                next.call(v.as_ref().unwrap());
+        let sub = if self.val.map(|v:&_| v.is_some()) {
+            let next = Arc::new(SSActNextWrap::new(next));
+            let sub = self.subj.subscribe( next.clone(), ec);
+            sub.if_not_done(||{
+                if ! next.stopped() {
+                    self.val.map(|v: &Option<V>| {
+                        next.call(v.as_ref().unwrap());
+                    });
+                }
             });
-        }
-
+            sub
+        } else {
+            self.subj.subscribe( next, ec)
+        };
+        
         self.lock.exit();
         
         sub
     }
-}
 
-impl<'o, V:'o>
-Observable<'o, NO, Ref<V>>
-for BehaviorSubject<'o, NO, V>
-{
-    fn subscribe(&self, next: impl ActNext<'o, NO, Ref<V>>, ec: impl ActEc<'o, NO>) -> Unsub<'o, NO> where Self: Sized
+    fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
     {
-        self.subscribe_dyn(box next, box ec)
-    }
-
-    fn subscribe_dyn(&self, next: Box<ActNext<'o, NO, Ref<V>>>, ec: Box<ActEcBox<'o, NO>>) -> Unsub<'o, NO>
-    {
-        let next: Arc<ActNext<'o, NO, Ref<V>>> = next.into();
-        //fixme: forward
-        self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
-    }
-}
-
-impl<V:Clone+'static+Send+Sync>
-Observable<'static, YES, Ref<V>>
-for BehaviorSubject<'static, YES, V>
-{
-    fn subscribe(&self, next: impl ActNext<'static, YES, Ref<V>>, ec: impl ActEc<'static, YES>) -> Unsub<'static, YES> where Self: Sized
-    {
-        self.subscribe_dyn(box next, box ec)
-    }
-
-    fn subscribe_dyn(&self, next: Box<ActNext<'static, YES, Ref<V>>>, ec: Box<ActEcBox<'static, YES>>) -> Unsub<'static, YES>
-    {
-        let next: Box<ActNext<'static, YES, Ref<V>>+Send+Sync> = unsafe{ ::std::mem::transmute(next) };
-        let next: Arc<ActNext<'static, YES, Ref<V>>+Send+Sync> = next.into();
-        self.sub_internal(next.clone(),  move || self.subj.subscribe_dyn(box move |v:&_| next.call(v), ec))
+        self.subscribe(next, ec)
     }
 }
 
@@ -282,11 +265,13 @@ mod test
         s.clone().subscribe(move |v: &i32| {
             if *v == 1 {
                 s.next(2);
+                let n = n.clone();
+                s.subscribe(move |v:&_| { n.replace(n.get() + v); }, ());
             }
             n.replace(n.get() + v);
         }, ());
         
-        assert_eq!(n1.get(), 3);
+        assert_eq!(n1.get(), 1+2+2);
     }
     
     

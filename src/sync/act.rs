@@ -152,35 +152,54 @@ for ()
 }
 
 
-
-
-pub struct WrapAct<'o, SS: YesNo, By: RefOrVal, A, R>
+pub fn forward_act_once<'o, SS:YesNo, Caps: Ssmark<SS>+'o, BY: RefOrVal>
+(caps: Caps, f: fn(Caps, BY))
+    -> SsForward<SS, (Caps, fn(Caps, BY))>
 {
-    act: A,
-    PhantomData: PhantomData<&'o (SS, By, R)>
+    SsForward::new((caps, f))
 }
 
-unsafe impl<'o, By: RefOrVal, A: Send+'o, R> Send for WrapAct<'o, YES, By, A, R> {}
-unsafe impl<'o, By: RefOrVal, A: Sync+'o, R> Sync for WrapAct<'o, YES, By, A, R> {}
-
-impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R>
-WrapAct<'o, SS, By, A, R>
+unsafe impl<'o, SS:YesNo, Caps: Ssmark<SS>+'o, BY: RefOrVal>
+ActOnce<SS, BY>
+for SsForward<SS, (Caps, fn(Caps, BY))>
 {
     #[inline(always)]
-    pub unsafe fn new(act: A) -> WrapAct<'o, SS, By, A, R>
+    fn call_once(self, v: BY::V)
     {
-        WrapAct { act, PhantomData }
+        let (caps, f) = self.captures;
+        f(caps,  unsafe{ BY::from_v(v) })
     }
 }
 
-unsafe impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R>
-Act<SS, By, R>
-for WrapAct<'o, SS, By, A, R>
-{
-    #[inline(always)]
-    fn call(&self, v: By::V) -> R
-    {
-        (self.act)(unsafe { By::from_v(v) })
-    }
-}
+
+
+//pub struct WrapAct<'o, SS: YesNo, By: RefOrVal, A, R>
+//{
+//    act: A,
+//    PhantomData: PhantomData<&'o (SS, By, R)>
+//}
+//
+//unsafe impl<'o, By: RefOrVal, A: Send+'o, R> Send for WrapAct<'o, YES, By, A, R> {}
+//unsafe impl<'o, By: RefOrVal, A: Sync+'o, R> Sync for WrapAct<'o, YES, By, A, R> {}
+//
+//impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R>
+//WrapAct<'o, SS, By, A, R>
+//{
+//    #[inline(always)]
+//    pub unsafe fn new(act: A) -> WrapAct<'o, SS, By, A, R>
+//    {
+//        WrapAct { act, PhantomData }
+//    }
+//}
+//
+//unsafe impl<'o, SS:YesNo, A: Fn(By)->R+'o, By: RefOrVal, R>
+//Act<SS, By, R>
+//for WrapAct<'o, SS, By, A, R>
+//{
+//    #[inline(always)]
+//    fn call(&self, v: By::V) -> R
+//    {
+//        (self.act)(unsafe { By::from_v(v) })
+//    }
+//}
 

@@ -5,6 +5,9 @@ use std::sync::atomic::*;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::collections::VecDeque;
+use std::ptr;
+use std::ops::Add;
+use std::cell::Cell;
 
 pub struct MutexSlim<SS:YesNo, V>
 {
@@ -44,6 +47,7 @@ impl<'a, SS:YesNo, V> Drop for Guard<'a, SS, V>
     }
 }
 
+
 impl<SS:YesNo, V> MutexSlim<SS, V>
 {
     pub fn new(value: V) -> Self
@@ -64,10 +68,53 @@ impl<SS:YesNo, V> MutexSlim<SS, V>
 }
 
 
+
+//todo: move
+pub struct RecurCell<V>
+{
+    val: UnsafeCell<Option<V>>,
+    cur: Cell<*const Option<V>>,
+}
+
+impl<V> RecurCell<V>
+{
+    pub fn new(val: V) -> Self
+    {
+        RecurCell { val: UnsafeCell::new(Some(val)), cur: Cell::new(ptr::null()) }
+    }
+    
+    pub fn map<U>(&self, f: impl FnOnce(&V) -> U) -> U
+    {
+        let val = unsafe{ &mut *self.val.get() }.take();
+        let u = if val.is_some() {
+            assert_eq!(self.cur.get(), ptr::null());
+            self.cur.replace(&val);
+            f(val.as_ref().unwrap())
+        } else {
+            assert_ne!(self.cur.get(), ptr::null());
+            f(unsafe{ &*self.cur.get() }.as_ref().unwrap())
+        };
+        
+        if self.cur.get() == &val {
+            self.cur.replace(ptr::null());
+            *unsafe{ &mut *self.val.get() } = val;
+        }
+        
+        u
+    }
+    
+    pub fn replace(&self, val: V) -> Option<V>
+    {
+        self.cur.replace(ptr::null());
+        unsafe{ &mut *self.val.get() }.replace(val)
+    }
+}
+
+
 pub struct BehaviorSubject<'o, SS:YesNo, V>
 {
     lock: ReSpinLock<SS>,
-    val: UnsafeCell<Arc<Option<V>>>,
+    val: RecurCell<Option<V>>,
     subj: Subject<'o, SS, V>,
 }
 
@@ -80,7 +127,7 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     pub fn new(value: V) -> BehaviorSubject<'o, SS, V>
     {
         BehaviorSubject{
-            val: UnsafeCell::new(Arc::new(Some(value))),
+            val: RecurCell::new(Some(value)),
             lock: ReSpinLock::new(),
             subj: Subject::new()
         }
@@ -89,10 +136,10 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     pub fn value<U>(&self, map: impl FnOnce(&Option<V>) -> U) -> U
     {
         self.lock.enter();
-        let val = unsafe { (&*self.val.get()) }.clone();
+        let u = self.val.map(map);
         self.lock.exit();
-        map(Arc::as_ref(&val))
         
+        u
     }
 
     #[inline(never)]
@@ -100,10 +147,11 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     {
         self.lock.enter();
         
-        let sub = make_sub();
+        let sub = if self.val.map(|v:&_| v.is_some()) {  make_sub() } else { Unsub::done() };
         if ! sub.is_done() {
-            let val = unsafe { &*self.val.get() }.clone();
-            next.call(Option::as_ref(&val).unwrap());
+            self.val.map(|v: &Option<V>| {
+                next.call(v.as_ref().unwrap());
+            });
         }
 
         self.lock.exit();
@@ -153,19 +201,14 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     {
         self.lock.enter();
         
-        let val = unsafe{ &mut *self.val.get() };
-        
-        if val.is_some() {
-            if let Some(val) = Arc::get_mut(val) {
-                *val = Some(v);
-            } else {
-                *val = Arc::new(Some(v));
+        self.val.map(|val: &Option<V>| {
+            if val.is_some() {
+                self.val.replace(Some(v));
+                self.val.map(|val: &Option<V>| {
+                    self.subj.next_ref(val.as_ref().unwrap());
+                });
             }
-            let val = val.clone();
-            self.lock.exit();
-            self.subj.next_ref(Option::as_ref(&val).unwrap());
-            return;
-        }
+        });
         
         self.lock.exit();
     }
@@ -173,37 +216,29 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
     pub fn error(&self, e:RxError)
     {
         self.lock.enter();
-    
-        let val = unsafe{ &mut *self.val.get() };
-        let to_drop;
-        if val.is_some() {
-            if let Some(val) = Arc::get_mut(val) {
-                to_drop = val.take();
-            } else {
-                *val = Arc::new(None);
-            }
-        }
-        self.lock.exit();
         
-        self.subj.error(e);
+        self.val.map(|val: &Option<V>| {
+            if val.is_some() {
+                self.val.replace(None);
+                self.subj.error(e);
+            }
+        });
+        
+        self.lock.exit();
     }
 
     pub fn complete(&self)
     {
         self.lock.enter();
     
-        let val = unsafe{ &mut *self.val.get() };
-        let to_drop;
-        if val.is_some() {
-            if let Some(val) = Arc::get_mut(val) {
-                to_drop = val.take();
-            } else {
-                *val = Arc::new(None);
+        self.val.map(|val: &Option<V>| {
+            if val.is_some() {
+                self.val.replace(None);
+                self.subj.complete();
             }
-        }
+        });
+        
         self.lock.exit();
-    
-        self.subj.complete();
     }
 }
 
@@ -215,6 +250,7 @@ mod test
     use std::cell::Cell;
     use crate::*;
     use std::rc::Rc;
+    use crate::util::clones::Clones;
     
     #[test]
     fn shoudl_emit_on_sub()

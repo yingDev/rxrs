@@ -1,5 +1,4 @@
 use crate::*;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 pub unsafe trait Act<SS:YesNo, A: RefOrVal, R=()>

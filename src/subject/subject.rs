@@ -51,7 +51,7 @@ impl<'o, V, SS:YesNo> Subject<'o, SS, V>
                 state.map(|s: &UnsafeCell<_>|{
                     if let Next(obs) = unsafe{ &mut *s.get() } {
                         if recur == 0 {
-                            let to_drop = obs.iter().position(|(n,_,_)| Arc::ptr_eq(n, &observer)).map(|i| obs.remove(i))
+                            let _to_drop = obs.iter().position(|(n,_,_)| Arc::ptr_eq(n, &observer)).map(|i| obs.remove(i))
                                 .expect("the observer is expected to be in the vec");
                             lock.exit();
                         } else {
@@ -60,7 +60,7 @@ impl<'o, V, SS:YesNo> Subject<'o, SS, V>
                                 .filter(|(n,_,_)| ! Arc::ptr_eq(n, &observer))
                                 .map(|(n, ec, sub)| (n.clone(), UnsafeCell::new(unsafe{ &mut *ec.get() }.take()), sub.clone() ))
                             );
-                            let to_drop = state.replace(UnsafeCell::new(SubjectState::Next(vec)));
+                            let _to_drop = state.replace(UnsafeCell::new(SubjectState::Next(vec)));
                             lock.exit();
                         }
                     } else { lock.exit(); }
@@ -79,9 +79,9 @@ impl<'s, 'o, V, SS:YesNo> ::std::ops::Drop for Subject<'o,SS,V>
         let _ = lock.enter();
 
         state.map(|s: &UnsafeCell<_>| {
-            let mut to_drop;
+            let _to_drop;
             if let Next(vec) = unsafe{ &mut *s.get() } {
-                to_drop = state.replace(UnsafeCell::new(Drop));
+                _to_drop = state.replace(UnsafeCell::new(Drop));
                 for (_, _, sub) in vec { sub.unsub(); }
             }
             lock.exit();
@@ -156,7 +156,7 @@ impl<'o, V:'o+'o, SS:YesNo> Subject<'o, SS, V>
     pub fn next_ref(&self, v: &V)
     {
         let Wrap{lock, state} = self.state.as_ref();
-        let recur = lock.enter();
+        lock.enter();
         
         state.map(|s: &UnsafeCell<_>|{
             if let Next(vec) = unsafe { & *s.get() } {
@@ -172,11 +172,11 @@ impl<'o, V:'o+'o, SS:YesNo> Subject<'o, SS, V>
     {
         let e = e.set_handled();
         let Wrap{lock, state} = self.state.as_ref();
-        let recur = lock.enter();
+        lock.enter();
 
         state.map(|s:&UnsafeCell<_>|{
             if let Next(vec) = unsafe { &*s.get() } {
-                let to_drop = state.replace(UnsafeCell::new(Error(e.clone())));
+                let _to_drop = state.replace(UnsafeCell::new(Error(e.clone())));
         
                 for (_,ec,sub) in vec.iter() {
                     if sub.is_done() { continue; }
@@ -192,12 +192,12 @@ impl<'o, V:'o+'o, SS:YesNo> Subject<'o, SS, V>
     {
         let Wrap{lock, state} = self.state.as_ref();
         
-        let recur = lock.enter();
+        lock.enter();
         
         state.map(|s:&UnsafeCell<_>|{
             
             if let Next(vec) = unsafe { &*s.get() } {
-                let to_drop = state.replace(UnsafeCell::new(Complete));
+                let _to_drop = state.replace(UnsafeCell::new(Complete));
         
                 for (_, ec, sub) in vec.iter() {
                     if sub.is_done() { continue; }

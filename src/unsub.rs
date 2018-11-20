@@ -1,6 +1,5 @@
 use crate::*;
 use std::cell::UnsafeCell;
-use std::boxed::FnBox;
 use std::sync::{Arc, Once, ONCE_INIT};
 use std::sync::atomic::{AtomicBool, Ordering};
 

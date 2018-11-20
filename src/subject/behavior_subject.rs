@@ -1,12 +1,9 @@
 use crate::*;
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-use std::sync::atomic::*;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::collections::VecDeque;
 use std::ptr;
-use std::ops::Add;
 use std::cell::Cell;
 
 pub struct MutexSlim<SS:YesNo, V>

@@ -4,7 +4,7 @@
     <b> RxRs - <a href="http://reactivex.io"> Reactive Extensions</a> for Rust </b>
 <br><br>
 <a href="https://crates.io/crates/rxrs">
-    <img src="https://img.shields.io/badge/crates.io-0.2.0--beta2-orange.svg">
+    <img src="https://img.shields.io/badge/crates.io-0.2.0--beta3-orange.svg">
 </a>
 </p>
 <br>

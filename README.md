@@ -44,18 +44,17 @@ __WIP: rxrs is under heavy development & not ready for production__
 
 ```bash
 src
-├── observable.rs
-├── observer.rs
-├── error.rs
 ├── by.rs
-├── unsub.rs
-├── lib.rs
+├── error.rs
 ├── fac
 │   ├── iter.rs
 │   ├── merge.rs
 │   ├── mod.rs
 │   ├── of.rs
 │   └── timer.rs
+├── lib.rs
+├── observable.rs
+├── observer.rs
 ├── op
 │   ├── filter.rs
 │   ├── map.rs
@@ -79,8 +78,11 @@ src
 │   ├── any_send_sync.rs
 │   ├── mod.rs
 │   ├── re_spin_lock.rs
+│   ├── re_spin_mutex.rs
+│   ├── recur_cell.rs
 │   ├── ss_mark.rs
 │   └── yesno.rs
+├── unsub.rs
 └── util
     ├── clones.rs
     └── mod.rs

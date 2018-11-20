@@ -57,7 +57,7 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
         let cell = self.val.lock();
         cell.map(|val: &Option<V>| {
             if val.is_some() {
-                cell.replace(Some(v));
+                let _drop = cell.replace(Some(v));
                 cell.map(|val: &Option<V>| self.subj.next_ref(val.as_ref().unwrap()));
             }
         })
@@ -68,7 +68,7 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
         let cell = self.val.lock();
         cell.map(|val: &Option<V>| {
             if val.is_some() {
-                cell.replace(None);
+                let _drop = cell.replace(None);
                 self.subj.error(e);
             }
         });
@@ -79,7 +79,7 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
         let cell = self.val.lock();
         cell.map(|val: &Option<V>| {
             if val.is_some() {
-                cell.replace(None);
+                let _drop = cell.replace(None);
                 self.subj.complete();
             }
         });

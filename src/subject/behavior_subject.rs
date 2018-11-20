@@ -36,21 +36,17 @@ for BehaviorSubject<'o, SS, V>
             let sub = self.subj.subscribe( next.clone(), ec);
             sub.if_not_done(||{
                 if ! next.stopped() {
-                    val.map(|v: &Option<V>| {
-                        next.call(v.as_ref().unwrap());
-                    });
+                    val.map(|v: &Option<V>| next.call(v.as_ref().unwrap()));
                 }
             });
             sub
         } else {
-            self.subj.subscribe( next, ec)
+            self.subj.subscribe(next, ec)
         }
     }
 
     fn subscribe_dyn(&self, next: Box<ActNext<'o, SS, Ref<V>>>, ec: Box<ActEcBox<'o, SS>>) -> Unsub<'o, SS>
-    {
-        self.subscribe(next, ec)
-    }
+    { self.subscribe(next, ec) }
 }
 
 
@@ -62,9 +58,7 @@ impl<'o, V:'o, SS:YesNo> BehaviorSubject<'o, SS, V>
         cell.map(|val: &Option<V>| {
             if val.is_some() {
                 cell.replace(Some(v));
-                cell.map(|val: &Option<V>| {
-                    self.subj.next_ref(val.as_ref().unwrap());
-                });
+                cell.map(|val: &Option<V>| self.subj.next_ref(val.as_ref().unwrap()));
             }
         })
     }
